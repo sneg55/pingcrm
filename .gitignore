@@ -37,3 +37,4 @@ celerybeat-schedule
 
 # Claude Code
 .claude/
+**/.claude/
