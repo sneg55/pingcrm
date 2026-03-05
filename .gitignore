@@ -1,0 +1,39 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+dist/
+.venv/
+venv/
+
+# Node
+node_modules/
+.next/
+out/
+
+# Environment
+.env
+.env.local
+.env.*.local
+
+# IDE
+.vscode/
+.idea/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Celery / Redis
+celerybeat-schedule
+*.pid
+
+# Telegram sessions
+*.session
+
+# Logs
+*.log
+/tmp/
+
+# Claude Code
+.claude/
