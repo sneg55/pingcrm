@@ -13,6 +13,7 @@ class Contact(Base):
     __table_args__ = (
         Index("ix_contacts_emails_gin", "emails", postgresql_using="gin"),
         Index("ix_contacts_relationship_score", "relationship_score"),
+        Index("ix_contacts_interaction_count", "interaction_count"),
         Index("ix_contacts_full_name", "full_name"),
     )
 
@@ -35,12 +36,13 @@ class Contact(Base):
 
     twitter_handle: Mapped[str | None] = mapped_column(String, nullable=True)
     twitter_bio: Mapped[str | None] = mapped_column(Text, nullable=True)
-    telegram_username: Mapped[str | None] = mapped_column(String, nullable=True)
-    telegram_user_id: Mapped[str | None] = mapped_column(String, nullable=True)
+    telegram_username: Mapped[str | None] = mapped_column(String, nullable=True, index=True)
+    telegram_user_id: Mapped[str | None] = mapped_column(String, nullable=True, index=True)
     telegram_bio: Mapped[str | None] = mapped_column(Text, nullable=True)
 
     linkedin_url: Mapped[str | None] = mapped_column(String, nullable=True)
     avatar_url: Mapped[str | None] = mapped_column(String, nullable=True)
+    birthday: Mapped[str | None] = mapped_column(String, nullable=True)  # "MM-DD" or "YYYY-MM-DD"
 
     telegram_common_groups: Mapped[list | None] = mapped_column(JSON, nullable=True)
     telegram_groups_fetched_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
@@ -49,6 +51,7 @@ class Contact(Base):
     notes: Mapped[str | None] = mapped_column(Text, nullable=True)
 
     relationship_score: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    interaction_count: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
     last_interaction_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     last_followup_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 

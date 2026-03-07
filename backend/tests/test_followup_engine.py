@@ -14,6 +14,7 @@ from app.models.detected_event import DetectedEvent
 from app.models.follow_up import FollowUpSuggestion
 from app.services.followup_engine import (
     MAX_SUGGESTIONS_PER_RUN,
+    compute_priority,
     generate_suggestions,
     get_weekly_digest,
 )
@@ -571,3 +572,156 @@ async def test_get_weekly_digest_user_isolation(
     suggestions = await get_weekly_digest(test_user.id, db)
 
     assert all(s.user_id == test_user.id for s in suggestions)
+
+
+# ---------------------------------------------------------------------------
+# compute_priority — unit tests
+# ---------------------------------------------------------------------------
+
+
+def test_compute_priority_rich_history():
+    """Tier 1: interaction_count >= 10 AND days_since > 90 → 1000+."""
+    score = compute_priority(interaction_count=50, days_since_interaction=100, is_event_trigger=False)
+    assert score >= 1000
+
+
+def test_compute_priority_cooling_down():
+    """Tier 2: interaction_count >= 10 AND 14 <= days_since <= 90 → 500-999."""
+    score = compute_priority(interaction_count=15, days_since_interaction=20, is_event_trigger=False)
+    assert 500 <= score < 1000
+
+
+def test_compute_priority_standard():
+    """Tier 3: everyone else → 0-499."""
+    score = compute_priority(interaction_count=2, days_since_interaction=100, is_event_trigger=False)
+    assert score < 500
+
+
+def test_compute_priority_event_bonus():
+    """Event triggers get a +200 bonus."""
+    base = compute_priority(interaction_count=5, days_since_interaction=30, is_event_trigger=False)
+    with_event = compute_priority(interaction_count=5, days_since_interaction=30, is_event_trigger=True)
+    assert with_event == base + 200
+
+
+def test_compute_priority_more_interactions_rank_higher():
+    """Within a tier, more interactions = higher priority."""
+    low = compute_priority(interaction_count=10, days_since_interaction=100, is_event_trigger=False)
+    high = compute_priority(interaction_count=50, days_since_interaction=100, is_event_trigger=False)
+    assert high > low
+
+
+# ---------------------------------------------------------------------------
+# Priority-based ordering — integration tests
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_rich_history_contacts_prioritized(db: AsyncSession, test_user):
+    """A contact with 50 interactions should beat one with 2 interactions."""
+    rich = Contact(
+        id=uuid.uuid4(),
+        user_id=test_user.id,
+        full_name="Rich History",
+        emails=["rich@test.com"],
+        relationship_score=2,
+        interaction_count=50,
+        last_interaction_at=datetime.now(UTC) - timedelta(days=100),
+        source="manual",
+    )
+    poor = Contact(
+        id=uuid.uuid4(),
+        user_id=test_user.id,
+        full_name="Poor History",
+        emails=["poor@test.com"],
+        relationship_score=2,
+        interaction_count=2,
+        last_interaction_at=datetime.now(UTC) - timedelta(days=100),
+        source="manual",
+    )
+    db.add_all([rich, poor])
+    await db.commit()
+
+    with _patch_compose():
+        suggestions = await generate_suggestions(test_user.id, db)
+
+    assert len(suggestions) == 2
+    assert suggestions[0].contact_id == rich.id
+
+
+@pytest.mark.asyncio
+async def test_cooling_contacts_beat_standard(db: AsyncSession, test_user):
+    """A cooling contact (15 interactions, 20 days ago) beats a standard contact (2 interactions, 100 days ago)."""
+    cooling = Contact(
+        id=uuid.uuid4(),
+        user_id=test_user.id,
+        full_name="Cooling Down",
+        emails=["cooling@test.com"],
+        relationship_score=2,
+        interaction_count=15,
+        last_interaction_at=datetime.now(UTC) - timedelta(days=100),
+        source="manual",
+    )
+    standard = Contact(
+        id=uuid.uuid4(),
+        user_id=test_user.id,
+        full_name="Standard",
+        emails=["standard@test.com"],
+        relationship_score=2,
+        interaction_count=2,
+        last_interaction_at=datetime.now(UTC) - timedelta(days=100),
+        source="manual",
+    )
+    db.add_all([cooling, standard])
+    await db.commit()
+
+    with _patch_compose():
+        suggestions = await generate_suggestions(test_user.id, db)
+
+    assert len(suggestions) == 2
+    assert suggestions[0].contact_id == cooling.id
+
+
+@pytest.mark.asyncio
+async def test_event_trigger_gets_priority_bonus(db: AsyncSession, test_user):
+    """An event-triggered contact with few interactions should beat a standard contact with few interactions."""
+    event_contact = Contact(
+        id=uuid.uuid4(),
+        user_id=test_user.id,
+        full_name="Event Contact",
+        emails=["event@test.com"],
+        relationship_score=2,
+        interaction_count=3,
+        last_interaction_at=datetime.now(UTC) - timedelta(days=5),
+        source="manual",
+    )
+    standard_contact = Contact(
+        id=uuid.uuid4(),
+        user_id=test_user.id,
+        full_name="Standard Time-Based",
+        emails=["standard@test.com"],
+        relationship_score=2,
+        interaction_count=3,
+        last_interaction_at=datetime.now(UTC) - timedelta(days=100),
+        source="manual",
+    )
+    db.add_all([event_contact, standard_contact])
+    await db.flush()
+
+    event = DetectedEvent(
+        id=uuid.uuid4(),
+        contact_id=event_contact.id,
+        event_type="job_change",
+        confidence=0.9,
+        summary="Got promoted",
+        detected_at=datetime.now(UTC) - timedelta(days=1),
+    )
+    db.add(event)
+    await db.commit()
+
+    with _patch_compose():
+        suggestions = await generate_suggestions(test_user.id, db)
+
+    assert len(suggestions) == 2
+    assert suggestions[0].contact_id == event_contact.id
+    assert suggestions[0].trigger_type == "event_based"

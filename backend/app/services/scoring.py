@@ -99,6 +99,7 @@ async def calculate_score(contact_id: uuid.UUID, db: AsyncSession) -> int:
     contact = contact_result.scalar_one_or_none()
     if contact:
         contact.relationship_score = score
+        contact.interaction_count = len(interactions)
         await db.flush()
 
     return score

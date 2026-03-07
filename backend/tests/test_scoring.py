@@ -132,3 +132,29 @@ async def test_score_silence_penalty(db: AsyncSession, test_user: User):
 
     score = await calculate_score(contact.id, db)
     assert score == 0  # No recent activity, 4 months silence penalty
+
+
+@pytest.mark.asyncio
+async def test_interaction_count_persisted(db: AsyncSession, test_user: User):
+    """calculate_score should persist interaction_count on the contact."""
+    contact = Contact(
+        user_id=test_user.id,
+        full_name="Count Test",
+        emails=["count@test.com"],
+    )
+    db.add(contact)
+    await db.flush()
+
+    now = datetime.now(UTC)
+    for i in range(3):
+        db.add(Interaction(
+            contact_id=contact.id, user_id=test_user.id,
+            platform="email", direction="inbound",
+            content_preview=f"Message {i}",
+            occurred_at=now - timedelta(days=i + 1),
+        ))
+    await db.flush()
+
+    await calculate_score(contact.id, db)
+    await db.refresh(contact)
+    assert contact.interaction_count == 3
