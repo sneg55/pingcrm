@@ -241,13 +241,12 @@ async def test_verify_requires_auth(client: AsyncClient):
 
 
 @pytest.mark.asyncio
-async def test_sync_telegram_returns_new_interactions_count(
+async def test_sync_telegram_dispatches_task(
     client: AsyncClient,
     db: AsyncSession,
     test_user: User,
 ):
-    """sync endpoint returns the count of new interactions from the sync."""
-    # Set telegram_session on the user and persist it
+    """sync endpoint dispatches a Celery task and returns immediately."""
     test_user.telegram_session = "serialised_session_string"
     db.add(test_user)
     await db.commit()
@@ -255,10 +254,8 @@ async def test_sync_telegram_returns_new_interactions_count(
     token = create_access_token(data={"sub": str(test_user.id)})
     headers = {"Authorization": f"Bearer {token}"}
 
-    with patch(
-        "app.integrations.telegram.sync_telegram_chats",
-        new=AsyncMock(return_value=5),
-    ):
+    with patch("app.services.tasks.sync_telegram_for_user") as mock_task:
+        mock_task.delay.return_value = None
         response = await client.post(
             "/api/v1/contacts/sync/telegram",
             headers=headers,
@@ -267,7 +264,90 @@ async def test_sync_telegram_returns_new_interactions_count(
     assert response.status_code == 200
     body = response.json()
     assert body["error"] is None
-    assert body["data"]["new_interactions"] == 5
+    assert body["data"]["status"] == "started"
+    mock_task.delay.assert_called_once_with(str(test_user.id))
+
+
+@pytest.mark.asyncio
+async def test_common_groups_without_session_returns_empty(
+    client: AsyncClient,
+    auth_headers: dict[str, str],
+    db: AsyncSession,
+    test_user: User,
+):
+    """common-groups endpoint returns empty list when user has no telegram session."""
+    from app.models.contact import Contact
+
+    contact = Contact(user_id=test_user.id, full_name="Test", telegram_username="test_user")
+    db.add(contact)
+    await db.commit()
+    await db.refresh(contact)
+
+    response = await client.get(
+        f"/api/v1/contacts/{contact.id}/telegram/common-groups",
+        headers=auth_headers,
+    )
+    assert response.status_code == 200
+    assert response.json()["data"] == []
+
+
+@pytest.mark.asyncio
+async def test_common_groups_without_telegram_username(
+    client: AsyncClient,
+    db: AsyncSession,
+    test_user: User,
+):
+    """common-groups endpoint returns empty list when contact has no telegram username."""
+    from app.models.contact import Contact
+
+    test_user.telegram_session = "session_string"
+    db.add(test_user)
+    await db.commit()
+
+    token = create_access_token(data={"sub": str(test_user.id)})
+    headers = {"Authorization": f"Bearer {token}"}
+
+    contact = Contact(user_id=test_user.id, full_name="No TG")
+    db.add(contact)
+    await db.commit()
+    await db.refresh(contact)
+
+    response = await client.get(
+        f"/api/v1/contacts/{contact.id}/telegram/common-groups",
+        headers=headers,
+    )
+    assert response.status_code == 200
+    assert response.json()["data"] == []
+
+
+@pytest.mark.asyncio
+async def test_common_groups_contact_not_found(
+    client: AsyncClient,
+    db: AsyncSession,
+    test_user: User,
+):
+    """common-groups endpoint returns 404 for non-existent contact."""
+    test_user.telegram_session = "session_string"
+    db.add(test_user)
+    await db.commit()
+
+    token = create_access_token(data={"sub": str(test_user.id)})
+    headers = {"Authorization": f"Bearer {token}"}
+
+    response = await client.get(
+        f"/api/v1/contacts/{uuid.uuid4()}/telegram/common-groups",
+        headers=headers,
+    )
+    assert response.status_code == 404
+
+
+@pytest.mark.asyncio
+async def test_common_groups_requires_auth(client: AsyncClient):
+    """common-groups endpoint returns 401 without auth."""
+    response = await client.get(
+        f"/api/v1/contacts/{uuid.uuid4()}/telegram/common-groups",
+    )
+    assert response.status_code == 401
 
 
 @pytest.mark.asyncio
@@ -287,12 +367,12 @@ async def test_sync_telegram_without_session_returns_400(
 
 
 @pytest.mark.asyncio
-async def test_sync_telegram_error_returns_502(
+async def test_sync_telegram_dispatches_even_with_valid_session(
     client: AsyncClient,
     db: AsyncSession,
     test_user: User,
 ):
-    """sync endpoint returns 502 when the sync integration raises an exception."""
+    """sync endpoint dispatches task as long as telegram_session is set."""
     test_user.telegram_session = "valid_session"
     db.add(test_user)
     await db.commit()
@@ -300,17 +380,15 @@ async def test_sync_telegram_error_returns_502(
     token = create_access_token(data={"sub": str(test_user.id)})
     headers = {"Authorization": f"Bearer {token}"}
 
-    with patch(
-        "app.integrations.telegram.sync_telegram_chats",
-        new=AsyncMock(side_effect=RuntimeError("Telegram connection lost")),
-    ):
+    with patch("app.services.tasks.sync_telegram_for_user") as mock_task:
+        mock_task.delay.return_value = None
         response = await client.post(
             "/api/v1/contacts/sync/telegram",
             headers=headers,
         )
 
-    assert response.status_code == 502
-    assert "Telegram sync failed" in response.json()["detail"]
+    assert response.status_code == 200
+    assert response.json()["data"]["status"] == "started"
 
 
 @pytest.mark.asyncio
@@ -318,30 +396,3 @@ async def test_sync_telegram_requires_auth(client: AsyncClient):
     """sync endpoint returns 401 without auth headers."""
     response = await client.post("/api/v1/contacts/sync/telegram")
     assert response.status_code == 401
-
-
-@pytest.mark.asyncio
-async def test_sync_telegram_zero_new_interactions(
-    client: AsyncClient,
-    db: AsyncSession,
-    test_user: User,
-):
-    """sync endpoint handles the case where no new interactions are found."""
-    test_user.telegram_session = "valid_session"
-    db.add(test_user)
-    await db.commit()
-
-    token = create_access_token(data={"sub": str(test_user.id)})
-    headers = {"Authorization": f"Bearer {token}"}
-
-    with patch(
-        "app.integrations.telegram.sync_telegram_chats",
-        new=AsyncMock(return_value=0),
-    ):
-        response = await client.post(
-            "/api/v1/contacts/sync/telegram",
-            headers=headers,
-        )
-
-    assert response.status_code == 200
-    assert response.json()["data"]["new_interactions"] == 0

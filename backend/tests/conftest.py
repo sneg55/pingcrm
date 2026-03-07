@@ -21,6 +21,7 @@ from app.main import app
 from app.models.contact import Contact
 from app.models.detected_event import DetectedEvent
 from app.models.follow_up import FollowUpSuggestion
+from app.models.google_account import GoogleAccount
 from app.models.identity_match import IdentityMatch
 from app.models.interaction import Interaction
 from app.models.notification import Notification
@@ -113,6 +114,7 @@ async def test_contact(db: AsyncSession, test_user: User) -> Contact:
         title="CEO",
         relationship_score=5,
         source="manual",
+        last_interaction_at=datetime.now(UTC) - timedelta(days=5),
     )
     db.add(contact)
     await db.commit()

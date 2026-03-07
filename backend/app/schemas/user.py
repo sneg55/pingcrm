@@ -22,8 +22,29 @@ class UserResponse(BaseModel):
     email: str
     full_name: str | None = None
     created_at: datetime
+    google_connected: bool = False
+    google_email: str | None = None
+    telegram_connected: bool = False
+    telegram_username: str | None = None
+    twitter_connected: bool = False
+    twitter_username: str | None = None
 
     model_config = {"from_attributes": True}
+
+    @classmethod
+    def from_user(cls, user: "User") -> "UserResponse":
+        return cls(
+            id=user.id,
+            email=user.email,
+            full_name=user.full_name,
+            created_at=user.created_at,
+            google_connected=bool(user.google_refresh_token),
+            google_email=user.email if user.google_refresh_token else None,
+            telegram_connected=bool(user.telegram_session),
+            telegram_username=getattr(user, "telegram_username", None),
+            twitter_connected=bool(user.twitter_access_token),
+            twitter_username=getattr(user, "twitter_username", None),
+        )
 
 
 class Token(BaseModel):

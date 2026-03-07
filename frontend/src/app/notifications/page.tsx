@@ -1,6 +1,6 @@
 "use client";
 
-import { Bell, Mail, Sparkles, Activity, Settings, CheckCheck } from "lucide-react";
+import { Bell, Mail, Sparkles, Activity, Settings, CheckCheck, ScanSearch, RefreshCw } from "lucide-react";
 import { useNotifications, useMarkRead, useMarkAllRead } from "@/hooks/use-notifications";
 import type { AppNotification } from "@/hooks/use-notifications";
 import { EmptyState } from "@/components/empty-state";
@@ -12,6 +12,8 @@ const typeIcons: Record<string, typeof Bell> = {
   event: Activity,
   digest: Mail,
   system: Settings,
+  bio_change: ScanSearch,
+  sync: RefreshCw,
 };
 
 function NotificationRow({ notification }: { notification: AppNotification }) {

@@ -3,7 +3,7 @@ from datetime import datetime
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel
-from sqlalchemy import select
+from sqlalchemy import func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.auth import get_current_user
@@ -68,9 +68,18 @@ async def list_suggestions(
     """List pending follow-up suggestions for the current user, with contact info."""
     result = await db.execute(
         select(FollowUpSuggestion)
+        .join(Contact, FollowUpSuggestion.contact_id == Contact.id)
         .where(
             FollowUpSuggestion.user_id == current_user.id,
             FollowUpSuggestion.status == "pending",
+            or_(Contact.tags.is_(None), ~Contact.tags.contains(["2nd tier"])),
+            or_(
+                func.coalesce(func.array_length(Contact.emails, 1), 0) > 0,
+                Contact.twitter_handle.isnot(None),
+                Contact.telegram_username.isnot(None),
+                Contact.linkedin_url.isnot(None),
+            ),
+            Contact.last_interaction_at.isnot(None),
         )
         .order_by(FollowUpSuggestion.created_at.desc())
     )

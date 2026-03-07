@@ -1,13 +1,13 @@
 "use client";
 
 import { formatDistanceToNow } from "date-fns";
-import { Mail, MessageCircle, Twitter, FileText, Plus } from "lucide-react";
+import { Mail, MessageCircle, Twitter, FileText, Plus, Calendar, Linkedin } from "lucide-react";
 import { useState } from "react";
 import { cn } from "@/lib/utils";
 
 export interface TimelineEntry {
   id: string;
-  platform: "email" | "telegram" | "twitter" | "manual";
+  platform: "email" | "telegram" | "twitter" | "linkedin" | "manual" | "meeting";
   direction: "inbound" | "outbound" | "mutual";
   content_preview: string | null;
   occurred_at: string;
@@ -23,14 +23,18 @@ const platformIcons: Record<TimelineEntry["platform"], React.ReactNode> = {
   email: <Mail className="w-4 h-4" />,
   telegram: <MessageCircle className="w-4 h-4" />,
   twitter: <Twitter className="w-4 h-4" />,
+  linkedin: <Linkedin className="w-4 h-4" />,
   manual: <FileText className="w-4 h-4" />,
+  meeting: <Calendar className="w-4 h-4" />,
 };
 
 const platformColors: Record<TimelineEntry["platform"], string> = {
   email: "bg-blue-100 text-blue-600",
   telegram: "bg-sky-100 text-sky-600",
   twitter: "bg-slate-100 text-slate-600",
+  linkedin: "bg-blue-100 text-blue-700",
   manual: "bg-gray-100 text-gray-600",
+  meeting: "bg-purple-100 text-purple-600",
 };
 
 export function Timeline({ interactions, onAddNote, className }: TimelineProps) {

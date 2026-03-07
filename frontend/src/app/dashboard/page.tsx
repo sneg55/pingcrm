@@ -122,13 +122,11 @@ export default function DashboardPage() {
                   >
                     <div className="min-w-0 flex-1">
                       <p className="text-sm font-medium text-gray-800 truncate">
-                        {s.contact_name ?? "Contact"}
+                        {s.contact?.full_name ?? ([s.contact?.given_name, s.contact?.family_name].filter(Boolean).join(" ") || "Contact")}
                       </p>
-                      {s.trigger_reason && (
-                        <p className="text-xs text-gray-500 truncate">
-                          {s.trigger_reason}
-                        </p>
-                      )}
+                      <p className="text-xs text-gray-500 truncate">
+                        {s.trigger_type === "time_based" ? "No interaction in 90+ days" : s.trigger_type === "event_based" ? "New event detected" : "Scheduled follow-up"}
+                      </p>
                     </div>
                     <span className="flex-shrink-0 text-gray-400">
                       {channelIcons[s.suggested_channel]}
@@ -174,10 +172,10 @@ export default function DashboardPage() {
                 {recentContacts.map((contact) => {
                   const name =
                     contact.full_name ??
-                    [contact.given_name, contact.family_name]
+                    ([contact.given_name, contact.family_name]
                       .filter(Boolean)
                       .join(" ") ||
-                    "Unnamed";
+                    "Unnamed");
                   return (
                     <li key={contact.id}>
                       <Link
@@ -216,7 +214,10 @@ export default function DashboardPage() {
               Relationship health
             </h2>
             <div className="grid grid-cols-3 gap-3 text-center">
-              <div className="p-3 rounded-lg bg-green-50 border border-green-100">
+              <Link
+                href="/contacts?score=strong"
+                className="p-3 rounded-lg bg-green-50 border border-green-100 hover:bg-green-100 transition-colors cursor-pointer"
+              >
                 <p className="text-3xl font-bold text-green-700">
                   {isLoading ? (
                     <span className="inline-block w-8 h-8 bg-green-100 rounded animate-pulse" />
@@ -225,8 +226,11 @@ export default function DashboardPage() {
                   )}
                 </p>
                 <p className="text-xs text-green-600 mt-1">Active (8+)</p>
-              </div>
-              <div className="p-3 rounded-lg bg-yellow-50 border border-yellow-100">
+              </Link>
+              <Link
+                href="/contacts?score=active"
+                className="p-3 rounded-lg bg-yellow-50 border border-yellow-100 hover:bg-yellow-100 transition-colors cursor-pointer"
+              >
                 <p className="text-3xl font-bold text-yellow-700">
                   {isLoading ? (
                     <span className="inline-block w-8 h-8 bg-yellow-100 rounded animate-pulse" />
@@ -235,8 +239,11 @@ export default function DashboardPage() {
                   )}
                 </p>
                 <p className="text-xs text-yellow-600 mt-1">Warm (4-7)</p>
-              </div>
-              <div className="p-3 rounded-lg bg-red-50 border border-red-100">
+              </Link>
+              <Link
+                href="/contacts?score=dormant"
+                className="p-3 rounded-lg bg-red-50 border border-red-100 hover:bg-red-100 transition-colors cursor-pointer"
+              >
                 <p className="text-3xl font-bold text-red-700">
                   {isLoading ? (
                     <span className="inline-block w-8 h-8 bg-red-100 rounded animate-pulse" />
@@ -245,7 +252,7 @@ export default function DashboardPage() {
                   )}
                 </p>
                 <p className="text-xs text-red-600 mt-1">Cold (0-3)</p>
-              </div>
+              </Link>
             </div>
           </div>
 

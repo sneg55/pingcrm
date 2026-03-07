@@ -5,7 +5,7 @@ import logging
 import uuid
 from datetime import UTC, datetime, timedelta
 
-from sqlalchemy import select
+from sqlalchemy import func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.contact import Contact
@@ -24,6 +24,20 @@ TIME_BASED_MAX_SCORE = 4
 EVENT_BASED_WINDOW_DAYS = 7
 EVENT_CONFIDENCE_THRESHOLD = 0.7
 MAX_SUGGESTIONS_PER_RUN = 5
+
+# Contact must have at least one reachable channel
+_has_channel = or_(
+    func.coalesce(func.array_length(Contact.emails, 1), 0) > 0,
+    Contact.twitter_handle.isnot(None),
+    Contact.telegram_username.isnot(None),
+    Contact.linkedin_url.isnot(None),
+)
+
+# Exclude contacts tagged "2nd tier"
+_not_2nd_tier = or_(Contact.tags.is_(None), ~Contact.tags.contains(["2nd tier"]))
+
+# Only contacts with previous interactions
+_has_interactions = Contact.last_interaction_at.isnot(None)
 
 
 async def _get_best_channel(contact_id: uuid.UUID, db: AsyncSession) -> str:
@@ -54,8 +68,14 @@ async def generate_suggestions(user_id: uuid.UUID, db: AsyncSession) -> list[Fol
     now = datetime.now(UTC)
     created: list[FollowUpSuggestion] = []
 
-    # Keep a set of contact_ids already queued this run to avoid duplicates
-    queued_contact_ids: set[uuid.UUID] = set()
+    # Skip contacts that already have a pending suggestion
+    existing_result = await db.execute(
+        select(FollowUpSuggestion.contact_id).where(
+            FollowUpSuggestion.user_id == user_id,
+            FollowUpSuggestion.status == "pending",
+        )
+    )
+    queued_contact_ids: set[uuid.UUID] = {row[0] for row in existing_result.all()}
 
     # ------------------------------------------------------------------
     # Trigger 1: Time-based — no interaction in 90+ days AND score < 4
@@ -64,9 +84,11 @@ async def generate_suggestions(user_id: uuid.UUID, db: AsyncSession) -> list[Fol
     time_based_result = await db.execute(
         select(Contact).where(
             Contact.user_id == user_id,
+            _not_2nd_tier,
+            _has_channel,
+            _has_interactions,
             Contact.relationship_score < TIME_BASED_MAX_SCORE,
-            (Contact.last_interaction_at < cutoff_time)
-            | (Contact.last_interaction_at.is_(None)),
+            Contact.last_interaction_at < cutoff_time,
         )
     )
     time_based_contacts = time_based_result.scalars().all()
@@ -116,6 +138,9 @@ async def generate_suggestions(user_id: uuid.UUID, db: AsyncSession) -> list[Fol
         .join(Contact, DetectedEvent.contact_id == Contact.id)
         .where(
             Contact.user_id == user_id,
+            _not_2nd_tier,
+            _has_channel,
+            _has_interactions,
             DetectedEvent.detected_at >= event_cutoff,
             DetectedEvent.confidence > EVENT_CONFIDENCE_THRESHOLD,
         )
@@ -171,6 +196,9 @@ async def generate_suggestions(user_id: uuid.UUID, db: AsyncSession) -> list[Fol
     scheduled_result = await db.execute(
         select(Contact).where(
             Contact.user_id == user_id,
+            _not_2nd_tier,
+            _has_channel,
+            _has_interactions,
             Contact.last_followup_at.isnot(None),
             Contact.last_followup_at < scheduled_cutoff,
         )

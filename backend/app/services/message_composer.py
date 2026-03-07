@@ -152,15 +152,31 @@ INSTRUCTIONS:
 
 Message:"""
 
-    client = anthropic.Anthropic(api_key=settings.ANTHROPIC_API_KEY)
+    if not settings.ANTHROPIC_API_KEY:
+        return f"Hey {first_name}, just wanted to check in — how have things been going?"
 
-    message = client.messages.create(
-        model="claude-3-5-haiku-20241022",
-        max_tokens=200,
-        messages=[{"role": "user", "content": prompt}],
-    )
+    import asyncio
 
-    draft = message.content[0].text.strip()
+    client = anthropic.AsyncAnthropic(api_key=settings.ANTHROPIC_API_KEY)
+
+    try:
+        message = await asyncio.wait_for(
+            client.messages.create(
+                model="claude-3-5-haiku-20241022",
+                max_tokens=200,
+                messages=[{"role": "user", "content": prompt}],
+            ),
+            timeout=30,
+        )
+        draft = message.content[0].text.strip()
+    except (asyncio.TimeoutError, Exception) as exc:
+        logger.warning(
+            "compose_followup_message: API call failed for contact %s: %s",
+            contact_id, exc,
+        )
+        # Fallback to a simple template-based message
+        draft = f"Hey {first_name}, just wanted to check in — how have things been going?"
+
     logger.info(
         "compose_followup_message: composed message for contact %s (trigger=%s)",
         contact_id,

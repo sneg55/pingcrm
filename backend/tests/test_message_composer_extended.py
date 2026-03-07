@@ -125,7 +125,7 @@ async def test_compose_followup_message_contact_not_found_mocked(mock_db: AsyncM
     mock_db.execute = AsyncMock(return_value=contact_result)
 
     with patch("app.services.message_composer.settings") as mock_settings, \
-         patch("anthropic.Anthropic"):
+         patch("anthropic.AsyncAnthropic"):
         mock_settings.ANTHROPIC_API_KEY = "sk-ant-test-key"
 
         with pytest.raises(ValueError, match="not found"):
@@ -142,50 +142,43 @@ async def test_compose_followup_message_contact_not_found_mocked(mock_db: AsyncM
 # ---------------------------------------------------------------------------
 
 @pytest.mark.asyncio
-async def test_compose_followup_no_api_key_propagates_auth_error(mock_db: AsyncMock):
-    """When ANTHROPIC_API_KEY is empty and the client raises, the error propagates."""
+async def test_compose_followup_no_api_key_returns_fallback(mock_db: AsyncMock):
+    """When ANTHROPIC_API_KEY is empty, the composer returns a fallback message."""
     contact = _make_contact()
     _configure_db(mock_db, contact, [])
 
-    auth_error = Exception("AuthenticationError: invalid x-api-key")
-
-    mock_client = MagicMock()
-    mock_client.messages.create.side_effect = auth_error
-
-    with patch("app.services.message_composer.settings") as mock_settings, \
-         patch("anthropic.Anthropic", return_value=mock_client):
+    with patch("app.services.message_composer.settings") as mock_settings:
         mock_settings.ANTHROPIC_API_KEY = ""
 
-        with pytest.raises(Exception, match="(?i)auth|invalid|api"):
-            await compose_followup_message(
-                contact_id=contact.id,
-                trigger_type="time_based",
-                event_summary=None,
-                db=mock_db,
-            )
+        result = await compose_followup_message(
+            contact_id=contact.id,
+            trigger_type="time_based",
+            event_summary=None,
+            db=mock_db,
+        )
+    assert "Jane" in result
+    assert "check in" in result.lower()
 
 
 @pytest.mark.asyncio
-async def test_compose_followup_empty_api_key_passed_to_anthropic(mock_db: AsyncMock):
-    """The empty API key is forwarded to anthropic.Anthropic — not silently replaced."""
+async def test_compose_followup_empty_api_key_skips_anthropic(mock_db: AsyncMock):
+    """When ANTHROPIC_API_KEY is empty, Anthropic client is never instantiated."""
     contact = _make_contact()
     _configure_db(mock_db, contact, [])
 
-    mock_client = MagicMock()
-    mock_client.messages.create.return_value = _mock_anthropic_response("reply")
-
     with patch("app.services.message_composer.settings") as mock_settings, \
-         patch("anthropic.Anthropic", return_value=mock_client) as mock_ctor:
+         patch("anthropic.AsyncAnthropic") as mock_ctor:
         mock_settings.ANTHROPIC_API_KEY = ""
 
-        await compose_followup_message(
+        result = await compose_followup_message(
             contact_id=contact.id,
             trigger_type="time_based",
             event_summary=None,
             db=mock_db,
         )
 
-    mock_ctor.assert_called_once_with(api_key="")
+    mock_ctor.assert_not_called()
+    assert "Jane" in result
 
 
 # ---------------------------------------------------------------------------
@@ -200,10 +193,10 @@ async def test_compose_followup_success_returns_stripped_text(mock_db: AsyncMock
 
     expected = "Hi Jane, hope things are going well!"
     mock_client = MagicMock()
-    mock_client.messages.create.return_value = _mock_anthropic_response(f"\n  {expected}\n")
+    mock_client.messages.create = AsyncMock(return_value=_mock_anthropic_response(f"\n  {expected}\n"))
 
     with patch("app.services.message_composer.settings") as mock_settings, \
-         patch("anthropic.Anthropic", return_value=mock_client):
+         patch("anthropic.AsyncAnthropic", return_value=mock_client):
         mock_settings.ANTHROPIC_API_KEY = "sk-ant-test-key"
 
         result = await compose_followup_message(
@@ -223,10 +216,10 @@ async def test_compose_followup_uses_correct_model_and_token_limit(mock_db: Asyn
     _configure_db(mock_db, contact, [])
 
     mock_client = MagicMock()
-    mock_client.messages.create.return_value = _mock_anthropic_response("ok")
+    mock_client.messages.create = AsyncMock(return_value=_mock_anthropic_response("ok"))
 
     with patch("app.services.message_composer.settings") as mock_settings, \
-         patch("anthropic.Anthropic", return_value=mock_client):
+         patch("anthropic.AsyncAnthropic", return_value=mock_client):
         mock_settings.ANTHROPIC_API_KEY = "sk-ant-test-key"
 
         await compose_followup_message(
@@ -262,10 +255,10 @@ async def test_compose_followup_all_trigger_types(
 
     text = f"Message for {trigger_type}."
     mock_client = MagicMock()
-    mock_client.messages.create.return_value = _mock_anthropic_response(text)
+    mock_client.messages.create = AsyncMock(return_value=_mock_anthropic_response(text))
 
     with patch("app.services.message_composer.settings") as mock_settings, \
-         patch("anthropic.Anthropic", return_value=mock_client):
+         patch("anthropic.AsyncAnthropic", return_value=mock_client):
         mock_settings.ANTHROPIC_API_KEY = "sk-ant-test-key"
 
         result = await compose_followup_message(
@@ -286,10 +279,10 @@ async def test_compose_followup_event_based_includes_summary_in_prompt(mock_db: 
 
     event_summary = "Jane was promoted to VP of Engineering."
     mock_client = MagicMock()
-    mock_client.messages.create.return_value = _mock_anthropic_response("Congrats!")
+    mock_client.messages.create = AsyncMock(return_value=_mock_anthropic_response("Congrats!"))
 
     with patch("app.services.message_composer.settings") as mock_settings, \
-         patch("anthropic.Anthropic", return_value=mock_client):
+         patch("anthropic.AsyncAnthropic", return_value=mock_client):
         mock_settings.ANTHROPIC_API_KEY = "sk-ant-test-key"
 
         await compose_followup_message(
@@ -319,10 +312,10 @@ async def test_compose_followup_formal_tone_in_prompt(mock_db: AsyncMock):
     _configure_db(mock_db, contact, formal_interactions)
 
     mock_client = MagicMock()
-    mock_client.messages.create.return_value = _mock_anthropic_response("Formal reply.")
+    mock_client.messages.create = AsyncMock(return_value=_mock_anthropic_response("Formal reply."))
 
     with patch("app.services.message_composer.settings") as mock_settings, \
-         patch("anthropic.Anthropic", return_value=mock_client):
+         patch("anthropic.AsyncAnthropic", return_value=mock_client):
         mock_settings.ANTHROPIC_API_KEY = "sk-ant-test-key"
 
         await compose_followup_message(
@@ -350,10 +343,10 @@ async def test_compose_followup_casual_tone_in_prompt(mock_db: AsyncMock):
     _configure_db(mock_db, contact, casual_interactions)
 
     mock_client = MagicMock()
-    mock_client.messages.create.return_value = _mock_anthropic_response("Casual reply.")
+    mock_client.messages.create = AsyncMock(return_value=_mock_anthropic_response("Casual reply."))
 
     with patch("app.services.message_composer.settings") as mock_settings, \
-         patch("anthropic.Anthropic", return_value=mock_client):
+         patch("anthropic.AsyncAnthropic", return_value=mock_client):
         mock_settings.ANTHROPIC_API_KEY = "sk-ant-test-key"
 
         await compose_followup_message(
@@ -378,10 +371,10 @@ async def test_compose_followup_contact_first_name_in_prompt(mock_db: AsyncMock)
     _configure_db(mock_db, contact, [])
 
     mock_client = MagicMock()
-    mock_client.messages.create.return_value = _mock_anthropic_response("Hi Alice!")
+    mock_client.messages.create = AsyncMock(return_value=_mock_anthropic_response("Hi Alice!"))
 
     with patch("app.services.message_composer.settings") as mock_settings, \
-         patch("anthropic.Anthropic", return_value=mock_client):
+         patch("anthropic.AsyncAnthropic", return_value=mock_client):
         mock_settings.ANTHROPIC_API_KEY = "sk-ant-test-key"
 
         await compose_followup_message(
@@ -402,10 +395,10 @@ async def test_compose_followup_no_given_name_uses_first_token_of_full_name(mock
     _configure_db(mock_db, contact, [])
 
     mock_client = MagicMock()
-    mock_client.messages.create.return_value = _mock_anthropic_response("Hi Robert!")
+    mock_client.messages.create = AsyncMock(return_value=_mock_anthropic_response("Hi Robert!"))
 
     with patch("app.services.message_composer.settings") as mock_settings, \
-         patch("anthropic.Anthropic", return_value=mock_client):
+         patch("anthropic.AsyncAnthropic", return_value=mock_client):
         mock_settings.ANTHROPIC_API_KEY = "sk-ant-test-key"
 
         result = await compose_followup_message(
@@ -427,10 +420,10 @@ async def test_compose_followup_no_company_no_title(mock_db: AsyncMock):
     _configure_db(mock_db, contact, [])
 
     mock_client = MagicMock()
-    mock_client.messages.create.return_value = _mock_anthropic_response("Hey Jane!")
+    mock_client.messages.create = AsyncMock(return_value=_mock_anthropic_response("Hey Jane!"))
 
     with patch("app.services.message_composer.settings") as mock_settings, \
-         patch("anthropic.Anthropic", return_value=mock_client):
+         patch("anthropic.AsyncAnthropic", return_value=mock_client):
         mock_settings.ANTHROPIC_API_KEY = "sk-ant-test-key"
 
         result = await compose_followup_message(
@@ -458,10 +451,10 @@ async def test_compose_followup_preferred_channel_from_most_recent_interaction(m
     _configure_db(mock_db, contact, interactions)
 
     mock_client = MagicMock()
-    mock_client.messages.create.return_value = _mock_anthropic_response("Hey!")
+    mock_client.messages.create = AsyncMock(return_value=_mock_anthropic_response("Hey!"))
 
     with patch("app.services.message_composer.settings") as mock_settings, \
-         patch("anthropic.Anthropic", return_value=mock_client):
+         patch("anthropic.AsyncAnthropic", return_value=mock_client):
         mock_settings.ANTHROPIC_API_KEY = "sk-ant-test-key"
 
         await compose_followup_message(
@@ -482,10 +475,10 @@ async def test_compose_followup_no_interactions_defaults_channel_to_email(mock_d
     _configure_db(mock_db, contact, [])
 
     mock_client = MagicMock()
-    mock_client.messages.create.return_value = _mock_anthropic_response("Hey!")
+    mock_client.messages.create = AsyncMock(return_value=_mock_anthropic_response("Hey!"))
 
     with patch("app.services.message_composer.settings") as mock_settings, \
-         patch("anthropic.Anthropic", return_value=mock_client):
+         patch("anthropic.AsyncAnthropic", return_value=mock_client):
         mock_settings.ANTHROPIC_API_KEY = "sk-ant-test-key"
 
         await compose_followup_message(

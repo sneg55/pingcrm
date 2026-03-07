@@ -1,15 +1,25 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import apiClient, { type ApiResponse } from "@/lib/api";
 
+export interface SuggestionContact {
+  id: string;
+  full_name: string | null;
+  given_name: string | null;
+  family_name: string | null;
+  company: string | null;
+  title: string | null;
+  last_interaction_at: string | null;
+}
+
 export interface Suggestion {
   id: string;
   contact_id: string;
-  contact_name: string | null;
-  trigger_reason: string | null;
+  contact: SuggestionContact | null;
+  trigger_type: string;
   suggested_message: string;
   suggested_channel: "email" | "telegram" | "twitter";
   status: "pending" | "sent" | "snoozed" | "dismissed";
-  snooze_until: string | null;
+  scheduled_for: string | null;
   created_at: string;
   updated_at: string | null;
 }

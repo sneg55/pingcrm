@@ -6,6 +6,40 @@ from httpx import AsyncClient
 
 
 @pytest.mark.asyncio
+async def test_google_url_returns_oauth_url(client: AsyncClient, auth_headers: dict):
+    """GET /auth/google/url returns an authorization URL when credentials are configured."""
+    with patch("app.api.auth.settings") as mock_settings, \
+         patch("app.api.auth.build_oauth_url", return_value=("https://accounts.google.com/o/oauth2/auth?mock=1", "state123")):
+        mock_settings.GOOGLE_CLIENT_ID = "test-client-id"
+        mock_settings.GOOGLE_CLIENT_SECRET = "test-client-secret"
+        mock_settings.ACCESS_TOKEN_EXPIRE_MINUTES = 1440
+        resp = await client.get("/api/v1/auth/google/url", headers=auth_headers)
+    assert resp.status_code == 200
+    data = resp.json()["data"]
+    assert "url" in data
+    assert data["url"].startswith("https://accounts.google.com")
+    assert "state" in data
+
+
+@pytest.mark.asyncio
+async def test_google_url_without_credentials(client: AsyncClient, auth_headers: dict):
+    """GET /auth/google/url returns 400 when GOOGLE_CLIENT_ID is not set."""
+    with patch("app.api.auth.settings") as mock_settings:
+        mock_settings.GOOGLE_CLIENT_ID = ""
+        mock_settings.GOOGLE_CLIENT_SECRET = ""
+        resp = await client.get("/api/v1/auth/google/url", headers=auth_headers)
+    assert resp.status_code == 400
+    assert "not configured" in resp.json()["detail"]
+
+
+@pytest.mark.asyncio
+async def test_google_url_requires_auth(client: AsyncClient):
+    """GET /auth/google/url returns 401 without auth headers."""
+    resp = await client.get("/api/v1/auth/google/url")
+    assert resp.status_code == 401
+
+
+@pytest.mark.asyncio
 async def test_google_callback_exchange_fails(client: AsyncClient):
     """POST /auth/google/callback returns 400 when code exchange fails."""
     with patch("app.api.auth.exchange_code", side_effect=RuntimeError("bad code")):

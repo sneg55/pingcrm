@@ -33,10 +33,15 @@ apiClient.interceptors.response.use(
     if (error.response?.status === 401) {
       if (typeof window !== "undefined") {
         localStorage.removeItem("access_token");
+        // Redirect to login unless already on an auth page
+        if (!window.location.pathname.startsWith("/auth")) {
+          window.location.href = "/auth/login";
+        }
       }
     }
     return Promise.reject(error);
   }
 );
 
+export { apiClient as api };
 export default apiClient;

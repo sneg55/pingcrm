@@ -16,7 +16,7 @@ from app.models.identity_match import IdentityMatch
 from app.models.user import User
 from app.services.identity_resolution import (
     find_deterministic_matches,
-    find_probable_matches,
+    find_probabilistic_matches,
     merge_contacts,
 )
 
@@ -27,11 +27,38 @@ def envelope(data: Any, error: str | None = None, meta: dict | None = None) -> d
     return {"data": data, "error": error, "meta": meta}
 
 
-def _match_to_dict(match: IdentityMatch) -> dict:
+def _contact_to_dict(contact: Contact) -> dict:
+    return {
+        "id": str(contact.id),
+        "full_name": contact.full_name,
+        "given_name": contact.given_name,
+        "family_name": contact.family_name,
+        "emails": contact.emails or [],
+        "phones": contact.phones or [],
+        "company": contact.company,
+        "title": contact.title,
+        "twitter_handle": contact.twitter_handle,
+        "telegram_username": contact.telegram_username,
+        "linkedin_url": contact.linkedin_url,
+        "tags": contact.tags or [],
+        "notes": contact.notes,
+        "source": contact.source,
+    }
+
+
+async def _match_to_dict(match: IdentityMatch, db: AsyncSession) -> dict:
+    # Load both contacts to include full data in the response
+    res_a = await db.execute(select(Contact).where(Contact.id == match.contact_a_id))
+    res_b = await db.execute(select(Contact).where(Contact.id == match.contact_b_id))
+    contact_a = res_a.scalar_one_or_none()
+    contact_b = res_b.scalar_one_or_none()
+
     return {
         "id": str(match.id),
         "contact_a_id": str(match.contact_a_id),
         "contact_b_id": str(match.contact_b_id),
+        "contact_a": _contact_to_dict(contact_a) if contact_a else None,
+        "contact_b": _contact_to_dict(contact_b) if contact_b else None,
         "match_score": match.match_score,
         "match_method": match.match_method,
         "status": match.status,
@@ -64,7 +91,7 @@ async def list_pending_matches(
     ]
 
     return envelope(
-        [_match_to_dict(m) for m in user_matches],
+        [await _match_to_dict(m, db) for m in user_matches],
         meta={"count": len(user_matches)},
     )
 
@@ -105,7 +132,7 @@ async def confirm_merge(
     merged = await merge_contacts(contact_a_id, contact_b_id, db)
     await db.commit()
 
-    return envelope(_match_to_dict(merged))
+    return envelope(await _match_to_dict(merged, db))
 
 
 @router.post("/matches/{match_id}/reject", response_model=dict)
@@ -136,7 +163,7 @@ async def reject_match(
     await db.flush()
     await db.commit()
 
-    return envelope(_match_to_dict(match))
+    return envelope(await _match_to_dict(match, db))
 
 
 @router.post("/scan", response_model=dict)
@@ -146,17 +173,21 @@ async def trigger_scan(
 ) -> dict:
     """Trigger a full identity resolution scan for the current user's contacts."""
     deterministic = await find_deterministic_matches(current_user.id, db)
-    probabilistic = await find_probable_matches(current_user.id, db)
+    probabilistic = await find_probabilistic_matches(current_user.id, db)
     await db.commit()
+
+    pending = [m for m in probabilistic if m.status == "pending_review"]
+    auto = [m for m in probabilistic if m.status == "merged"]
 
     return envelope(
         {
-            "auto_merged": len(deterministic),
-            "pending_review": len(probabilistic),
+            "auto_merged": len(deterministic) + len(auto),
+            "pending_review": len(pending),
+            "matches_found": len(deterministic) + len(probabilistic),
         },
         meta={
-            "auto_merged_ids": [str(m.id) for m in deterministic],
-            "pending_review_ids": [str(m.id) for m in probabilistic],
+            "auto_merged_ids": [str(m.id) for m in deterministic + auto],
+            "pending_review_ids": [str(m.id) for m in pending],
         },
     )
 

@@ -2,8 +2,11 @@ import logging
 from contextlib import asynccontextmanager
 from collections.abc import AsyncGenerator
 
+from pathlib import Path
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
 
 from app.api.auth import router as auth_router
 from app.api.contacts import router as contacts_router
@@ -55,6 +58,11 @@ app.include_router(telegram_router)
 app.include_router(identity_router)
 app.include_router(twitter_router)
 app.include_router(notifications_router)
+
+# Serve uploaded avatars
+_avatars_dir = Path("static/avatars")
+_avatars_dir.mkdir(parents=True, exist_ok=True)
+app.mount("/static", StaticFiles(directory="static"), name="static")
 
 
 @app.get("/api/health", tags=["health"])

@@ -24,6 +24,16 @@ logger = logging.getLogger(__name__)
 _TWITTER_API_BASE = "https://api.twitter.com/2"
 
 
+def _parse_twitter_ts(ts: str | None) -> datetime:
+    """Parse an ISO-8601 timestamp from the Twitter API into a datetime."""
+    if not ts:
+        return datetime.now(UTC)
+    try:
+        return datetime.fromisoformat(ts.replace("Z", "+00:00"))
+    except (ValueError, AttributeError):
+        return datetime.now(UTC)
+
+
 # ---------------------------------------------------------------------------
 # OAuth 1.0a helpers
 # ---------------------------------------------------------------------------
@@ -254,13 +264,15 @@ async def poll_contacts_activity(
 ) -> list[dict[str, Any]]:
     """For each contact with a twitter_handle, fetch recent tweets and bio.
 
-    Detects bio changes by comparing the fetched description with whatever is
-    stored in the contact's notes field under a sentinel prefix.  Stores raw
-    tweet data alongside a ``bio_change`` flag for downstream classification.
+    Detects bio changes by comparing the fetched description with the
+    contact's ``twitter_bio`` column.  When a change is detected the column
+    is updated and a Notification record is created.
 
     Returns:
         A list of activity dicts, one per contact that has a twitter_handle.
     """
+    from app.models.notification import Notification
+
     result = await db.execute(
         select(Contact).where(
             Contact.user_id == user.id,
@@ -270,7 +282,6 @@ async def poll_contacts_activity(
     contacts: list[Contact] = list(result.scalars().all())
 
     activity_records: list[dict[str, Any]] = []
-    _SENTINEL_PREFIX = "__twitter_bio__:"
 
     for contact in contacts:
         handle = (contact.twitter_handle or "").lstrip("@").strip()
@@ -281,28 +292,25 @@ async def poll_contacts_activity(
         profile = await fetch_user_profile(handle)
         current_bio = profile.get("description", "")
 
-        # Detect bio change using a sentinel stored in notes.
-        stored_bio = ""
-        if contact.notes:
-            for line in contact.notes.splitlines():
-                if line.startswith(_SENTINEL_PREFIX):
-                    stored_bio = line[len(_SENTINEL_PREFIX):]
-                    break
-
+        stored_bio = contact.twitter_bio or ""
         bio_changed = bool(current_bio and current_bio != stored_bio)
 
         if bio_changed:
-            # Update stored bio in notes.
-            sentinel_line = f"{_SENTINEL_PREFIX}{current_bio}"
-            if contact.notes:
-                lines = [
-                    ln for ln in contact.notes.splitlines()
-                    if not ln.startswith(_SENTINEL_PREFIX)
-                ]
-                lines.append(sentinel_line)
-                contact.notes = "\n".join(lines)
-            else:
-                contact.notes = sentinel_line
+            contact.twitter_bio = current_bio
+            # Create a notification for the bio change
+            display_name = contact.full_name or handle
+            notif = Notification(
+                user_id=user.id,
+                notification_type="bio_change",
+                title=f"@{handle} updated their Twitter bio",
+                body=f"{display_name} changed their bio to: {current_bio[:200]}",
+                link=f"/contacts/{contact.id}",
+            )
+            db.add(notif)
+            await db.flush()
+        elif current_bio and not contact.twitter_bio:
+            # First time we see a bio — store it without notification
+            contact.twitter_bio = current_bio
             await db.flush()
 
         activity_records.append({
@@ -315,6 +323,63 @@ async def poll_contacts_activity(
         })
 
     return activity_records
+
+
+async def sync_twitter_bios(user: User, db: AsyncSession) -> dict[str, int]:
+    """Fetch and store Twitter bios for all contacts with a twitter_handle.
+
+    Creates notifications for bio changes. Returns counts.
+    """
+    from app.models.notification import Notification
+
+    result = await db.execute(
+        select(Contact).where(
+            Contact.user_id == user.id,
+            Contact.twitter_handle.isnot(None),
+        )
+    )
+    contacts: list[Contact] = list(result.scalars().all())
+
+    updated = 0
+    bio_changes = 0
+
+    for contact in contacts:
+        handle = (contact.twitter_handle or "").lstrip("@").strip()
+        if not handle:
+            continue
+
+        profile = await fetch_user_profile(handle)
+        current_bio = profile.get("description", "")
+        if not current_bio:
+            continue
+
+        stored_bio = contact.twitter_bio or ""
+
+        if current_bio != stored_bio:
+            had_previous = bool(stored_bio)
+            contact.twitter_bio = current_bio
+            updated += 1
+
+            if had_previous:
+                bio_changes += 1
+                display_name = contact.full_name or handle
+                notif = Notification(
+                    user_id=user.id,
+                    notification_type="bio_change",
+                    title=f"@{handle} updated their Twitter bio",
+                    body=f"{display_name} changed their bio to: {current_bio[:200]}",
+                    link=f"/contacts/{contact.id}",
+                )
+                db.add(notif)
+
+    if updated:
+        await db.flush()
+
+    logger.info(
+        "sync_twitter_bios for user %s: %d updated, %d bio changes.",
+        user.id, updated, bio_changes,
+    )
+    return {"bios_updated": updated, "bio_changes": bio_changes}
 
 
 # ---------------------------------------------------------------------------
@@ -426,23 +491,74 @@ async def _user_bearer_headers(user: User, db: AsyncSession) -> dict[str, str] |
 # ---------------------------------------------------------------------------
 
 
+MAX_DM_PAGES = 15  # safety cap: 15 pages * 100 = up to 1500 events
+
+
 async def fetch_dm_conversations(headers: dict[str, str]) -> list[dict[str, Any]]:
-    """Fetch DM conversations using OAuth 2.0 user token."""
-    try:
-        async with httpx.AsyncClient(timeout=30.0) as client:
+    """Fetch DM events using OAuth 2.0 user token (Twitter API v2).
+
+    Paginates through all available pages (up to ~30 days of history).
+    """
+    all_events: list[dict[str, Any]] = []
+    pagination_token: str | None = None
+
+    async with httpx.AsyncClient(timeout=30.0) as client:
+        for page in range(MAX_DM_PAGES):
+            params: dict[str, str] = {
+                "dm_event.fields": "created_at,sender_id,text,dm_conversation_id,participant_ids",
+                "event_types": "MessageCreate",
+                "max_results": "100",
+            }
+            if pagination_token:
+                params["pagination_token"] = pagination_token
+
             resp = await client.get(
-                f"{_TWITTER_API_BASE}/dm_conversations",
+                f"{_TWITTER_API_BASE}/dm_events",
                 headers=headers,
-                params={"dm_event.fields": "created_at,sender_id,text", "max_results": "100"},
+                params=params,
             )
-            resp.raise_for_status()
-            return resp.json().get("data", [])
-    except httpx.HTTPStatusError as exc:
-        logger.warning("fetch_dm_conversations: HTTP %s — %s", exc.response.status_code, exc.response.text)
-        return []
-    except Exception:
-        logger.exception("fetch_dm_conversations: unexpected error.")
-        return []
+            body = resp.json()
+            if resp.status_code != 200:
+                error_detail = body.get("detail") or body.get("title") or str(body)
+                logger.warning("fetch_dm_conversations: HTTP %s — %s", resp.status_code, error_detail)
+                raise RuntimeError(f"Twitter DM API error ({resp.status_code}): {error_detail}")
+
+            events = body.get("data", [])
+            all_events.extend(events)
+
+            pagination_token = body.get("meta", {}).get("next_token")
+            if not pagination_token:
+                break
+
+            logger.debug("fetch_dm_conversations: page %d fetched %d events, continuing...", page + 1, len(events))
+
+    logger.info("fetch_dm_conversations: fetched %d DM events total", len(all_events))
+    return all_events
+
+
+async def _lookup_twitter_users_by_ids(
+    ids: list[str], headers: dict[str, str]
+) -> dict[str, dict[str, str]]:
+    """Batch lookup Twitter users by IDs. Returns {id: {username, name}}."""
+    if not ids:
+        return {}
+    result: dict[str, dict[str, str]] = {}
+    # API allows up to 100 per request
+    for i in range(0, len(ids), 100):
+        batch = ids[i : i + 100]
+        try:
+            async with httpx.AsyncClient(timeout=15.0) as client:
+                resp = await client.get(
+                    f"{_TWITTER_API_BASE}/users",
+                    headers=headers,
+                    params={"ids": ",".join(batch), "user.fields": "name,username"},
+                )
+                resp.raise_for_status()
+                for u in resp.json().get("data", []):
+                    result[u["id"]] = {"username": u.get("username", ""), "name": u.get("name", "")}
+        except Exception:
+            logger.warning("_lookup_twitter_users_by_ids: failed for batch starting at %d", i)
+    return result
 
 
 async def _resolve_twitter_user_id(handle: str, headers: dict[str, str]) -> str | None:
@@ -511,11 +627,18 @@ async def sync_twitter_dms(
 
     dm_events = await fetch_dm_conversations(headers)
     if not dm_events:
+        logger.info("sync_twitter_dms: no DM events returned for user %s", user.id)
         return 0
+
+    logger.info("sync_twitter_dms: processing %d DM events for user %s", len(dm_events), user.id)
 
     # Build or reuse Twitter user ID -> Contact mapping
     id_to_contact = _id_map if _id_map is not None else await _build_twitter_id_to_contact_map(user, db, headers)
+    logger.info("sync_twitter_dms: contact map has %d entries", len(id_to_contact))
     new_count = 0
+    created_contacts = 0
+    skipped_duplicate = 0
+    _pending_create: dict[str, list[dict]] = {}  # twitter_id -> events
 
     for event in dm_events:
         event_id = event.get("id", "")
@@ -528,6 +651,13 @@ async def sync_twitter_dms(
         # Find the other participant's Twitter user ID
         participant_id = sender_id if direction == "inbound" else event.get("participant_id", "")
         if not participant_id or participant_id == user.twitter_user_id:
+            # Try to extract from participant_ids field
+            participant_ids = event.get("participant_ids", [])
+            for pid in participant_ids:
+                if pid != user.twitter_user_id:
+                    participant_id = pid
+                    break
+        if not participant_id or participant_id == user.twitter_user_id:
             continue
 
         # Check if interaction already exists
@@ -535,11 +665,16 @@ async def sync_twitter_dms(
             select(Interaction).where(Interaction.raw_reference_id == f"twitter_dm:{event_id}")
         )
         if existing.scalar_one_or_none():
+            skipped_duplicate += 1
             continue
 
         # Match participant to a specific contact by Twitter user ID
         contact = id_to_contact.get(participant_id)
         if not contact:
+            # Auto-create contact — collect ID for batch lookup later
+            if participant_id not in _pending_create:
+                _pending_create[participant_id] = []
+            _pending_create[participant_id].append(event)
             continue
 
         interaction = Interaction(
@@ -549,14 +684,64 @@ async def sync_twitter_dms(
             direction=direction,
             content_preview=text[:500] if text else "",
             raw_reference_id=f"twitter_dm:{event_id}",
-            occurred_at=event.get("created_at", datetime.now(UTC).isoformat()),
+            occurred_at=_parse_twitter_ts(event.get("created_at")),
         )
         db.add(interaction)
         contact.last_interaction_at = interaction.occurred_at
         new_count += 1
 
+    # Auto-create contacts for unmatched participants
+    if _pending_create:
+        profiles = await _lookup_twitter_users_by_ids(list(_pending_create.keys()), headers)
+        for twitter_id, events in _pending_create.items():
+            profile = profiles.get(twitter_id, {})
+            username = profile.get("username", "")
+            name = profile.get("name", "")
+
+            # Create a new contact
+            parts = name.split(None, 1) if name else []
+            contact = Contact(
+                user_id=user.id,
+                given_name=parts[0] if parts else username or twitter_id,
+                family_name=parts[1] if len(parts) > 1 else None,
+                full_name=name or username or None,
+                twitter_handle=username or None,
+                source="twitter",
+            )
+            db.add(contact)
+            await db.flush()
+            created_contacts += 1
+            id_to_contact[twitter_id] = contact
+
+            # Now create interactions for this contact's events
+            for ev in events:
+                ev_id = ev.get("id", "")
+                existing = await db.execute(
+                    select(Interaction).where(Interaction.raw_reference_id == f"twitter_dm:{ev_id}")
+                )
+                if existing.scalar_one_or_none():
+                    continue
+                sender_id = ev.get("sender_id", "")
+                direction = "outbound" if sender_id == user.twitter_user_id else "inbound"
+                interaction = Interaction(
+                    contact_id=contact.id,
+                    user_id=user.id,
+                    platform="twitter",
+                    direction=direction,
+                    content_preview=(ev.get("text", "") or "")[:500],
+                    raw_reference_id=f"twitter_dm:{ev_id}",
+                    occurred_at=_parse_twitter_ts(ev.get("created_at")),
+                )
+                db.add(interaction)
+                contact.last_interaction_at = interaction.occurred_at
+                new_count += 1
+
     await db.flush()
-    return new_count
+    logger.info(
+        "sync_twitter_dms for user %s: %d new interactions, %d new contacts, %d duplicate (of %d events)",
+        user.id, new_count, created_contacts, skipped_duplicate, len(dm_events),
+    )
+    return {"new_interactions": new_count, "new_contacts": created_contacts}
 
 
 # ---------------------------------------------------------------------------
@@ -569,29 +754,42 @@ async def fetch_mentions(
     headers: dict[str, str],
     since_id: str | None = None,
 ) -> list[dict[str, Any]]:
-    """Fetch mentions for user using OAuth 2.0."""
-    params: dict[str, str] = {
-        "tweet.fields": "created_at,author_id,text",
-        "max_results": "100",
-    }
-    if since_id:
-        params["since_id"] = since_id
+    """Fetch mentions for user using OAuth 2.0, with pagination."""
+    all_mentions: list[dict[str, Any]] = []
+    pagination_token: str | None = None
 
     try:
         async with httpx.AsyncClient(timeout=30.0) as client:
-            resp = await client.get(
-                f"{_TWITTER_API_BASE}/users/{twitter_user_id}/mentions",
-                headers=headers,
-                params=params,
-            )
-            resp.raise_for_status()
-            return resp.json().get("data", [])
+            for _ in range(MAX_DM_PAGES):
+                params: dict[str, str] = {
+                    "tweet.fields": "created_at,author_id,text",
+                    "max_results": "100",
+                }
+                if since_id:
+                    params["since_id"] = since_id
+                if pagination_token:
+                    params["pagination_token"] = pagination_token
+
+                resp = await client.get(
+                    f"{_TWITTER_API_BASE}/users/{twitter_user_id}/mentions",
+                    headers=headers,
+                    params=params,
+                )
+                resp.raise_for_status()
+                body = resp.json()
+                all_mentions.extend(body.get("data", []))
+
+                pagination_token = body.get("meta", {}).get("next_token")
+                if not pagination_token:
+                    break
+
+        return all_mentions
     except httpx.HTTPStatusError as exc:
         logger.warning("fetch_mentions: HTTP %s — %s", exc.response.status_code, exc.response.text)
-        return []
+        return all_mentions  # return what we got so far
     except Exception:
         logger.exception("fetch_mentions: unexpected error.")
-        return []
+        return all_mentions
 
 
 async def sync_twitter_mentions(
@@ -643,7 +841,7 @@ async def sync_twitter_mentions(
             direction="inbound",
             content_preview=text[:500] if text else "",
             raw_reference_id=f"twitter_mention:{tweet_id}",
-            occurred_at=mention.get("created_at", datetime.now(UTC).isoformat()),
+            occurred_at=_parse_twitter_ts(mention.get("created_at")),
         )
         db.add(interaction)
         contact.last_interaction_at = interaction.occurred_at

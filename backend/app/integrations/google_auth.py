@@ -14,6 +14,7 @@ SCOPES = [
     "https://www.googleapis.com/auth/userinfo.profile",
     "https://www.googleapis.com/auth/contacts.readonly",
     "https://www.googleapis.com/auth/gmail.readonly",
+    "https://www.googleapis.com/auth/calendar.readonly",
 ]
 
 _CLIENT_CONFIG = {
@@ -22,15 +23,15 @@ _CLIENT_CONFIG = {
         "client_secret": settings.GOOGLE_CLIENT_SECRET,
         "auth_uri": "https://accounts.google.com/o/oauth2/auth",
         "token_uri": "https://oauth2.googleapis.com/token",
-        "redirect_uris": ["postmessage"],
+        "redirect_uris": [settings.GOOGLE_REDIRECT_URI],
     }
 }
 
 
-def build_oauth_url(redirect_uri: str = "postmessage") -> tuple[str, str]:
+def build_oauth_url(redirect_uri: str | None = None) -> tuple[str, str]:
     """Return (authorization_url, state) for the Google consent screen."""
     flow = Flow.from_client_config(_CLIENT_CONFIG, scopes=SCOPES)
-    flow.redirect_uri = redirect_uri
+    flow.redirect_uri = redirect_uri or settings.GOOGLE_REDIRECT_URI
     authorization_url, state = flow.authorization_url(
         access_type="offline",
         include_granted_scopes="true",
@@ -39,13 +40,13 @@ def build_oauth_url(redirect_uri: str = "postmessage") -> tuple[str, str]:
     return authorization_url, state
 
 
-def exchange_code(code: str, redirect_uri: str = "postmessage") -> dict[str, Any]:
+def exchange_code(code: str, redirect_uri: str | None = None) -> dict[str, Any]:
     """Exchange an authorization code for OAuth tokens.
 
     Returns a dict with keys: access_token, refresh_token, id_token, expiry.
     """
     flow = Flow.from_client_config(_CLIENT_CONFIG, scopes=SCOPES)
-    flow.redirect_uri = redirect_uri
+    flow.redirect_uri = redirect_uri or settings.GOOGLE_REDIRECT_URI
     flow.fetch_token(code=code)
     credentials: Credentials = flow.credentials
     return {

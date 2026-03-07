@@ -1,4 +1,5 @@
 """Twitter OAuth 2.0 PKCE auth endpoints."""
+import logging
 import secrets
 import time
 import uuid as _uuid_mod
@@ -15,6 +16,8 @@ from app.integrations.twitter import (
     generate_pkce_pair,
 )
 from app.models.user import User
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/v1/auth/twitter", tags=["twitter-auth"])
 
@@ -86,5 +89,21 @@ async def twitter_callback(
     if "refresh_token" in tokens:
         current_user.twitter_refresh_token = tokens["refresh_token"]
 
+    # Fetch Twitter username
+    try:
+        import httpx
+
+        async with httpx.AsyncClient() as client:
+            resp = await client.get(
+                "https://api.twitter.com/2/users/me",
+                headers={"Authorization": f"Bearer {tokens['access_token']}"},
+            )
+            if resp.status_code == 200:
+                user_data = resp.json().get("data", {})
+                current_user.twitter_user_id = user_data.get("id") or current_user.twitter_user_id
+                current_user.twitter_username = user_data.get("username")
+    except Exception:
+        logger.warning("Failed to fetch Twitter username for user %s", current_user.id)
+
     await db.flush()
-    return {"data": {"connected": True}, "error": None}
+    return {"data": {"connected": True, "username": current_user.twitter_username}, "error": None}

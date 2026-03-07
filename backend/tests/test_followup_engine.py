@@ -44,9 +44,9 @@ def _patch_compose():
 async def test_get_best_channel_falls_back_to_email(
     db: AsyncSession, test_user, test_contact
 ):
-    """When a contact has no interactions the channel should default to 'email'."""
+    """When a contact has no recent interactions the channel should default to 'email'."""
     test_contact.relationship_score = 3
-    test_contact.last_interaction_at = None
+    test_contact.last_interaction_at = datetime.now(UTC) - timedelta(days=200)
     db.add(test_contact)
     await db.commit()
     await db.refresh(test_contact)
@@ -111,7 +111,7 @@ async def test_generate_suggestions_time_based_created(
 async def test_generate_suggestions_time_based_null_last_interaction(
     db: AsyncSession, test_user, test_contact
 ):
-    """last_interaction_at=None with low score qualifies for time_based."""
+    """last_interaction_at=None should NOT qualify (no previous interactions)."""
     test_contact.relationship_score = 1
     test_contact.last_interaction_at = None
     db.add(test_contact)
@@ -121,7 +121,7 @@ async def test_generate_suggestions_time_based_null_last_interaction(
     with _patch_compose():
         suggestions = await generate_suggestions(test_user.id, db)
 
-    assert any(s.trigger_type == "time_based" for s in suggestions)
+    assert not any(s.trigger_type == "time_based" for s in suggestions)
 
 
 @pytest.mark.asyncio

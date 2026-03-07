@@ -2,7 +2,7 @@ import uuid
 from datetime import datetime
 
 from sqlalchemy import DateTime, ForeignKey, Index, Integer, String, Text, func
-from sqlalchemy.dialects.postgresql import ARRAY, UUID
+from sqlalchemy.dialects.postgresql import ARRAY, JSON, UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.core.database import Base
@@ -34,7 +34,16 @@ class Contact(Base):
     title: Mapped[str | None] = mapped_column(String, nullable=True)
 
     twitter_handle: Mapped[str | None] = mapped_column(String, nullable=True)
+    twitter_bio: Mapped[str | None] = mapped_column(Text, nullable=True)
     telegram_username: Mapped[str | None] = mapped_column(String, nullable=True)
+    telegram_user_id: Mapped[str | None] = mapped_column(String, nullable=True)
+    telegram_bio: Mapped[str | None] = mapped_column(Text, nullable=True)
+
+    linkedin_url: Mapped[str | None] = mapped_column(String, nullable=True)
+    avatar_url: Mapped[str | None] = mapped_column(String, nullable=True)
+
+    telegram_common_groups: Mapped[list | None] = mapped_column(JSON, nullable=True)
+    telegram_groups_fetched_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
     tags: Mapped[list[str] | None] = mapped_column(ARRAY(String), nullable=True, default=list)
     notes: Mapped[str | None] = mapped_column(Text, nullable=True)

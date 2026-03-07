@@ -20,7 +20,8 @@ from app.models.user import User
 logger = logging.getLogger(__name__)
 
 GMAIL_SCOPES = ["https://www.googleapis.com/auth/gmail.readonly"]
-MAX_RESULTS = 100  # threads per sync run
+MAX_RESULTS = 500  # threads per page
+GMAIL_LOOKBACK_QUERY = "newer_than:1y"  # sync last year of email
 
 
 def _build_gmail_service(refresh_token: str) -> Any:
@@ -173,19 +174,27 @@ async def sync_gmail_for_user(user: User, db: AsyncSession) -> int:
 
     user_email = user.email.lower()
 
-    # Fetch list of thread IDs
+    # Fetch all thread IDs from last year, paginating through results
+    thread_items: list[dict] = []
+    page_token: str | None = None
     try:
-        list_response = (
-            service.users()
-            .threads()
-            .list(userId="me", maxResults=MAX_RESULTS, labelIds=["INBOX"])
-            .execute()
-        )
+        while True:
+            kwargs: dict[str, Any] = {
+                "userId": "me",
+                "maxResults": MAX_RESULTS,
+                "q": GMAIL_LOOKBACK_QUERY,
+            }
+            if page_token:
+                kwargs["pageToken"] = page_token
+            list_response = service.users().threads().list(**kwargs).execute()
+            thread_items.extend(list_response.get("threads", []))
+            page_token = list_response.get("nextPageToken")
+            if not page_token:
+                break
     except Exception:
         logger.exception("Failed to list Gmail threads for user %s.", user.id)
         return 0
 
-    thread_items = list_response.get("threads", [])
     if not thread_items:
         return 0
 

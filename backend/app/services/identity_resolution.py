@@ -65,7 +65,8 @@ def _contact_data_weight(contact: Contact) -> int:
     """Count non-null fields as a rough measure of how 'complete' a contact is."""
     score = 0
     for attr in ("full_name", "given_name", "family_name", "company", "title",
-                 "twitter_handle", "telegram_username", "notes"):
+                 "twitter_handle", "twitter_bio", "telegram_username", "telegram_bio",
+                 "linkedin_url", "notes", "source"):
         if getattr(contact, attr):
             score += 1
     score += len(contact.emails or [])
@@ -214,9 +215,20 @@ async def merge_contacts(
 
     # Fill missing scalar fields from contact_b.
     for field in ("full_name", "given_name", "family_name", "company", "title",
-                  "twitter_handle", "telegram_username", "notes"):
+                  "twitter_handle", "twitter_bio", "telegram_username", "telegram_bio",
+                  "linkedin_url", "notes", "source"):
         if not getattr(contact_a, field) and getattr(contact_b, field):
             setattr(contact_a, field, getattr(contact_b, field))
+
+    # Keep the better relationship score
+    if (contact_b.relationship_score or 0) > (contact_a.relationship_score or 0):
+        contact_a.relationship_score = contact_b.relationship_score
+
+    # Keep the most recent interaction timestamp
+    if contact_b.last_interaction_at and (
+        not contact_a.last_interaction_at or contact_b.last_interaction_at > contact_a.last_interaction_at
+    ):
+        contact_a.last_interaction_at = contact_b.last_interaction_at
 
     # Reassign interactions.
     interactions_result = await db.execute(
@@ -361,12 +373,172 @@ def _username_similarity(handle_a: str | None, handle_b: str | None) -> float:
     return 1.0 - _levenshtein(a, b) / max_len
 
 
-async def find_probabilistic_matches(user_id: uuid.UUID, db: AsyncSession) -> list[IdentityMatch]:
-    """Tier 2: Weighted probabilistic matching using the formula from mvp.md.
+def _compute_adaptive_score(ca: Contact, cb: Contact) -> float:
+    """Compute a match score using adaptive weights.
 
-    match_score = 0.40 * email_domain_match + 0.20 * name_similarity
-                + 0.20 * company_match + 0.10 * username_similarity
-                + 0.10 * mutual_signals
+    Base weights: email_domain=0.40, name=0.20, company=0.20, username=0.10, mutual=0.10
+    When a signal is *unavailable* on either contact (e.g. neither has email),
+    its weight is redistributed proportionally to the remaining signals.
+    This ensures that two contacts matching only on name can still score high
+    enough to surface as candidates.
+
+    Names shorter than 6 characters are penalized (common first-name collisions).
+    """
+    BASE_WEIGHTS = {
+        "email": 0.40,
+        "name": 0.20,
+        "company": 0.20,
+        "username": 0.10,
+        "mutual": 0.10,
+    }
+
+    name_a = ca.full_name or f"{ca.given_name or ''} {ca.family_name or ''}".strip()
+    name_b = cb.full_name or f"{cb.given_name or ''} {cb.family_name or ''}".strip()
+
+    # Raw scores
+    email_score = _email_domain_match(ca.emails, cb.emails)
+
+    # Name score: also check email local parts as a name proxy.
+    # E.g. "pengcheng.chen@gmail.com" vs contact named "Pengcheng Chen"
+    name_score = _name_similarity(name_a, name_b)
+    if name_score < 0.8:
+        # Try matching name against email-derived names
+        for emails, name in [(ca.emails, name_b), (cb.emails, name_a)]:
+            if not name:
+                continue
+            for email in (emails or []):
+                tokens = _extract_name_tokens_from_email(email)
+                if tokens:
+                    email_name = " ".join(tokens)
+                    sim = _name_similarity(email_name, name)
+                    if sim > name_score:
+                        name_score = sim
+    company_score = (
+        1.0 if ca.company and cb.company
+        and ca.company.strip().lower() == cb.company.strip().lower()
+        else 0.0
+    )
+    username_score = max(
+        _username_similarity(ca.twitter_handle, cb.twitter_handle),
+        _username_similarity(ca.telegram_username, cb.telegram_username),
+    )
+    tags_a = set(t.lower() for t in (ca.tags or []))
+    tags_b = set(t.lower() for t in (cb.tags or []))
+    mutual_score = (
+        len(tags_a & tags_b) / max(len(tags_a | tags_b), 1)
+        if tags_a or tags_b
+        else 0.0
+    )
+
+    scores = {
+        "email": email_score,
+        "name": name_score,
+        "company": company_score,
+        "username": username_score,
+        "mutual": mutual_score,
+    }
+
+    # Determine which signals are *available* (both contacts have the data).
+    has_email = bool(ca.emails) and bool(cb.emails)
+    has_company = bool(ca.company) and bool(cb.company)
+    has_username = (bool(ca.twitter_handle) and bool(cb.twitter_handle)) or (
+        bool(ca.telegram_username) and bool(cb.telegram_username)
+    )
+    has_mutual = bool(tags_a) and bool(tags_b)
+    # Name is available if both have names, OR if email-to-name matching produced a score.
+    has_name = (bool(name_a) and bool(name_b)) or name_score > 0
+
+    available = {
+        "email": has_email,
+        "name": has_name,
+        "company": has_company,
+        "username": has_username,
+        "mutual": has_mutual,
+    }
+
+    active_weight_sum = sum(BASE_WEIGHTS[k] for k, v in available.items() if v)
+    if active_weight_sum == 0:
+        return 0.0
+
+    # Redistribute: each active signal gets its base weight scaled up so active
+    # weights sum to 1.0.
+    total = 0.0
+    for key in BASE_WEIGHTS:
+        if available[key]:
+            weight = BASE_WEIGHTS[key] / active_weight_sum
+            total += weight * scores[key]
+
+    # Penalty: short names (< 6 chars) are likely first-name-only collisions
+    # ("Alex", "David") — reduce confidence when name is the dominant signal.
+    # Use the longest available name (including email-derived) for the length check.
+    effective_name_len = max(len(name_a), len(name_b))
+    if has_name and effective_name_len < 6 and not has_email and not has_company:
+        total *= 0.5
+
+    # Cap: when name is the *only* signal, cap at 0.85 to force human review
+    # instead of auto-merging (two different people can share a name).
+    active_count = sum(1 for v in available.values() if v)
+    if active_count == 1 and has_name:
+        total = min(total, 0.85)
+
+    return total
+
+
+def _extract_name_tokens_from_email(email: str) -> list[str]:
+    """Extract potential name tokens from an email local part.
+
+    E.g. 'pengcheng.chen@gmail.com' -> ['pengcheng', 'chen']
+         'john_smith@company.com' -> ['john', 'smith']
+    """
+    local = email.strip().lower().split("@")[0]
+    # Split on dots, underscores, dashes, plus signs
+    tokens = re.split(r"[._\-+]", local)
+    # Filter out short/numeric-only tokens
+    return [t for t in tokens if len(t) >= 3 and not t.isdigit()]
+
+
+def _build_blocking_keys(contact: Contact) -> list[str]:
+    """Generate blocking keys for a contact.
+
+    Contacts are only compared if they share at least one blocking key.
+    This reduces O(n²) to O(n * block_size) in practice.
+    """
+    keys: list[str] = []
+    name = _normalize_name(
+        contact.full_name
+        or f"{contact.given_name or ''} {contact.family_name or ''}".strip()
+    )
+    if name:
+        # First 3 chars of name — catches similar names
+        keys.append(f"name:{name[:3]}")
+        # Each name token (for matching "John Smith" with "John S.")
+        for token in name.split():
+            if len(token) >= 3:
+                keys.append(f"token:{token}")
+    if contact.company:
+        keys.append(f"company:{contact.company.strip().lower()}")
+    for email in (contact.emails or []):
+        parts = email.strip().lower().split("@")
+        if len(parts) == 2:
+            keys.append(f"domain:{parts[1]}")
+        # Extract name tokens from email local part for cross-signal blocking
+        for token in _extract_name_tokens_from_email(email):
+            keys.append(f"token:{token}")
+    if contact.twitter_handle:
+        keys.append(f"twitter:{contact.twitter_handle.strip().lower().lstrip('@')}")
+    if contact.telegram_username:
+        keys.append(f"telegram:{contact.telegram_username.strip().lower().lstrip('@')}")
+    return keys
+
+
+async def find_probabilistic_matches(user_id: uuid.UUID, db: AsyncSession) -> list[IdentityMatch]:
+    """Tier 2: Weighted probabilistic matching with adaptive weights.
+
+    Base weights: email_domain=0.40, name=0.20, company=0.20, username=0.10, mutual=0.10
+    Weights are redistributed when signals are unavailable on either contact.
+
+    Uses blocking keys to avoid O(n²) full comparison — only contacts that share
+    a blocking key (name prefix, company, email domain, username) are compared.
 
     - Auto-merge if score > 0.85
     - Create pending_review if 0.70 < score <= 0.85
@@ -382,80 +554,67 @@ async def find_probabilistic_matches(user_id: uuid.UUID, db: AsyncSession) -> li
         frozenset([row[0], row[1]]) for row in existing_result.all()
     }
 
+    # Build blocking index: key -> list of contact indices
+    from collections import defaultdict
+    block_index: dict[str, list[int]] = defaultdict(list)
+    contact_by_idx: dict[int, Contact] = {}
+    for idx, contact in enumerate(contacts):
+        contact_by_idx[idx] = contact
+        for bk in _build_blocking_keys(contact):
+            block_index[bk].append(idx)
+
+    # Collect candidate pairs from blocking (deduplicated)
+    candidate_pairs: set[tuple[int, int]] = set()
+    for indices in block_index.values():
+        if len(indices) > 500:
+            # Skip overly broad blocks (e.g. "domain:gmail.com")
+            continue
+        for ii in range(len(indices)):
+            for jj in range(ii + 1, len(indices)):
+                a, b = indices[ii], indices[jj]
+                candidate_pairs.add((min(a, b), max(a, b)))
+
     new_matches: list[IdentityMatch] = []
     deleted_ids: set[uuid.UUID] = set()
 
-    for i in range(len(contacts)):
-        if contacts[i].id in deleted_ids:
+    for i, j in candidate_pairs:
+        ca, cb = contact_by_idx[i], contact_by_idx[j]
+        if ca.id in deleted_ids or cb.id in deleted_ids:
             continue
-        for j in range(i + 1, len(contacts)):
-            if contacts[j].id in deleted_ids:
-                continue
 
-            ca, cb = contacts[i], contacts[j]
-            pair = frozenset([ca.id, cb.id])
-            if pair in existing_pairs:
-                continue
+        pair = frozenset([ca.id, cb.id])
+        if pair in existing_pairs:
+            continue
 
-            name_a = ca.full_name or f"{ca.given_name or ''} {ca.family_name or ''}".strip()
-            name_b = cb.full_name or f"{cb.given_name or ''} {cb.family_name or ''}".strip()
+        total = _compute_adaptive_score(ca, cb)
 
-            # Compute weighted score
-            email_score = _email_domain_match(ca.emails, cb.emails)
-            name_score = _name_similarity(name_a, name_b)
-            company_score = (
-                1.0 if ca.company and cb.company
-                and ca.company.strip().lower() == cb.company.strip().lower()
-                else 0.0
-            )
-            username_score = max(
-                _username_similarity(ca.twitter_handle, cb.twitter_handle),
-                _username_similarity(ca.telegram_username, cb.telegram_username),
-            )
-            # Mutual signals: shared tags as a proxy
-            tags_a = set(t.lower() for t in (ca.tags or []))
-            tags_b = set(t.lower() for t in (cb.tags or []))
-            mutual_score = (
-                len(tags_a & tags_b) / max(len(tags_a | tags_b), 1)
-                if tags_a or tags_b
-                else 0.0
-            )
+        if total < 0.70:
+            continue
 
-            total = (
-                0.40 * email_score
-                + 0.20 * name_score
-                + 0.20 * company_score
-                + 0.10 * username_score
-                + 0.10 * mutual_score
-            )
-
-            if total < 0.70:
-                continue
-
-            if total > 0.85:
-                # Auto-merge
-                try:
-                    record = await merge_contacts(ca.id, cb.id, db)
-                    record.match_score = total
-                    record.match_method = "probabilistic"
-                    new_matches.append(record)
-                    deleted_ids.add(cb.id)
-                    existing_pairs.add(pair)
-                except Exception:
-                    pass  # Skip if merge fails
-            else:
-                # Pending review
-                match = IdentityMatch(
-                    contact_a_id=ca.id,
-                    contact_b_id=cb.id,
-                    match_score=total,
-                    match_method="probabilistic",
-                    status="pending_review",
-                )
-                db.add(match)
-                await db.flush()
-                await db.refresh(match)
-                new_matches.append(match)
+        if total > 0.85:
+            # Auto-merge
+            try:
+                record = await merge_contacts(ca.id, cb.id, db)
+                record.match_score = total
+                record.match_method = "probabilistic"
+                new_matches.append(record)
+                deleted_ids.add(cb.id)
                 existing_pairs.add(pair)
+            except Exception:
+                pass  # Skip if merge fails
+        else:
+            # Pending review
+            match = IdentityMatch(
+                contact_a_id=ca.id,
+                contact_b_id=cb.id,
+                match_score=total,
+                match_method="probabilistic",
+                status="pending_review",
+            )
+            db.add(match)
+            await db.flush()
+            await db.refresh(match)
+            new_matches.append(match)
+            existing_pairs.add(pair)
 
     return new_matches

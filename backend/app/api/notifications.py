@@ -17,10 +17,13 @@ router = APIRouter(prefix="/api/v1/notifications", tags=["notifications"])
 async def list_notifications(
     page: int = Query(1, ge=1),
     page_size: int = Query(20, ge=1, le=100),
+    link: str | None = Query(None),
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ) -> dict:
     base_query = select(Notification).where(Notification.user_id == current_user.id)
+    if link:
+        base_query = base_query.where(Notification.link == link)
 
     count_result = await db.execute(select(func.count()).select_from(base_query.subquery()))
     total = count_result.scalar_one()

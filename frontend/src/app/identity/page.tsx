@@ -1,6 +1,11 @@
 "use client";
 
-import { Mail, Twitter, MessageCircle, Building2, ScanSearch, GitMerge, X } from "lucide-react";
+import { useState } from "react";
+import Link from "next/link";
+import {
+  Mail, Twitter, MessageCircle, Building2, ScanSearch, GitMerge, X,
+  Phone, Briefcase, Tag, FileText, Globe, ChevronDown, ChevronUp,
+} from "lucide-react";
 import {
   useIdentityMatches,
   useMergeMatch,
@@ -20,8 +25,19 @@ function getInitials(name: string | null): string {
 }
 
 function ContactPanel({ contact }: { contact: IdentityMatchContact }) {
+  const [expanded, setExpanded] = useState(false);
   const displayName = contact.full_name ?? "Unnamed";
   const primaryEmail = contact.emails[0] ?? null;
+  const extraEmails = contact.emails.slice(1);
+
+  const hasExtra =
+    extraEmails.length > 0 ||
+    contact.phones.length > 0 ||
+    contact.title ||
+    contact.linkedin_url ||
+    contact.tags.length > 0 ||
+    contact.notes ||
+    contact.source;
 
   return (
     <div className="flex-1 min-w-0 p-4 bg-gray-50 rounded-lg border border-gray-200">
@@ -30,8 +46,14 @@ function ContactPanel({ contact }: { contact: IdentityMatchContact }) {
         <div className="w-10 h-10 rounded-full bg-blue-100 flex items-center justify-center text-blue-700 font-semibold text-sm flex-shrink-0">
           {getInitials(displayName)}
         </div>
-        <div className="min-w-0">
-          <p className="font-semibold text-gray-900 truncate">{displayName}</p>
+        <div className="min-w-0 flex-1">
+          <Link
+            href={`/contacts/${contact.id}`}
+            className="font-semibold text-blue-600 hover:text-blue-800 hover:underline truncate block"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {displayName}
+          </Link>
           {contact.company && (
             <p className="text-xs text-gray-500 truncate flex items-center gap-1">
               <Building2 className="w-3 h-3 flex-shrink-0" />
@@ -61,6 +83,90 @@ function ContactPanel({ contact }: { contact: IdentityMatchContact }) {
           </li>
         )}
       </ul>
+
+      {/* Expand toggle */}
+      {hasExtra && (
+        <>
+          <button
+            onClick={() => setExpanded(!expanded)}
+            className="mt-2 text-xs text-blue-600 hover:text-blue-800 flex items-center gap-0.5"
+          >
+            {expanded ? (
+              <>
+                <ChevronUp className="w-3 h-3" />
+                Less
+              </>
+            ) : (
+              <>
+                <ChevronDown className="w-3 h-3" />
+                More details
+              </>
+            )}
+          </button>
+
+          {expanded && (
+            <ul className="mt-2 pt-2 border-t border-gray-200 space-y-1.5 text-sm">
+              {contact.title && (
+                <li className="flex items-center gap-2 text-gray-600">
+                  <Briefcase className="w-3.5 h-3.5 flex-shrink-0 text-gray-400" />
+                  <span className="truncate">{contact.title}</span>
+                </li>
+              )}
+              {extraEmails.map((email) => (
+                <li key={email} className="flex items-center gap-2 text-gray-600 truncate">
+                  <Mail className="w-3.5 h-3.5 flex-shrink-0 text-gray-400" />
+                  <span className="truncate">{email}</span>
+                </li>
+              ))}
+              {contact.phones.map((phone) => (
+                <li key={phone} className="flex items-center gap-2 text-gray-600">
+                  <Phone className="w-3.5 h-3.5 flex-shrink-0 text-gray-400" />
+                  <span>{phone}</span>
+                </li>
+              ))}
+              {contact.linkedin_url && (
+                <li className="flex items-center gap-2 text-gray-600 truncate">
+                  <Globe className="w-3.5 h-3.5 flex-shrink-0 text-gray-400" />
+                  <a
+                    href={contact.linkedin_url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-blue-600 hover:underline truncate"
+                  >
+                    LinkedIn
+                  </a>
+                </li>
+              )}
+              {contact.tags.length > 0 && (
+                <li className="flex items-start gap-2 text-gray-600">
+                  <Tag className="w-3.5 h-3.5 flex-shrink-0 text-gray-400 mt-0.5" />
+                  <div className="flex flex-wrap gap-1">
+                    {contact.tags.map((tag) => (
+                      <span
+                        key={tag}
+                        className="px-1.5 py-0.5 rounded text-xs bg-gray-200 text-gray-700"
+                      >
+                        {tag}
+                      </span>
+                    ))}
+                  </div>
+                </li>
+              )}
+              {contact.notes && (
+                <li className="flex items-start gap-2 text-gray-600">
+                  <FileText className="w-3.5 h-3.5 flex-shrink-0 text-gray-400 mt-0.5" />
+                  <span className="text-xs text-gray-500 line-clamp-3">{contact.notes}</span>
+                </li>
+              )}
+              {contact.source && (
+                <li className="text-xs text-gray-400 mt-1">
+                  Source: {contact.source}
+                </li>
+              )}
+            </ul>
+          )}
+        </>
+      )}
     </div>
   );
 }
@@ -72,7 +178,11 @@ export default function IdentityPage() {
   const scanIdentity = useScanIdentity();
 
   const matches = data?.data ?? [];
-  const pendingMatches = matches.filter((m) => m.status === "pending");
+  const pendingMatches = matches
+    .filter((m) => m.status === "pending_review")
+    .sort((a, b) => b.match_score - a.match_score);
+
+  const scanResult = scanIdentity.data?.data;
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -90,16 +200,52 @@ export default function IdentityPage() {
             disabled={scanIdentity.isPending}
             className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-lg bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
           >
-            <ScanSearch className="w-4 h-4" />
+            <ScanSearch className={`w-4 h-4 ${scanIdentity.isPending ? "animate-spin" : ""}`} />
             {scanIdentity.isPending ? "Scanning..." : "Scan for duplicates"}
           </button>
         </div>
 
+        {/* Scanning progress */}
+        {scanIdentity.isPending && (
+          <div className="mb-6 p-4 rounded-lg bg-blue-50 border border-blue-200">
+            <div className="flex items-center gap-3 mb-2">
+              <div className="w-5 h-5 border-2 border-blue-600 border-t-transparent rounded-full animate-spin" />
+              <p className="text-sm font-medium text-blue-800">Scanning contacts for duplicates...</p>
+            </div>
+            <p className="text-xs text-blue-600 ml-8">
+              Comparing names, emails, companies, and social handles across all contacts. This may take a moment.
+            </p>
+            <div className="mt-3 ml-8 h-1.5 rounded-full bg-blue-100 overflow-hidden">
+              <div className="h-full rounded-full bg-blue-500 animate-pulse" style={{ width: "60%" }} />
+            </div>
+          </div>
+        )}
+
+        {/* Scan error */}
+        {scanIdentity.isError && (
+          <div className="mb-4 p-3 rounded-lg bg-red-50 border border-red-200 text-sm text-red-700">
+            Scan failed. Please try again.
+          </div>
+        )}
+
         {/* Scan result feedback */}
-        {scanIdentity.isSuccess && scanIdentity.data && (
-          <div className="mb-4 p-3 rounded-lg bg-green-50 border border-green-200 text-sm text-green-700">
-            Scan complete — {scanIdentity.data.data?.matches_found ?? 0} potential{" "}
-            {(scanIdentity.data.data?.matches_found ?? 0) === 1 ? "match" : "matches"} found.
+        {scanIdentity.isSuccess && scanResult && (
+          <div className="mb-4 p-4 rounded-lg bg-green-50 border border-green-200">
+            <p className="text-sm font-medium text-green-800">
+              Scan complete
+            </p>
+            <div className="mt-2 flex gap-4 text-sm text-green-700">
+              <span>{scanResult.matches_found ?? 0} matches found</span>
+              {(scanResult.auto_merged ?? 0) > 0 && (
+                <span className="flex items-center gap-1">
+                  <GitMerge className="w-3.5 h-3.5" />
+                  {scanResult.auto_merged} auto-merged
+                </span>
+              )}
+              {(scanResult.pending_review ?? 0) > 0 && (
+                <span>{scanResult.pending_review} pending review</span>
+              )}
+            </div>
           </div>
         )}
 

@@ -12,7 +12,11 @@ export interface Contact {
   company: string | null;
   title: string | null;
   twitter_handle: string | null;
+  twitter_bio: string | null;
   telegram_username: string | null;
+  telegram_bio: string | null;
+  linkedin_url: string | null;
+  avatar_url: string | null;
   tags: string[];
   notes: string | null;
   relationship_score: number;
@@ -29,6 +33,10 @@ export interface ContactsParams {
   page_size?: number;
   search?: string;
   tag?: string;
+  score?: string;
+  source?: string;
+  date_from?: string;
+  date_to?: string;
 }
 
 export interface ContactCreateInput {
@@ -40,7 +48,9 @@ export interface ContactCreateInput {
   company?: string;
   title?: string;
   twitter_handle?: string;
+  twitter_bio?: string;
   telegram_username?: string;
+  telegram_bio?: string;
   tags?: string[];
   notes?: string;
   priority_level?: string;
@@ -84,6 +94,60 @@ export function useCreateContact() {
     },
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ["contacts"] });
+    },
+  });
+}
+
+export function useDeleteContact() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (id: string) => {
+      const { data } = await apiClient.delete<ApiResponse<{ id: string; deleted: boolean }>>(
+        `/contacts/${id}`
+      );
+      return data;
+    },
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ["contacts"] });
+    },
+  });
+}
+
+export function useContactDuplicates(id: string, enabled: boolean) {
+  return useQuery({
+    queryKey: ["contact-duplicates", id],
+    queryFn: async () => {
+      const { data } = await apiClient.get<ApiResponse<{
+        id: string;
+        full_name: string | null;
+        given_name: string | null;
+        family_name: string | null;
+        emails: string[];
+        phones: string[];
+        company: string | null;
+        title: string | null;
+        twitter_handle: string | null;
+        telegram_username: string | null;
+        score: number;
+      }[]>>(`/contacts/${id}/duplicates`);
+      return data;
+    },
+    enabled: Boolean(id) && enabled,
+  });
+}
+
+export function useMergeContacts() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ contactId, otherId }: { contactId: string; otherId: string }) => {
+      const { data } = await apiClient.post<ApiResponse<{ id: string; full_name: string | null; merged_contact_id: string }>>(
+        `/contacts/${contactId}/merge/${otherId}`
+      );
+      return data;
+    },
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ["contacts"] });
+      void queryClient.invalidateQueries({ queryKey: ["contact-duplicates"] });
     },
   });
 }

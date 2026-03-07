@@ -3,6 +3,13 @@ import apiClient, { type ApiResponse } from "@/lib/api";
 import type { Contact } from "@/hooks/use-contacts";
 import type { Suggestion } from "@/hooks/use-suggestions";
 
+interface ContactStats {
+  total: number;
+  strong: number;
+  active: number;
+  dormant: number;
+}
+
 export interface DashboardStats {
   suggestions: Suggestion[];
   recentContacts: Contact[];
@@ -26,18 +33,29 @@ export function useDashboardStats() {
   });
 
   const contactsQuery = useQuery({
-    queryKey: ["contacts", { page: 1, page_size: 20 }],
+    queryKey: ["contacts", { page: 1, page_size: 5 }],
     queryFn: async () => {
       const { data } = await apiClient.get<ApiResponse<Contact[]>>("/contacts", {
-        params: { page: 1, page_size: 20 },
+        params: { page: 1, page_size: 5 },
       });
+      return data;
+    },
+  });
+
+  const statsQuery = useQuery({
+    queryKey: ["contacts", "stats"],
+    queryFn: async () => {
+      const { data } = await apiClient.get<ApiResponse<ContactStats>>(
+        "/contacts/stats"
+      );
       return data;
     },
   });
 
   const suggestions = suggestionsQuery.data?.data ?? [];
   const allContacts = contactsQuery.data?.data ?? [];
-  const totalContacts = contactsQuery.data?.meta?.total ?? 0;
+  const stats = statsQuery.data?.data;
+  const totalContacts = stats?.total ?? contactsQuery.data?.meta?.total ?? 0;
 
   const recentContacts = [...allContacts]
     .sort((a, b) => {
@@ -51,18 +69,14 @@ export function useDashboardStats() {
     })
     .slice(0, 5);
 
-  const relationshipHealth = allContacts.reduce(
-    (acc, contact) => {
-      if (contact.relationship_score >= 8) acc.strong++;
-      else if (contact.relationship_score >= 4) acc.active++;
-      else acc.dormant++;
-      return acc;
-    },
-    { strong: 0, active: 0, dormant: 0 }
-  );
+  const relationshipHealth = stats
+    ? { strong: stats.strong, active: stats.active, dormant: stats.dormant }
+    : { strong: 0, active: 0, dormant: 0 };
 
-  const isLoading = suggestionsQuery.isLoading || contactsQuery.isLoading;
-  const isError = suggestionsQuery.isError || contactsQuery.isError;
+  const isLoading =
+    suggestionsQuery.isLoading || contactsQuery.isLoading || statsQuery.isLoading;
+  const isError =
+    suggestionsQuery.isError || contactsQuery.isError || statsQuery.isError;
 
   return {
     data: {

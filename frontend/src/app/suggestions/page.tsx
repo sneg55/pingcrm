@@ -17,6 +17,7 @@ import {
   type Suggestion,
 } from "@/hooks/use-suggestions";
 import { MessageEditor } from "@/components/message-editor";
+import Link from "next/link";
 import { cn } from "@/lib/utils";
 
 type Channel = "email" | "telegram" | "twitter";
@@ -54,8 +55,18 @@ function SuggestionCard({ suggestion }: { suggestion: Suggestion }) {
   const [snoozeOpen, setSnoozeOpen] = useState(false);
   const [showEditor, setShowEditor] = useState(false);
 
-  const displayName = suggestion.contact_name ?? "Unknown contact";
+  const c = suggestion.contact;
+  const displayName =
+    c?.full_name ??
+    ([c?.given_name, c?.family_name].filter(Boolean).join(" ") || "Unknown contact");
   const channel = suggestion.suggested_channel;
+
+  const triggerLabels: Record<string, string> = {
+    time_based: "No interaction in 90+ days",
+    event_based: "New event detected",
+    scheduled: "Scheduled follow-up",
+  };
+  const triggerReason = triggerLabels[suggestion.trigger_type] ?? suggestion.trigger_type;
 
   const handleSend = (message: string, ch: Channel) => {
     updateSuggestion.mutate({
@@ -91,12 +102,15 @@ function SuggestionCard({ suggestion }: { suggestion: Suggestion }) {
             {getInitials(displayName)}
           </div>
           <div className="min-w-0">
-            <p className="font-semibold text-gray-900 truncate">{displayName}</p>
-            {suggestion.trigger_reason && (
-              <p className="text-xs text-gray-500 truncate mt-0.5">
-                {suggestion.trigger_reason}
-              </p>
-            )}
+            <Link
+              href={`/contacts/${suggestion.contact_id}`}
+              className="font-semibold text-blue-600 hover:text-blue-800 hover:underline truncate block"
+            >
+              {displayName}
+            </Link>
+            <p className="text-xs text-gray-500 truncate mt-0.5">
+              {triggerReason}
+            </p>
           </div>
         </div>
         <span
@@ -196,6 +210,10 @@ export default function SuggestionsPage() {
     (s) => s.status === "pending"
   );
 
+  const genResult = generateSuggestions.data?.data;
+  const genMeta = generateSuggestions.data?.meta;
+  const genCount = (genMeta as Record<string, number> | undefined)?.generated ?? genResult?.length ?? 0;
+
   return (
     <div className="min-h-screen bg-gray-50">
       <div className="max-w-3xl mx-auto px-4 py-8">
@@ -214,17 +232,47 @@ export default function SuggestionsPage() {
             disabled={generateSuggestions.isPending}
             className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-lg bg-indigo-600 text-white hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
           >
-            <Sparkles className="w-4 h-4" />
+            <Sparkles className={`w-4 h-4 ${generateSuggestions.isPending ? "animate-spin" : ""}`} />
             {generateSuggestions.isPending
               ? "Generating..."
               : "Generate new suggestions"}
           </button>
         </div>
 
-        {/* Generation feedback */}
+        {/* Generation progress */}
+        {generateSuggestions.isPending && (
+          <div className="mb-6 p-4 rounded-lg bg-indigo-50 border border-indigo-200">
+            <div className="flex items-center gap-3 mb-2">
+              <div className="w-5 h-5 border-2 border-indigo-600 border-t-transparent rounded-full animate-spin" />
+              <p className="text-sm font-medium text-indigo-800">Generating follow-up suggestions...</p>
+            </div>
+            <p className="text-xs text-indigo-600 ml-8">
+              Analyzing your contacts, interaction history, and relationship scores. This may take a moment.
+            </p>
+            <div className="mt-3 ml-8 h-1.5 rounded-full bg-indigo-100 overflow-hidden">
+              <div className="h-full rounded-full bg-indigo-500 animate-pulse" style={{ width: "60%" }} />
+            </div>
+          </div>
+        )}
+
+        {/* Generation error */}
+        {generateSuggestions.isError && (
+          <div className="mb-4 p-3 rounded-lg bg-red-50 border border-red-200 text-sm text-red-700">
+            Failed to generate suggestions. Please try again.
+          </div>
+        )}
+
+        {/* Generation success */}
         {generateSuggestions.isSuccess && (
-          <div className="mb-4 p-3 rounded-lg bg-indigo-50 border border-indigo-200 text-sm text-indigo-700">
-            New suggestions generated successfully.
+          <div className="mb-4 p-4 rounded-lg bg-green-50 border border-green-200">
+            <p className="text-sm font-medium text-green-800">
+              Generation complete
+            </p>
+            <p className="text-sm text-green-700 mt-1">
+              {genCount > 0
+                ? `${genCount} new suggestion${genCount !== 1 ? "s" : ""} generated.`
+                : "No new suggestions — your network is in good shape!"}
+            </p>
           </div>
         )}
 
