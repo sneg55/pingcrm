@@ -1245,3 +1245,40 @@ async def auto_tag_contact(
         "tags_added": tags_added,
         "all_tags": contact.tags or [],
     })
+
+
+# ---------------------------------------------------------------------------
+# POST /api/v1/contacts/{contact_id}/compose
+# ---------------------------------------------------------------------------
+
+
+class ComposeBody(BaseModel):
+    channel: str = "email"
+
+
+@router.post("/{contact_id}/compose")
+async def compose_message(
+    contact_id: uuid.UUID,
+    body: ComposeBody | None = None,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Generate an AI-drafted reach-out message for a contact (no suggestion required)."""
+    result = await db.execute(
+        select(Contact).where(Contact.id == contact_id, Contact.user_id == current_user.id)
+    )
+    contact = result.scalar_one_or_none()
+    if not contact:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Contact not found")
+
+    from app.services.message_composer import compose_followup_message
+
+    channel = body.channel if body else "email"
+    message = await compose_followup_message(
+        contact_id=contact_id,
+        trigger_type="manual",
+        event_summary=None,
+        db=db,
+    )
+
+    return envelope({"suggested_message": message, "suggested_channel": channel})

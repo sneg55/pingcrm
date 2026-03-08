@@ -490,6 +490,9 @@ async def sync_telegram_group_members(user: User, db: AsyncSession) -> dict[str,
     groups_scanned = 0
     tag_label = "2nd Tier"
 
+    # Track which groups each contact was found in (contact_id → [group_info])
+    contact_groups: dict[uuid.UUID, list[dict[str, Any]]] = {}
+
     try:
         async for dialog in client.iter_dialogs():
             entity = dialog.entity
@@ -512,6 +515,14 @@ async def sync_telegram_group_members(user: User, db: AsyncSession) -> dict[str,
                 break
 
             group_title = getattr(entity, "title", None) or str(entity.id)
+            group_username = getattr(entity, "username", None)
+            group_info = {
+                "id": entity.id,
+                "title": group_title,
+                "username": group_username,
+                "link": f"https://t.me/{group_username}" if group_username else None,
+                "participants_count": getattr(entity, "participants_count", None),
+            }
             logger.debug("Scanning group '%s' (id=%s) for members.", group_title, entity.id)
 
             try:
@@ -582,11 +593,35 @@ async def sync_telegram_group_members(user: User, db: AsyncSession) -> dict[str,
                             contact.tags = current_tags
                             updated_contacts += 1
 
+                # Record which group this contact was found in
+                if contact.id not in contact_groups:
+                    contact_groups[contact.id] = []
+                # Avoid duplicate group entries (contact seen twice in same group)
+                if not any(g["id"] == group_info["id"] for g in contact_groups[contact.id]):
+                    contact_groups[contact.id].append(group_info)
+
                 # Download avatar if missing
                 if not contact.avatar_url:
                     avatar_path = await _download_avatar(client, member, contact.id)
                     if avatar_path:
                         contact.avatar_url = avatar_path
+
+        # Persist common groups for all contacts found during sync
+        now = datetime.now(UTC)
+        for cid, groups in contact_groups.items():
+            contact_result = await db.execute(
+                select(Contact).where(Contact.id == cid)
+            )
+            c = contact_result.scalar_one_or_none()
+            if c is not None:
+                # Merge with any existing groups (from previous syncs or API calls)
+                existing = list(c.telegram_common_groups or [])
+                existing_ids = {g["id"] for g in existing}
+                for g in groups:
+                    if g["id"] not in existing_ids:
+                        existing.append(g)
+                c.telegram_common_groups = existing
+                c.telegram_groups_fetched_at = now
 
     finally:
         await client.disconnect()

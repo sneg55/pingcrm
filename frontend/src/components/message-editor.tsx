@@ -36,9 +36,10 @@ const channelConfig: Record<Channel, ChannelConfig> = {
 };
 
 interface MessageEditorProps {
-  suggestionId: string;
-  initialMessage: string;
-  initialChannel: Channel;
+  suggestionId?: string | null;
+  contactId?: string;
+  initialMessage?: string;
+  initialChannel?: Channel;
   onSend?: (message: string, channel: Channel) => void;
   className?: string;
   disabledChannels?: Partial<Record<Channel, string>>;
@@ -46,7 +47,8 @@ interface MessageEditorProps {
 
 export function MessageEditor({
   suggestionId,
-  initialMessage,
+  contactId,
+  initialMessage = "",
   initialChannel,
   onSend,
   className,
@@ -57,7 +59,7 @@ export function MessageEditor({
     (ch) => !disabledChannels[ch]
   );
   const [channel, setChannel] = useState<Channel>(() => {
-    if (initialChannel in channelConfig && !disabledChannels[initialChannel]) {
+    if (initialChannel && initialChannel in channelConfig && !disabledChannels[initialChannel]) {
       return initialChannel;
     }
     return availableChannels[0] ?? "email";
@@ -71,14 +73,26 @@ export function MessageEditor({
   const handleRegenerate = async () => {
     setIsRegenerating(true);
     try {
-      const { data } = await client.POST(
-        "/api/v1/suggestions/{suggestion_id}/regenerate",
-        {
-          params: { path: { suggestion_id: suggestionId } },
-          body: { channel },
-        }
-      );
-      const msg = (data?.data as { suggested_message?: string })?.suggested_message;
+      let msg: string | undefined;
+      if (suggestionId) {
+        const { data } = await client.POST(
+          "/api/v1/suggestions/{suggestion_id}/regenerate",
+          {
+            params: { path: { suggestion_id: suggestionId } },
+            body: { channel },
+          }
+        );
+        msg = (data?.data as { suggested_message?: string })?.suggested_message;
+      } else if (contactId) {
+        const { data } = await client.POST(
+          "/api/v1/contacts/{contact_id}/compose" as any,
+          {
+            params: { path: { contact_id: contactId } },
+            body: { channel },
+          } as any,
+        );
+        msg = (data?.data as { suggested_message?: string })?.suggested_message;
+      }
       if (msg) {
         setMessage(msg);
       }
@@ -135,7 +149,7 @@ export function MessageEditor({
             "w-full text-sm border rounded-md p-3 resize-none focus:outline-none focus:ring-2 focus:ring-blue-400 transition-colors",
             isOverLimit ? "border-red-300" : "border-gray-300"
           )}
-          placeholder="Your message..."
+          placeholder="Write a message..."
         />
         <span
           className={cn(
@@ -165,8 +179,13 @@ export function MessageEditor({
           disabled={!message.trim() || isOverLimit}
           className="inline-flex items-center gap-1.5 px-4 py-1.5 text-sm font-medium rounded-md bg-green-600 text-white hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
         >
-          <Send className="w-4 h-4" />
-          Send
+          {channel === "telegram" ? (
+            <><Send className="w-4 h-4" /> Send</>
+          ) : channel === "email" ? (
+            <><Mail className="w-4 h-4" /> Open Email</>
+          ) : (
+            <><Twitter className="w-4 h-4" /> Open Twitter</>
+          )}
         </button>
       </div>
     </div>
