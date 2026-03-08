@@ -24,28 +24,34 @@ function RelationshipBar({ strong, active, dormant }: { strong: number; active: 
   const dormantPct = (dormant / total) * 100;
 
   return (
-    <div className="space-y-2">
-      <div className="h-3 rounded-full overflow-hidden flex bg-stone-100">
+    <div className="space-y-3">
+      <div className="h-7 rounded-lg overflow-hidden flex bg-stone-100 text-xs font-medium">
         {strongPct > 0 && (
           <div
-            className="bg-emerald-500 transition-all duration-500"
+            className="bg-emerald-500 text-white flex items-center justify-center transition-all duration-500"
             style={{ width: `${strongPct}%` }}
             title={`Strong: ${strong}`}
-          />
+          >
+            {strongPct > 8 && strong}
+          </div>
         )}
         {activePct > 0 && (
           <div
-            className="bg-amber-400 transition-all duration-500"
+            className="bg-amber-400 text-amber-900 flex items-center justify-center transition-all duration-500"
             style={{ width: `${activePct}%` }}
-            title={`Active: ${active}`}
-          />
+            title={`Warm: ${active}`}
+          >
+            {activePct > 8 && active}
+          </div>
         )}
         {dormantPct > 0 && (
           <div
-            className="bg-red-400 transition-all duration-500"
+            className="bg-red-400 text-white flex items-center justify-center transition-all duration-500"
             style={{ width: `${dormantPct}%` }}
-            title={`Dormant: ${dormant}`}
-          />
+            title={`Cold: ${dormant}`}
+          >
+            {dormantPct > 8 && dormant}
+          </div>
         )}
       </div>
       <div className="flex justify-between text-xs">
@@ -64,6 +70,19 @@ function RelationshipBar({ strong, active, dormant }: { strong: number; active: 
       </div>
     </div>
   );
+}
+
+function humanizeSource(source: string): string {
+  const map: Record<string, string> = {
+    google_calendar: "Calendar",
+    google_contacts: "Google",
+    telegram: "Telegram",
+    twitter: "Twitter",
+    csv_import: "CSV Import",
+    linkedin_import: "LinkedIn",
+    manual: "Manual",
+  };
+  return map[source] ?? source;
 }
 
 export default function DashboardPage() {
@@ -388,7 +407,7 @@ export default function DashboardPage() {
                             {name}
                           </p>
                           <p className="text-xs text-stone-400 truncate">
-                            {[contact.title, contact.company].filter(Boolean).join(" at ") || contact.source || ""}
+                            {[contact.title, contact.company].filter(Boolean).join(" at ") || (contact.source ? humanizeSource(contact.source) : "") || ""}
                             {contact.created_at && (
                               <span>
                                 {(contact.title || contact.company || contact.source) ? " \u00b7 " : ""}
@@ -399,7 +418,7 @@ export default function DashboardPage() {
                         </div>
                         {contact.source && (
                           <span className="flex-shrink-0 text-[10px] font-medium px-1.5 py-0.5 rounded bg-stone-100 text-stone-500">
-                            {contact.source}
+                            {humanizeSource(contact.source)}
                           </span>
                         )}
                       </Link>

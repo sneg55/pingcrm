@@ -278,7 +278,9 @@ export default function IdentityPage() {
                 <div className="flex items-center justify-between mb-4">
                   <div className="flex items-center gap-2">
                     <span className="text-xs font-medium px-2 py-0.5 rounded-full bg-blue-50 text-blue-700 border border-blue-100">
-                      {match.match_method}
+                      {match.match_method === "probabilistic" ? "Possible match"
+                        : match.match_method === "deterministic" ? "Exact match"
+                        : match.match_method}
                     </span>
                   </div>
                   <div className="text-right">

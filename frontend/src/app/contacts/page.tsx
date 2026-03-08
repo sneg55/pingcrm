@@ -321,6 +321,54 @@ export default function ContactsPage() {
           </Link>
         </div>
 
+        {/* Priority quick-filter chips */}
+        <div className="flex items-center gap-2 mb-3">
+          {[
+            { key: "high", label: "High", icon: "🔥", color: "bg-red-50 text-red-700 border-red-200 hover:bg-red-100" },
+            { key: "medium", label: "Medium", icon: "⚡", color: "bg-amber-50 text-amber-700 border-amber-200 hover:bg-amber-100" },
+            { key: "low", label: "Low", icon: "💤", color: "bg-blue-50 text-blue-700 border-blue-200 hover:bg-blue-100" },
+          ].map(({ key, label, icon, color }) => {
+            const priorityParam = searchParams.get("priority");
+            const isActive = priorityParam === key;
+            return (
+              <button
+                key={key}
+                onClick={() => setParams({ priority: isActive ? undefined : key })}
+                className={`inline-flex items-center gap-1 px-2.5 py-1 text-xs font-medium rounded-full border transition-colors ${
+                  isActive
+                    ? color + " ring-1 ring-offset-1 ring-current"
+                    : "bg-white border-stone-200 text-stone-500 hover:bg-stone-50"
+                }`}
+              >
+                <span className="text-xs">{icon}</span>
+                {label}
+              </button>
+            );
+          })}
+          {["strong", "active", "dormant"].map((tier) => {
+            const isActive = scoreFilter === tier;
+            const config = {
+              strong: { label: "Strong", color: "bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-100" },
+              active: { label: "Warm", color: "bg-amber-50 text-amber-700 border-amber-200 hover:bg-amber-100" },
+              dormant: { label: "Cold", color: "bg-red-50 text-red-700 border-red-200 hover:bg-red-100" },
+            }[tier]!;
+            return (
+              <button
+                key={tier}
+                onClick={() => setParams({ score: isActive ? undefined : tier })}
+                className={`inline-flex items-center gap-1 px-2.5 py-1 text-xs font-medium rounded-full border transition-colors ${
+                  isActive
+                    ? config.color + " ring-1 ring-offset-1 ring-current"
+                    : "bg-white border-stone-200 text-stone-500 hover:bg-stone-50"
+                }`}
+              >
+                <span className="w-1.5 h-1.5 rounded-full bg-current" />
+                {config.label}
+              </button>
+            );
+          })}
+        </div>
+
         <div className="flex gap-2 mb-4">
           <div className="relative flex-1">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-stone-400" />
@@ -480,7 +528,21 @@ export default function ContactsPage() {
         )}
 
         {isLoading && (
-          <div className="text-center py-12 text-stone-400">Loading contacts...</div>
+          <div className="bg-white rounded-lg border border-stone-200 overflow-hidden">
+            <div className="bg-stone-50 border-b border-stone-200 h-11" />
+            {Array.from({ length: 8 }).map((_, i) => (
+              <div key={i} className="flex items-center gap-4 px-4 py-3 border-b border-stone-100">
+                <div className="w-4 h-4 rounded bg-stone-100 animate-pulse" />
+                <div className="w-7 h-7 rounded-full bg-stone-100 animate-pulse" />
+                <div className="flex-1 space-y-1.5">
+                  <div className="h-3.5 w-32 bg-stone-100 rounded animate-pulse" />
+                </div>
+                <div className="h-3.5 w-24 bg-stone-100 rounded animate-pulse" />
+                <div className="h-5 w-20 bg-stone-100 rounded-full animate-pulse" />
+                <div className="h-3.5 w-20 bg-stone-100 rounded animate-pulse" />
+              </div>
+            ))}
+          </div>
         )}
 
         {isError && (
@@ -574,7 +636,7 @@ export default function ContactsPage() {
                         </Link>
                       </td>
                       <td className="px-4 py-3 text-stone-600">
-                        {contact.company ?? "-"}
+                        {contact.company || <span className="text-stone-300">&mdash;</span>}
                       </td>
                       <td className="px-4 py-3">
                         <ScoreBadge score={contact.relationship_score} />
