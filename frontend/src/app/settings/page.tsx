@@ -2,7 +2,7 @@
 
 import { Suspense, useState, useEffect, useCallback, useRef } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
-import { Mail, MessageCircle, Twitter, RefreshCw, Check, AlertCircle, CheckCircle2, X, Clock, Calendar, Save } from "lucide-react";
+import { Mail, MessageCircle, Twitter, RefreshCw, Check, AlertCircle, CheckCircle2, X, Calendar, Save } from "lucide-react";
 import { Upload } from "lucide-react";
 import { client } from "@/lib/api-client";
 import { CsvImport } from "@/components/csv-import";
@@ -72,27 +72,67 @@ function SuccessModal({ platform, onClose }: { platform: string; onClose: () => 
   );
 }
 
-function ElapsedTimer({ running }: { running: boolean }) {
-  const [seconds, setSeconds] = useState(0);
-  const intervalRef = useRef<ReturnType<typeof setInterval> | undefined>(undefined);
+type SyncPhase = "idle" | "loading" | "success" | "error";
+
+function SyncButtonWrapper({
+  phase,
+  children,
+}: {
+  phase: SyncPhase;
+  children: React.ReactNode;
+}) {
+  const [showSuccess, setShowSuccess] = useState(false);
+  const [showError, setShowError] = useState(false);
+  const prevPhase = useRef<SyncPhase>("idle");
 
   useEffect(() => {
-    if (running) {
-      setSeconds(0);
-      intervalRef.current = setInterval(() => setSeconds((s) => s + 1), 1000);
-    } else {
-      clearInterval(intervalRef.current);
+    if (prevPhase.current === "loading" && phase === "success") {
+      setShowSuccess(true);
+      const t = setTimeout(() => setShowSuccess(false), 2000);
+      return () => clearTimeout(t);
     }
-    return () => clearInterval(intervalRef.current);
-  }, [running]);
-
-  if (!running) return null;
+    if (prevPhase.current === "loading" && phase === "error") {
+      setShowError(true);
+      const t = setTimeout(() => setShowError(false), 1500);
+      return () => clearTimeout(t);
+    }
+    prevPhase.current = phase;
+  }, [phase]);
 
   return (
-    <span className="inline-flex items-center gap-1 text-xs text-gray-400">
-      <Clock className="w-3 h-3" />
-      {seconds}s
-    </span>
+    <div className="relative flex-1">
+      {children}
+      {/* Progress shimmer bar — bottom of button */}
+      {phase === "loading" && (
+        <div className="absolute bottom-0 left-0 right-0 h-0.5 rounded-b-lg overflow-hidden">
+          <div
+            className="h-full bg-white/60 rounded-full"
+            style={{
+              animation: "shimmer 1.5s ease-in-out infinite",
+              width: "40%",
+            }}
+          />
+        </div>
+      )}
+      {/* Success flash overlay */}
+      {showSuccess && (
+        <div className="absolute inset-0 rounded-lg bg-green-500/20 pointer-events-none animate-[fadeOut_1.5s_ease-out_forwards]" />
+      )}
+      {/* Error shake */}
+      {showError && (
+        <div className="absolute inset-0 rounded-lg bg-red-500/15 pointer-events-none animate-[fadeOut_1s_ease-out_forwards]" />
+      )}
+      <style>{`
+        @keyframes shimmer {
+          0% { transform: translateX(-100%); }
+          100% { transform: translateX(350%); }
+        }
+        @keyframes fadeOut {
+          0% { opacity: 1; }
+          100% { opacity: 0; }
+        }
+      `}</style>
+    </div>
   );
 }
 
@@ -194,21 +234,22 @@ function SyncCard({
           {connected ? "Reconnect" : connectLabel}
         </button>
 
-        <button
-          onClick={onSync}
-          disabled={syncState.status === "loading" || !connected}
-          className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 text-sm font-medium rounded-lg bg-blue-600 text-white hover:bg-blue-700 transition-colors disabled:opacity-50"
-        >
-          {syncState.status === "loading" ? (
-            <RefreshCw className="w-3.5 h-3.5 animate-spin" />
-          ) : syncState.status === "success" ? (
-            <Check className="w-3.5 h-3.5" />
-          ) : (
-            <RefreshCw className="w-3.5 h-3.5" />
-          )}
-          {syncLabel}
-          <ElapsedTimer running={syncState.status === "loading"} />
-        </button>
+        <SyncButtonWrapper phase={syncState.status as SyncPhase}>
+          <button
+            onClick={onSync}
+            disabled={syncState.status === "loading" || !connected}
+            className="w-full flex items-center justify-center gap-1.5 px-3 py-2 text-sm font-medium rounded-lg bg-blue-600 text-white hover:bg-blue-700 transition-all disabled:opacity-60 disabled:cursor-not-allowed"
+          >
+            {syncState.status === "loading" ? (
+              <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+            ) : syncState.status === "success" ? (
+              <Check className="w-3.5 h-3.5 animate-[scaleIn_0.3s_ease-out]" />
+            ) : (
+              <RefreshCw className="w-3.5 h-3.5" />
+            )}
+            {syncState.status === "loading" ? "Syncing..." : syncState.status === "success" ? "Done" : syncLabel}
+          </button>
+        </SyncButtonWrapper>
       </div>
 
       {connected && connectedLabel && (
@@ -883,47 +924,56 @@ function SettingsPageInner() {
                 {connected.google ? "Add Google Account" : "Connect Google"}
               </button>
 
-              <button
-                onClick={handleGoogleContactsSync}
-                disabled={googleSync.status === "loading" || !connected.google}
-                className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 text-sm font-medium rounded-lg bg-blue-600 text-white hover:bg-blue-700 transition-colors disabled:opacity-50"
-              >
-                {googleSync.status === "loading" ? (
-                  <RefreshCw className="w-3.5 h-3.5 animate-spin" />
-                ) : (
-                  <Mail className="w-3.5 h-3.5" />
-                )}
-                Sync Contacts
-                <ElapsedTimer running={googleSync.status === "loading"} />
-              </button>
+              <SyncButtonWrapper phase={googleSync.status as SyncPhase}>
+                <button
+                  onClick={handleGoogleContactsSync}
+                  disabled={googleSync.status === "loading" || !connected.google}
+                  className="w-full flex items-center justify-center gap-1.5 px-3 py-2 text-sm font-medium rounded-lg bg-blue-600 text-white hover:bg-blue-700 transition-all disabled:opacity-60 disabled:cursor-not-allowed"
+                >
+                  {googleSync.status === "loading" ? (
+                    <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                  ) : googleSync.status === "success" ? (
+                    <Check className="w-3.5 h-3.5" />
+                  ) : (
+                    <Mail className="w-3.5 h-3.5" />
+                  )}
+                  {googleSync.status === "loading" ? "Syncing..." : googleSync.status === "success" ? "Done" : "Sync Contacts"}
+                </button>
+              </SyncButtonWrapper>
 
-              <button
-                onClick={handleGmailSync}
-                disabled={gmailSync.status === "loading" || !connected.google}
-                className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 text-sm font-medium rounded-lg bg-blue-600 text-white hover:bg-blue-700 transition-colors disabled:opacity-50"
-              >
-                {gmailSync.status === "loading" ? (
-                  <RefreshCw className="w-3.5 h-3.5 animate-spin" />
-                ) : (
-                  <Mail className="w-3.5 h-3.5" />
-                )}
-                Sync Gmail
-                <ElapsedTimer running={gmailSync.status === "loading"} />
-              </button>
+              <SyncButtonWrapper phase={gmailSync.status as SyncPhase}>
+                <button
+                  onClick={handleGmailSync}
+                  disabled={gmailSync.status === "loading" || !connected.google}
+                  className="w-full flex items-center justify-center gap-1.5 px-3 py-2 text-sm font-medium rounded-lg bg-blue-600 text-white hover:bg-blue-700 transition-all disabled:opacity-60 disabled:cursor-not-allowed"
+                >
+                  {gmailSync.status === "loading" ? (
+                    <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                  ) : gmailSync.status === "success" ? (
+                    <Check className="w-3.5 h-3.5" />
+                  ) : (
+                    <Mail className="w-3.5 h-3.5" />
+                  )}
+                  {gmailSync.status === "loading" ? "Syncing..." : gmailSync.status === "success" ? "Done" : "Sync Gmail"}
+                </button>
+              </SyncButtonWrapper>
 
-              <button
-                onClick={handleGoogleCalendarSync}
-                disabled={calendarSync.status === "loading" || !connected.google}
-                className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 text-sm font-medium rounded-lg bg-blue-600 text-white hover:bg-blue-700 transition-colors disabled:opacity-50"
-              >
-                {calendarSync.status === "loading" ? (
-                  <RefreshCw className="w-3.5 h-3.5 animate-spin" />
-                ) : (
-                  <Calendar className="w-3.5 h-3.5" />
-                )}
-                Sync Calendar
-                <ElapsedTimer running={calendarSync.status === "loading"} />
-              </button>
+              <SyncButtonWrapper phase={calendarSync.status as SyncPhase}>
+                <button
+                  onClick={handleGoogleCalendarSync}
+                  disabled={calendarSync.status === "loading" || !connected.google}
+                  className="w-full flex items-center justify-center gap-1.5 px-3 py-2 text-sm font-medium rounded-lg bg-blue-600 text-white hover:bg-blue-700 transition-all disabled:opacity-60 disabled:cursor-not-allowed"
+                >
+                  {calendarSync.status === "loading" ? (
+                    <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                  ) : calendarSync.status === "success" ? (
+                    <Check className="w-3.5 h-3.5" />
+                  ) : (
+                    <Calendar className="w-3.5 h-3.5" />
+                  )}
+                  {calendarSync.status === "loading" ? "Syncing..." : calendarSync.status === "success" ? "Done" : "Sync Calendar"}
+                </button>
+              </SyncButtonWrapper>
             </div>
 
             {connected.google_accounts.length > 0 && (

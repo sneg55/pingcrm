@@ -164,7 +164,7 @@ describe("SettingsPage", () => {
       expect(screen.getByText("Twitter Connected")).toBeInTheDocument();
     });
     expect(screen.getByText(/successfully linked/)).toBeInTheDocument();
-    expect(window.history.replaceState).toHaveBeenCalledWith({}, "", "/settings");
+    expect(window.history.replaceState).toHaveBeenCalledWith({}, "", "/settings?tab=sync");
   });
 
   it("closes success modal on Done click", async () => {
@@ -276,8 +276,8 @@ describe("SettingsPage", () => {
     await waitFor(() => {
       // After sync, POST was called with the correct endpoint
       expect(mockedClient.POST).toHaveBeenCalledWith("/api/v1/contacts/sync/google");
-      // Button returns to non-disabled state (sync complete)
-      expect(screen.getByText("Sync Contacts").closest("button")).not.toBeDisabled();
+      // Button shows syncing state (stays loading while polling for notification)
+      expect(screen.getByText("Syncing...")).toBeInTheDocument();
     });
   });
 
@@ -787,7 +787,7 @@ describe("SettingsPage", () => {
 
     await user.click(screen.getByText("Sync Chats"));
     await waitFor(() => {
-      expect(screen.getByText(/Sync started/)).toBeInTheDocument();
+      expect(screen.getByText(/Sync dispatched/)).toBeInTheDocument();
     });
   });
 
@@ -931,7 +931,7 @@ describe("SettingsPage", () => {
 
     await user.click(screen.getByText("Sync Activity"));
     await waitFor(() => {
-      expect(screen.getByText(/Sync started/)).toBeInTheDocument();
+      expect(screen.getByText(/Sync dispatched/)).toBeInTheDocument();
     });
   });
 

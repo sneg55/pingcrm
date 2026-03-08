@@ -64,11 +64,61 @@ def _extract_attendee_emails(event: dict, user_email: str) -> list[str]:
     return emails
 
 
+def _extract_name_from_email(email_addr: str) -> tuple[str | None, str | None]:
+    """Try to extract given/family name from the local part of an email address.
+
+    Handles patterns like: simon.letort@..., simon_letort@..., simonletort@...
+    Returns (given_name, family_name) or (None, None) if unparseable.
+    """
+    local = email_addr.split("@")[0].lower()
+    # Skip noreply, info, etc.
+    if local in ("noreply", "no-reply", "info", "support", "admin", "hello", "team", "contact"):
+        return None, None
+    # Split on . or _ or -
+    import re
+    parts = re.split(r"[._\-]", local)
+    parts = [p for p in parts if p and not p.isdigit()]
+    if len(parts) >= 2:
+        return parts[0].capitalize(), parts[1].capitalize()
+    if len(parts) == 1 and len(parts[0]) > 2:
+        return parts[0].capitalize(), None
+    return None, None
+
+
+def _extract_name_from_summary(summary: str, user_name: str | None) -> str | None:
+    """Try to extract the other person's name from event titles like:
+
+    - "30 Min Meeting between Nick Sawinyh and Simon Letort"
+    - "Meeting with Simon Letort"
+    - "Coffee chat: Nick and Simon Letort"
+
+    Returns the other person's name or None.
+    """
+    import re
+    # "between X and Y" pattern
+    m = re.search(r"between\s+(.+?)\s+and\s+(.+?)(?:\s*[-|:]|$)", summary, re.IGNORECASE)
+    if m:
+        name1, name2 = m.group(1).strip(), m.group(2).strip()
+        # Return the name that isn't the user
+        if user_name and user_name.lower() in name1.lower():
+            return name2
+        return name2 if user_name else name1
+
+    # "with Y" pattern
+    m = re.search(r"(?:meeting|call|chat|coffee|lunch|dinner|sync|catchup|catch-up)\s+with\s+(.+?)(?:\s*[-|:]|$)", summary, re.IGNORECASE)
+    if m:
+        return m.group(1).strip()
+
+    return None
+
+
 async def _find_or_create_contact(
     email_addr: str,
     display_name: str | None,
     user_id: uuid.UUID,
     db: AsyncSession,
+    event_summary: str | None = None,
+    user_name: str | None = None,
 ) -> Contact:
     """Find an existing contact by email or create a new one."""
     result = await db.execute(
@@ -88,6 +138,21 @@ async def _find_or_create_contact(
         parts = display_name.strip().split(None, 1)
         given_name = parts[0] if parts else None
         family_name = parts[1] if len(parts) > 1 else None
+    else:
+        # Try to extract name from event summary
+        if event_summary:
+            extracted = _extract_name_from_summary(event_summary, user_name)
+            if extracted:
+                parts = extracted.strip().split(None, 1)
+                display_name = extracted
+                given_name = parts[0] if parts else None
+                family_name = parts[1] if len(parts) > 1 else None
+
+        # Fall back to parsing the email local part
+        if not display_name:
+            given_name, family_name = _extract_name_from_email(email_addr)
+            if given_name:
+                display_name = f"{given_name} {family_name}".strip() if family_name else given_name
 
     contact = Contact(
         user_id=user_id,
@@ -178,18 +243,35 @@ async def sync_calendar_events(user: User, db: AsyncSession) -> dict[str, int]:
                 if existing:
                     contact = existing
                     # Backfill name from calendar if contact has no name yet
-                    cal_name = attendee_names.get(att_email)
-                    if cal_name and not contact.full_name:
-                        parts = cal_name.strip().split(None, 1)
-                        contact.full_name = cal_name
-                        contact.given_name = parts[0] if parts else None
-                        contact.family_name = parts[1] if len(parts) > 1 else None
+                    if not contact.full_name:
+                        cal_name = attendee_names.get(att_email)
+                        if cal_name:
+                            parts = cal_name.strip().split(None, 1)
+                            contact.full_name = cal_name
+                            contact.given_name = parts[0] if parts else None
+                            contact.family_name = parts[1] if len(parts) > 1 else None
+                        else:
+                            # Try event summary, then email local part
+                            extracted = _extract_name_from_summary(summary, user.full_name)
+                            if extracted:
+                                parts = extracted.strip().split(None, 1)
+                                contact.full_name = extracted
+                                contact.given_name = parts[0] if parts else None
+                                contact.family_name = parts[1] if len(parts) > 1 else None
+                            else:
+                                gn, fn = _extract_name_from_email(att_email)
+                                if gn:
+                                    contact.given_name = gn
+                                    contact.family_name = fn
+                                    contact.full_name = f"{gn} {fn}".strip() if fn else gn
                 else:
                     contact = await _find_or_create_contact(
                         att_email,
                         attendee_names.get(att_email),
                         user.id,
                         db,
+                        event_summary=summary,
+                        user_name=user.full_name,
                     )
                     new_contacts += 1
 
