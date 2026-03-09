@@ -12,9 +12,17 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.models.contact import Contact
 from app.models.detected_event import DetectedEvent
 from app.models.follow_up import FollowUpSuggestion
+from app.models.interaction import Interaction
 from app.services.followup_engine import (
+    DORMANCY_THRESHOLD_DAYS,
+    HARD_CAP_DORMANCY_YEARS,
     MAX_SUGGESTIONS_PER_RUN,
+    MIN_INTERACTIONS_FOR_SUGGESTION,
+    POOL_A_SLOTS,
+    POOL_B_SLOTS,
+    STALE_CONTACT_DAYS,
     compute_priority,
+    compute_priority_b,
     generate_suggestions,
     get_weekly_digest,
 )
@@ -36,6 +44,43 @@ def _patch_compose():
     )
 
 
+async def _make_contact(db, user_id, *, name="Test", **kwargs):
+    """Create a contact with sensible defaults."""
+    defaults = dict(
+        id=uuid.uuid4(),
+        user_id=user_id,
+        full_name=name,
+        given_name=name.split()[0],
+        emails=[f"{name.lower().replace(' ', '')}@test.com"],
+        relationship_score=3,
+        interaction_count=5,
+        source="manual",
+    )
+    defaults.update(kwargs)
+    contact = Contact(**defaults)
+    db.add(contact)
+    await db.flush()
+    await db.refresh(contact)
+    return contact
+
+
+async def _make_interactions(db, user_id, contact_id, count, *, span_days=0):
+    """Create `count` interactions spread over `span_days`."""
+    for i in range(count):
+        offset = timedelta(days=span_days * i / max(count - 1, 1)) if span_days > 0 else timedelta()
+        interaction = Interaction(
+            id=uuid.uuid4(),
+            contact_id=contact_id,
+            user_id=user_id,
+            platform="email",
+            direction="inbound",
+            content_preview=f"Message {i}",
+            occurred_at=datetime.now(UTC) - timedelta(days=730) + offset,
+        )
+        db.add(interaction)
+    await db.flush()
+
+
 # ---------------------------------------------------------------------------
 # _get_best_channel — tested indirectly through generate_suggestions
 # ---------------------------------------------------------------------------
@@ -47,6 +92,7 @@ async def test_get_best_channel_falls_back_to_email(
 ):
     """When a contact has no recent interactions the channel should default to 'email'."""
     test_contact.relationship_score = 3
+    test_contact.interaction_count = 5
     test_contact.last_interaction_at = datetime.now(UTC) - timedelta(days=200)
     db.add(test_contact)
     await db.commit()
@@ -67,6 +113,7 @@ async def test_get_best_channel_uses_last_interaction_platform(
     """Channel should match the platform of the most recent interaction."""
     # test_interaction.platform == "email"
     test_contact.relationship_score = 2
+    test_contact.interaction_count = 5
     test_contact.last_interaction_at = datetime.now(UTC) - timedelta(days=100)
     db.add(test_contact)
     await db.commit()
@@ -91,6 +138,7 @@ async def test_generate_suggestions_time_based_created(
 ):
     """Low score + no recent interaction creates a time_based suggestion."""
     test_contact.relationship_score = 2
+    test_contact.interaction_count = 5
     test_contact.last_interaction_at = datetime.now(UTC) - timedelta(days=100)
     db.add(test_contact)
     await db.commit()
@@ -105,6 +153,7 @@ async def test_generate_suggestions_time_based_created(
     assert s.user_id == test_user.id
     assert s.contact_id == test_contact.id
     assert s.status == "pending"
+    assert s.pool == "A"
     assert s.suggested_message == MOCK_MESSAGE
 
 
@@ -112,7 +161,7 @@ async def test_generate_suggestions_time_based_created(
 async def test_generate_suggestions_time_based_null_last_interaction(
     db: AsyncSession, test_user, test_contact
 ):
-    """last_interaction_at=None should NOT qualify (no previous interactions)."""
+    """last_interaction_at=None should NOT qualify for Pool A time-based."""
     test_contact.relationship_score = 1
     test_contact.last_interaction_at = None
     db.add(test_contact)
@@ -195,6 +244,7 @@ async def test_generate_suggestions_event_based_created(
     assert s.trigger_event_id == test_detected_event.id
     assert s.contact_id == test_contact.id
     assert s.status == "pending"
+    assert s.pool == "A"
 
 
 @pytest.mark.asyncio
@@ -273,6 +323,7 @@ async def test_generate_suggestions_scheduled_created(
     db: AsyncSession, test_user, test_contact
 ):
     """last_followup_at older than the medium-priority interval (60 days) triggers a scheduled suggestion."""
+    test_contact.interaction_count = 5
     test_contact.last_followup_at = datetime.now(UTC) - timedelta(days=65)
     db.add(test_contact)
     await db.commit()
@@ -284,6 +335,7 @@ async def test_generate_suggestions_scheduled_created(
     scheduled = [s for s in suggestions if s.trigger_type == "scheduled"]
     assert len(scheduled) == 1
     assert scheduled[0].contact_id == test_contact.id
+    assert scheduled[0].pool == "A"
 
 
 @pytest.mark.asyncio
@@ -329,6 +381,7 @@ async def test_generate_suggestions_no_duplicate_per_contact(
 ):
     """A contact matching multiple triggers should appear at most once."""
     test_contact.relationship_score = 2
+    test_contact.interaction_count = 5
     test_contact.last_interaction_at = datetime.now(UTC) - timedelta(days=100)
     test_contact.last_followup_at = datetime.now(UTC) - timedelta(days=40)
     db.add(test_contact)
@@ -357,6 +410,7 @@ async def test_generate_suggestions_respects_max_cap(db: AsyncSession, test_user
             full_name=f"Contact {i}",
             given_name=f"Contact{i}",
             relationship_score=1,
+            interaction_count=5,
             last_interaction_at=datetime.now(UTC) - timedelta(days=100),
             source="manual",
         )
@@ -394,6 +448,7 @@ async def test_generate_suggestions_skips_contact_on_compose_error(
 ):
     """If compose_followup_message raises, the contact is skipped without crashing."""
     test_contact.relationship_score = 1
+    test_contact.interaction_count = 5
     test_contact.last_interaction_at = datetime.now(UTC) - timedelta(days=200)
     db.add(test_contact)
     await db.commit()
@@ -434,6 +489,7 @@ async def test_generate_suggestions_user_isolation(db: AsyncSession, test_user):
         user_id=other_user.id,
         full_name="Other Contact",
         relationship_score=1,
+        interaction_count=5,
         last_interaction_at=datetime.now(UTC) - timedelta(days=200),
         source="manual",
     )
@@ -575,7 +631,82 @@ async def test_get_weekly_digest_user_isolation(
 
 
 # ---------------------------------------------------------------------------
-# compute_priority — unit tests
+# Minimum interaction count & staleness filters
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_low_interaction_contact_excluded(db: AsyncSession, test_user):
+    """A low-priority contact with fewer than 3 interactions should NOT get a suggestion."""
+    contact = Contact(
+        id=uuid.uuid4(),
+        user_id=test_user.id,
+        full_name="Low Interaction",
+        emails=["low@test.com"],
+        relationship_score=2,
+        interaction_count=2,  # below low threshold of 3
+        priority_level="low",
+        last_interaction_at=datetime.now(UTC) - timedelta(days=100),
+        source="manual",
+    )
+    db.add(contact)
+    await db.commit()
+
+    with _patch_compose():
+        suggestions = await generate_suggestions(test_user.id, db)
+
+    assert not any(s.contact_id == contact.id for s in suggestions)
+
+
+@pytest.mark.asyncio
+async def test_high_priority_one_interaction_included(db: AsyncSession, test_user):
+    """A high-priority contact with just 1 interaction should still get a suggestion."""
+    contact = Contact(
+        id=uuid.uuid4(),
+        user_id=test_user.id,
+        full_name="VIP Investor",
+        emails=["vip@test.com"],
+        relationship_score=2,
+        interaction_count=1,  # meets high threshold of 1
+        priority_level="high",
+        last_interaction_at=datetime.now(UTC) - timedelta(days=45),
+        source="manual",
+    )
+    db.add(contact)
+    await db.commit()
+
+    with _patch_compose():
+        suggestions = await generate_suggestions(test_user.id, db)
+
+    assert any(s.contact_id == contact.id for s in suggestions)
+
+
+@pytest.mark.asyncio
+async def test_stale_score_zero_contact_excluded(db: AsyncSession, test_user):
+    """A contact with score 0 and no interaction in 400+ days should be excluded even with enough interactions."""
+    contact = Contact(
+        id=uuid.uuid4(),
+        user_id=test_user.id,
+        full_name="Dead Contact",
+        emails=["dead@test.com"],
+        relationship_score=0,
+        interaction_count=6,  # above medium threshold
+        last_interaction_at=datetime.now(UTC) - timedelta(days=400),
+        source="manual",
+    )
+    db.add(contact)
+    await db.commit()
+
+    with _patch_compose():
+        suggestions = await generate_suggestions(test_user.id, db)
+
+    # Contact is dormant (>365 days) so won't appear in Pool A.
+    # For Pool B, score=0 doesn't meet depth qualification.
+    assert not any(s.contact_id == contact.id for s in suggestions)
+
+
+# ---------------------------------------------------------------------------
+# compute_priority — unit tests (Pool A)
 # ---------------------------------------------------------------------------
 
 
@@ -612,6 +743,46 @@ def test_compute_priority_more_interactions_rank_higher():
 
 
 # ---------------------------------------------------------------------------
+# compute_priority_b — unit tests (Pool B)
+# ---------------------------------------------------------------------------
+
+
+def test_compute_priority_b_tiers():
+    """Verify depth-based tier scoring for Pool B."""
+    # Tier 1: Deep (interactions >= 8 OR score >= 5)
+    deep = compute_priority_b(interaction_count=10, relationship_score=3, span_days=100, has_event=False)
+    assert deep >= 1000
+
+    deep_score = compute_priority_b(interaction_count=3, relationship_score=6, span_days=100, has_event=False)
+    assert deep_score >= 1000
+
+    # Tier 2: Solid (interactions >= 4 OR score >= 3)
+    solid = compute_priority_b(interaction_count=5, relationship_score=2, span_days=100, has_event=False)
+    assert 500 <= solid < 1000
+
+    solid_score = compute_priority_b(interaction_count=2, relationship_score=4, span_days=100, has_event=False)
+    assert 500 <= solid_score < 1000
+
+    # Tier 3: Qualifying (below tier 2 thresholds)
+    qualifying = compute_priority_b(interaction_count=3, relationship_score=2, span_days=100, has_event=False)
+    assert qualifying < 500
+
+
+def test_compute_priority_b_event_bonus():
+    """Verify +300 event bonus for Pool B."""
+    base = compute_priority_b(interaction_count=10, relationship_score=5, span_days=100, has_event=False)
+    with_event = compute_priority_b(interaction_count=10, relationship_score=5, span_days=100, has_event=True)
+    assert with_event == base + 300
+
+
+def test_compute_priority_b_span_bonus():
+    """Verify +150 span bonus for span >= 180 days."""
+    short_span = compute_priority_b(interaction_count=10, relationship_score=5, span_days=100, has_event=False)
+    long_span = compute_priority_b(interaction_count=10, relationship_score=5, span_days=200, has_event=False)
+    assert long_span == short_span + 150
+
+
+# ---------------------------------------------------------------------------
 # Priority-based ordering — integration tests
 # ---------------------------------------------------------------------------
 
@@ -635,7 +806,7 @@ async def test_rich_history_contacts_prioritized(db: AsyncSession, test_user):
         full_name="Poor History",
         emails=["poor@test.com"],
         relationship_score=2,
-        interaction_count=2,
+        interaction_count=3,
         last_interaction_at=datetime.now(UTC) - timedelta(days=100),
         source="manual",
     )
@@ -645,13 +816,14 @@ async def test_rich_history_contacts_prioritized(db: AsyncSession, test_user):
     with _patch_compose():
         suggestions = await generate_suggestions(test_user.id, db)
 
-    assert len(suggestions) == 2
-    assert suggestions[0].contact_id == rich.id
+    pool_a = [s for s in suggestions if s.pool == "A"]
+    assert len(pool_a) == 2
+    assert pool_a[0].contact_id == rich.id
 
 
 @pytest.mark.asyncio
 async def test_cooling_contacts_beat_standard(db: AsyncSession, test_user):
-    """A cooling contact (15 interactions, 20 days ago) beats a standard contact (2 interactions, 100 days ago)."""
+    """A cooling contact (15 interactions, 100 days ago) beats a standard contact (3 interactions, 100 days ago)."""
     cooling = Contact(
         id=uuid.uuid4(),
         user_id=test_user.id,
@@ -668,7 +840,7 @@ async def test_cooling_contacts_beat_standard(db: AsyncSession, test_user):
         full_name="Standard",
         emails=["standard@test.com"],
         relationship_score=2,
-        interaction_count=2,
+        interaction_count=3,
         last_interaction_at=datetime.now(UTC) - timedelta(days=100),
         source="manual",
     )
@@ -678,8 +850,9 @@ async def test_cooling_contacts_beat_standard(db: AsyncSession, test_user):
     with _patch_compose():
         suggestions = await generate_suggestions(test_user.id, db)
 
-    assert len(suggestions) == 2
-    assert suggestions[0].contact_id == cooling.id
+    pool_a = [s for s in suggestions if s.pool == "A"]
+    assert len(pool_a) == 2
+    assert pool_a[0].contact_id == cooling.id
 
 
 @pytest.mark.asyncio
@@ -722,6 +895,404 @@ async def test_event_trigger_gets_priority_bonus(db: AsyncSession, test_user):
     with _patch_compose():
         suggestions = await generate_suggestions(test_user.id, db)
 
-    assert len(suggestions) == 2
-    assert suggestions[0].contact_id == event_contact.id
-    assert suggestions[0].trigger_type == "event_based"
+    pool_a = [s for s in suggestions if s.pool == "A"]
+    assert len(pool_a) == 2
+    assert pool_a[0].contact_id == event_contact.id
+    assert pool_a[0].trigger_type == "event_based"
+
+
+# ---------------------------------------------------------------------------
+# Pool B qualification tests
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_pool_b_qualifies_by_interaction_count(db: AsyncSession, test_user):
+    """A dormant contact with 10 interactions qualifies for Pool B."""
+    contact = await _make_contact(
+        db, test_user.id,
+        name="Deep Dormant",
+        interaction_count=10,
+        relationship_score=3,
+        last_interaction_at=datetime.now(UTC) - timedelta(days=730),  # 2 years
+    )
+    await _make_interactions(db, test_user.id, contact.id, 10, span_days=200)
+    await db.commit()
+
+    with _patch_compose():
+        suggestions = await generate_suggestions(test_user.id, db)
+
+    pool_b = [s for s in suggestions if s.pool == "B"]
+    assert any(s.contact_id == contact.id for s in pool_b)
+
+
+@pytest.mark.asyncio
+async def test_pool_b_qualifies_by_score(db: AsyncSession, test_user):
+    """A dormant contact with score 7 qualifies for Pool B via B1 trigger."""
+    contact = await _make_contact(
+        db, test_user.id,
+        name="High Score Dormant",
+        interaction_count=5,
+        relationship_score=7,
+        last_interaction_at=datetime.now(UTC) - timedelta(days=730),  # 2 years
+    )
+    await db.commit()
+
+    with _patch_compose():
+        suggestions = await generate_suggestions(test_user.id, db)
+
+    pool_b = [s for s in suggestions if s.pool == "B"]
+    assert any(s.contact_id == contact.id for s in pool_b)
+
+
+@pytest.mark.asyncio
+async def test_pool_b_qualifies_by_span(db: AsyncSession, test_user):
+    """A dormant contact with span >= 180 days and enough interactions qualifies for Pool B via B2."""
+    contact = await _make_contact(
+        db, test_user.id,
+        name="Long Span Dormant",
+        interaction_count=10,
+        relationship_score=3,
+        last_interaction_at=datetime.now(UTC) - timedelta(days=730),  # 2 years
+    )
+    await _make_interactions(db, test_user.id, contact.id, 10, span_days=200)
+    await db.commit()
+
+    with _patch_compose():
+        suggestions = await generate_suggestions(test_user.id, db)
+
+    pool_b = [s for s in suggestions if s.pool == "B"]
+    assert any(s.contact_id == contact.id for s in pool_b)
+
+
+@pytest.mark.asyncio
+async def test_pool_b_excluded_insufficient_depth(db: AsyncSession, test_user):
+    """A dormant contact with 1 interaction, score 0 should be excluded from Pool B."""
+    contact = await _make_contact(
+        db, test_user.id,
+        name="Shallow Dormant",
+        interaction_count=1,
+        relationship_score=0,
+        last_interaction_at=datetime.now(UTC) - timedelta(days=730),  # 2 years
+    )
+    await _make_interactions(db, test_user.id, contact.id, 1, span_days=0)
+    await db.commit()
+
+    with _patch_compose():
+        suggestions = await generate_suggestions(test_user.id, db)
+
+    pool_b = [s for s in suggestions if s.pool == "B"]
+    assert not any(s.contact_id == contact.id for s in pool_b)
+
+
+# ---------------------------------------------------------------------------
+# Pool B trigger tests
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_trigger_b1_deep_dormant(db: AsyncSession, test_user):
+    """20 interactions, dormant 3 years → dormant_deep suggestion."""
+    contact = await _make_contact(
+        db, test_user.id,
+        name="Deep History",
+        interaction_count=20,
+        relationship_score=5,
+        last_interaction_at=datetime.now(UTC) - timedelta(days=1095),  # 3 years
+    )
+    await db.commit()
+
+    with _patch_compose():
+        suggestions = await generate_suggestions(test_user.id, db)
+
+    pool_b = [s for s in suggestions if s.pool == "B"]
+    matching = [s for s in pool_b if s.contact_id == contact.id]
+    assert len(matching) == 1
+    assert matching[0].trigger_type == "dormant_deep"
+
+
+@pytest.mark.asyncio
+async def test_trigger_b2_mid_dormant(db: AsyncSession, test_user):
+    """10 interactions, span 120 days, dormant 2 years → dormant_mid suggestion."""
+    contact = await _make_contact(
+        db, test_user.id,
+        name="Mid Dormant",
+        interaction_count=10,
+        relationship_score=3,
+        last_interaction_at=datetime.now(UTC) - timedelta(days=730),  # 2 years
+    )
+    await _make_interactions(db, test_user.id, contact.id, 10, span_days=120)
+    await db.commit()
+
+    with _patch_compose():
+        suggestions = await generate_suggestions(test_user.id, db)
+
+    pool_b = [s for s in suggestions if s.pool == "B"]
+    matching = [s for s in pool_b if s.contact_id == contact.id]
+    assert len(matching) == 1
+    assert matching[0].trigger_type in ("dormant_mid", "dormant_deep")
+
+
+@pytest.mark.asyncio
+async def test_trigger_b3_event_revival(db: AsyncSession, test_user):
+    """Event in last 14 days + dormant contact → dormant_event suggestion."""
+    contact = await _make_contact(
+        db, test_user.id,
+        name="Event Revival",
+        interaction_count=10,
+        relationship_score=5,
+        last_interaction_at=datetime.now(UTC) - timedelta(days=730),  # 2 years
+    )
+    event = DetectedEvent(
+        id=uuid.uuid4(),
+        contact_id=contact.id,
+        event_type="funding_round",
+        confidence=0.9,
+        summary="Company raised Series B",
+        detected_at=datetime.now(UTC) - timedelta(days=5),
+    )
+    db.add(event)
+    await db.commit()
+
+    with _patch_compose():
+        suggestions = await generate_suggestions(test_user.id, db)
+
+    pool_b = [s for s in suggestions if s.pool == "B"]
+    matching = [s for s in pool_b if s.contact_id == contact.id]
+    assert len(matching) == 1
+    assert matching[0].trigger_type == "dormant_event"
+
+
+@pytest.mark.asyncio
+async def test_trigger_b3_overrides_hard_cap(db: AsyncSession, test_user):
+    """Dormant 6 years + fresh event → included (B3 overrides hard cap)."""
+    contact = await _make_contact(
+        db, test_user.id,
+        name="Ancient Contact",
+        interaction_count=10,
+        relationship_score=5,
+        last_interaction_at=datetime.now(UTC) - timedelta(days=2190),  # 6 years
+    )
+    event = DetectedEvent(
+        id=uuid.uuid4(),
+        contact_id=contact.id,
+        event_type="job_change",
+        confidence=0.85,
+        summary="Started new role at BigCorp",
+        detected_at=datetime.now(UTC) - timedelta(days=3),
+    )
+    db.add(event)
+    await db.commit()
+
+    with _patch_compose():
+        suggestions = await generate_suggestions(test_user.id, db)
+
+    pool_b = [s for s in suggestions if s.pool == "B"]
+    assert any(s.contact_id == contact.id for s in pool_b)
+
+
+@pytest.mark.asyncio
+async def test_hard_cap_excludes_ancient(db: AsyncSession, test_user):
+    """Dormant 6 years, no event → excluded by hard cap."""
+    contact = await _make_contact(
+        db, test_user.id,
+        name="Ancient No Event",
+        interaction_count=20,
+        relationship_score=8,
+        last_interaction_at=datetime.now(UTC) - timedelta(days=2190),  # 6 years
+    )
+    await db.commit()
+
+    with _patch_compose():
+        suggestions = await generate_suggestions(test_user.id, db)
+
+    pool_b = [s for s in suggestions if s.pool == "B"]
+    assert not any(s.contact_id == contact.id for s in pool_b)
+
+
+# ---------------------------------------------------------------------------
+# Budget & rollover tests
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_pool_budgets_default_3a_2b(db: AsyncSession, test_user):
+    """Both pools have candidates → 3 from Pool A + 2 from Pool B."""
+    # Create 5 Pool A candidates (active, recent enough)
+    for i in range(5):
+        await _make_contact(
+            db, test_user.id,
+            name=f"Active {i}",
+            interaction_count=5,
+            relationship_score=2,
+            last_interaction_at=datetime.now(UTC) - timedelta(days=100),
+        )
+
+    # Create 4 Pool B candidates (dormant, deep)
+    for i in range(4):
+        contact = await _make_contact(
+            db, test_user.id,
+            name=f"Dormant {i}",
+            interaction_count=20,
+            relationship_score=5,
+            last_interaction_at=datetime.now(UTC) - timedelta(days=730),
+        )
+    await db.commit()
+
+    with _patch_compose():
+        suggestions = await generate_suggestions(test_user.id, db)
+
+    pool_a_count = sum(1 for s in suggestions if s.pool == "A")
+    pool_b_count = sum(1 for s in suggestions if s.pool == "B")
+    assert pool_a_count == POOL_A_SLOTS
+    assert pool_b_count == POOL_B_SLOTS
+    assert len(suggestions) == POOL_A_SLOTS + POOL_B_SLOTS
+
+
+@pytest.mark.asyncio
+async def test_pool_b_empty_rollover_to_a(db: AsyncSession, test_user):
+    """No Pool B candidates → all 5 slots go to Pool A."""
+    for i in range(6):
+        await _make_contact(
+            db, test_user.id,
+            name=f"Active {i}",
+            interaction_count=5,
+            relationship_score=2,
+            last_interaction_at=datetime.now(UTC) - timedelta(days=100),
+        )
+    await db.commit()
+
+    with _patch_compose():
+        suggestions = await generate_suggestions(test_user.id, db)
+
+    assert all(s.pool == "A" for s in suggestions)
+    assert len(suggestions) == POOL_A_SLOTS + POOL_B_SLOTS
+
+
+@pytest.mark.asyncio
+async def test_pool_a_short_rollover_to_b(db: AsyncSession, test_user):
+    """Pool A has 1 candidate → Pool B gets up to 4."""
+    # 1 active contact
+    await _make_contact(
+        db, test_user.id,
+        name="Solo Active",
+        interaction_count=5,
+        relationship_score=2,
+        last_interaction_at=datetime.now(UTC) - timedelta(days=100),
+    )
+
+    # 5 dormant contacts
+    for i in range(5):
+        await _make_contact(
+            db, test_user.id,
+            name=f"Dormant {i}",
+            interaction_count=20,
+            relationship_score=5,
+            last_interaction_at=datetime.now(UTC) - timedelta(days=730),
+        )
+    await db.commit()
+
+    with _patch_compose():
+        suggestions = await generate_suggestions(test_user.id, db)
+
+    pool_a_count = sum(1 for s in suggestions if s.pool == "A")
+    pool_b_count = sum(1 for s in suggestions if s.pool == "B")
+    assert pool_a_count == 1
+    assert pool_b_count == 4
+    assert len(suggestions) == 5
+
+
+# ---------------------------------------------------------------------------
+# Pool field on suggestions
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_pool_field_on_suggestions(db: AsyncSession, test_user):
+    """Verify `pool` is 'A' or 'B' on created suggestion records."""
+    # Pool A contact
+    await _make_contact(
+        db, test_user.id,
+        name="Active Contact",
+        interaction_count=5,
+        relationship_score=2,
+        last_interaction_at=datetime.now(UTC) - timedelta(days=100),
+    )
+
+    # Pool B contact
+    await _make_contact(
+        db, test_user.id,
+        name="Dormant Contact",
+        interaction_count=20,
+        relationship_score=5,
+        last_interaction_at=datetime.now(UTC) - timedelta(days=730),
+    )
+    await db.commit()
+
+    with _patch_compose():
+        suggestions = await generate_suggestions(test_user.id, db)
+
+    for s in suggestions:
+        assert s.pool in ("A", "B")
+
+    pools = {s.pool for s in suggestions}
+    assert "A" in pools
+    assert "B" in pools
+
+
+# ---------------------------------------------------------------------------
+# Revival context passed for Pool B
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_revival_context_passed_for_pool_b(db: AsyncSession, test_user):
+    """Verify compose_followup_message is called with revival_context=True for Pool B contacts."""
+    contact = await _make_contact(
+        db, test_user.id,
+        name="Revival Target",
+        interaction_count=20,
+        relationship_score=5,
+        last_interaction_at=datetime.now(UTC) - timedelta(days=730),
+    )
+    await db.commit()
+
+    mock_compose = AsyncMock(return_value=MOCK_MESSAGE)
+    with patch("app.services.followup_engine.compose_followup_message", mock_compose):
+        suggestions = await generate_suggestions(test_user.id, db)
+
+    pool_b = [s for s in suggestions if s.pool == "B"]
+    assert len(pool_b) >= 1
+
+    # Find the call for our Pool B contact
+    for call in mock_compose.call_args_list:
+        if call.kwargs.get("contact_id") == contact.id or (call.args and call.args[0] == contact.id):
+            assert call.kwargs.get("revival_context") is True
+            break
+    else:
+        pytest.fail("compose_followup_message was not called for Pool B contact")
+
+
+# ---------------------------------------------------------------------------
+# Dormancy boundary — contacts at exactly 365 days go to Pool B, not A
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_dormancy_boundary_routes_to_pool_b(db: AsyncSession, test_user):
+    """A contact with last_interaction_at exactly at dormancy threshold goes to Pool B, not Pool A."""
+    contact = await _make_contact(
+        db, test_user.id,
+        name="Boundary Contact",
+        interaction_count=20,
+        relationship_score=7,
+        last_interaction_at=datetime.now(UTC) - timedelta(days=DORMANCY_THRESHOLD_DAYS + 1),
+    )
+    await db.commit()
+
+    with _patch_compose():
+        suggestions = await generate_suggestions(test_user.id, db)
+
+    matching = [s for s in suggestions if s.contact_id == contact.id]
+    assert len(matching) == 1
+    assert matching[0].pool == "B"

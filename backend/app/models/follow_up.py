@@ -30,6 +30,7 @@ class FollowUpSuggestion(Base):
     suggested_channel: Mapped[str] = mapped_column(String, nullable=False)
 
     status: Mapped[str] = mapped_column(String, default="pending", nullable=False)
+    pool: Mapped[str | None] = mapped_column(String, nullable=True)
     scheduled_for: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
     created_at: Mapped[datetime] = mapped_column(

@@ -1,9 +1,14 @@
-"""Follow-Up Engine — generates FollowUpSuggestion records for a user."""
+"""Follow-Up Engine v2 — generates FollowUpSuggestion records for a user.
+
+Two parallel pools:
+- Pool A: maintains active relationships (recent contacts)
+- Pool B: surfaces dormant contacts worth reviving (ranked by historical depth)
+"""
 from __future__ import annotations
 
 import logging
 import uuid
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import UTC, datetime, timedelta
 
 from sqlalchemy import func, or_, select
@@ -26,11 +31,38 @@ EVENT_BASED_WINDOW_DAYS = 7
 EVENT_CONFIDENCE_THRESHOLD = 0.7
 MAX_SUGGESTIONS_PER_RUN = 5
 
+# Minimum interactions required for a follow-up suggestion (per priority level)
+MIN_INTERACTIONS_FOR_SUGGESTION = {"high": 1, "medium": 1, "low": 3}
+
+# Score-0 contacts with no interaction in this many days are considered dead
+STALE_CONTACT_DAYS = 365
+
 # Priority scoring constants
 COOLING_RECENT_DAYS = 14
 COOLING_WINDOW_DAYS = 90
 RICH_HISTORY_THRESHOLD = 10
 EVENT_TRIGGER_BONUS = 200
+
+# Pool configuration
+POOL_A_SLOTS = 3
+POOL_B_SLOTS = 2
+DORMANCY_THRESHOLD_DAYS = 365
+
+# Pool B qualification
+POOL_B_MIN_INTERACTIONS = 2
+POOL_B_MIN_SCORE = 3
+POOL_B_MIN_SPAN_DAYS = 30
+
+# Pool B triggers
+B1_MIN_INTERACTIONS = 5
+B1_MIN_SCORE = 5
+B1_MAX_DORMANCY_YEARS = 5
+B2_MIN_INTERACTIONS = 2
+B2_MIN_SPAN_DAYS = 0
+B2_MAX_DORMANCY_YEARS = 3
+B3_EVENT_WINDOW_DAYS = 14
+POOL_B_EVENT_BONUS = 300
+HARD_CAP_DORMANCY_YEARS = 5
 
 # Contact must have at least one reachable channel
 _has_channel = or_(
@@ -59,6 +91,7 @@ class _Candidate:
     trigger_type: str
     event: DetectedEvent | None = None
     priority: float = 0.0
+    pool: str = "A"
 
 
 def compute_priority(
@@ -66,7 +99,7 @@ def compute_priority(
     days_since_interaction: float,
     is_event_trigger: bool,
 ) -> float:
-    """Compute a priority score for a follow-up candidate.
+    """Compute a priority score for a Pool A follow-up candidate.
 
     Tier 1 — Rich history:  interaction_count >= 10 AND days_since > 90   → 1000+
     Tier 2 — Cooling down:  interaction_count >= 10 AND 14 <= days_since <= 90  → 500-999
@@ -89,6 +122,39 @@ def compute_priority(
 
     if is_event_trigger:
         score += EVENT_TRIGGER_BONUS
+
+    return score
+
+
+def compute_priority_b(
+    interaction_count: int,
+    relationship_score: int,
+    span_days: float,
+    has_event: bool,
+) -> float:
+    """Compute a priority score for a Pool B (dormant revival) candidate.
+
+    Depth-based, not recency-based:
+    Tier 1 — Deep:       interactions >= 8 OR score >= 5   → 1000 + count
+    Tier 2 — Solid:      interactions >= 4 OR score >= 3   → 500 + count
+    Tier 3 — Qualifying: passes minimum depth              → 0 + count
+    Bonus — Span:        span >= 180 days                  → +150
+    Bonus — Event:       trigger B3                        → +300
+    """
+    base = float(interaction_count)
+
+    if interaction_count >= 8 or relationship_score >= 5:
+        score = 1000.0 + base
+    elif interaction_count >= 4 or relationship_score >= 3:
+        score = 500.0 + base
+    else:
+        score = base
+
+    if span_days >= 180:
+        score += 150.0
+
+    if has_event:
+        score += POOL_B_EVENT_BONUS
 
     return score
 
@@ -124,40 +190,24 @@ def _get_interval(priority_settings: dict | None, level: str) -> int:
     return settings.get(level, DEFAULT_PRIORITY_SETTINGS.get(level, TIME_BASED_INACTIVITY_DAYS))
 
 
-async def generate_suggestions(
+# -----------------------------------------------------------------------
+# Pool A — Active relationships
+# -----------------------------------------------------------------------
+
+
+async def _collect_pool_a_candidates(
     user_id: uuid.UUID,
     db: AsyncSession,
+    now: datetime,
+    queued_contact_ids: set[uuid.UUID],
     priority_settings: dict | None = None,
-) -> list[FollowUpSuggestion]:
-    """Main follow-up engine entry point.
-
-    Collects candidates from all 4 trigger types, scores them by priority,
-    and creates FollowUpSuggestion records for the top MAX_SUGGESTIONS_PER_RUN.
-
-    Args:
-        user_id: The user for whom suggestions are generated.
-        db: Async database session (caller is responsible for commit).
-        priority_settings: Per-priority follow-up intervals (e.g. {"high": 30, "medium": 60, "low": 180}).
-
-    Returns:
-        List of newly created FollowUpSuggestion objects.
-    """
-    now = datetime.now(UTC)
-
-    # Skip contacts that already have a pending suggestion
-    existing_result = await db.execute(
-        select(FollowUpSuggestion.contact_id).where(
-            FollowUpSuggestion.user_id == user_id,
-            FollowUpSuggestion.status == "pending",
-        )
-    )
-    queued_contact_ids: set[uuid.UUID] = {row[0] for row in existing_result.all()}
-
-    # Phase 1: Collect all candidates from the 3 triggers
+) -> dict[uuid.UUID, _Candidate]:
+    """Collect candidates from triggers 1-4 for active (non-dormant) contacts."""
     candidates: dict[uuid.UUID, _Candidate] = {}
+    dormancy_cutoff = now - timedelta(days=DORMANCY_THRESHOLD_DAYS)
 
     # ------------------------------------------------------------------
-    # Trigger 1: Time-based — no interaction in N+ days (per priority level) AND score < 4
+    # Trigger 1: Time-based — no interaction in N+ days, score < 4, not dormant
     # ------------------------------------------------------------------
     for level in ("high", "medium", "low"):
         interval_days = _get_interval(priority_settings, level)
@@ -172,20 +222,24 @@ async def generate_suggestions(
                 Contact.priority_level == level,
                 Contact.relationship_score < TIME_BASED_MAX_SCORE,
                 Contact.last_interaction_at < cutoff_time,
+                Contact.last_interaction_at >= dormancy_cutoff,
+                Contact.interaction_count >= MIN_INTERACTIONS_FOR_SUGGESTION.get(level, 3),
             )
         )
         for contact in time_based_result.scalars().all():
             if contact.id in queued_contact_ids:
                 continue
             days_since = _days_since(contact.last_interaction_at, now)
+            if contact.relationship_score == 0 and days_since > STALE_CONTACT_DAYS:
+                continue
             priority_score = compute_priority(contact.interaction_count, days_since, False)
             if contact.id not in candidates or priority_score > candidates[contact.id].priority:
                 candidates[contact.id] = _Candidate(
-                    contact=contact, trigger_type="time_based", priority=priority_score,
+                    contact=contact, trigger_type="time_based", priority=priority_score, pool="A",
                 )
 
     # ------------------------------------------------------------------
-    # Trigger 2: Event-based — DetectedEvents in last 7 days, confidence > 0.7
+    # Trigger 2: Event-based — DetectedEvents in last 7 days, confidence > 0.7, not dormant
     # ------------------------------------------------------------------
     event_cutoff = now - timedelta(days=EVENT_BASED_WINDOW_DAYS)
     events_result = await db.execute(
@@ -197,6 +251,7 @@ async def generate_suggestions(
             _has_channel,
             _has_interactions,
             _not_archived,
+            Contact.last_interaction_at >= dormancy_cutoff,
             DetectedEvent.detected_at >= event_cutoff,
             DetectedEvent.confidence > EVENT_CONFIDENCE_THRESHOLD,
         )
@@ -209,11 +264,11 @@ async def generate_suggestions(
         priority = compute_priority(contact.interaction_count, days_since, True)
         if contact.id not in candidates or priority > candidates[contact.id].priority:
             candidates[contact.id] = _Candidate(
-                contact=contact, trigger_type="event_based", event=event, priority=priority,
+                contact=contact, trigger_type="event_based", event=event, priority=priority, pool="A",
             )
 
     # ------------------------------------------------------------------
-    # Trigger 3: Scheduled — last_followup_at > N days ago (per priority level)
+    # Trigger 3: Scheduled — last_followup_at > N days ago, not dormant
     # ------------------------------------------------------------------
     for level in ("high", "medium", "low"):
         interval_days = _get_interval(priority_settings, level)
@@ -228,20 +283,24 @@ async def generate_suggestions(
                 Contact.priority_level == level,
                 Contact.last_followup_at.isnot(None),
                 Contact.last_followup_at < scheduled_cutoff,
+                Contact.last_interaction_at >= dormancy_cutoff,
+                Contact.interaction_count >= MIN_INTERACTIONS_FOR_SUGGESTION.get(level, 3),
             )
         )
         for contact in scheduled_result.scalars().all():
             if contact.id in queued_contact_ids:
                 continue
             days_since = _days_since(contact.last_interaction_at, now)
+            if contact.relationship_score == 0 and days_since > STALE_CONTACT_DAYS:
+                continue
             priority_score = compute_priority(contact.interaction_count, days_since, False)
             if contact.id not in candidates or priority_score > candidates[contact.id].priority:
                 candidates[contact.id] = _Candidate(
-                    contact=contact, trigger_type="scheduled", priority=priority_score,
+                    contact=contact, trigger_type="scheduled", priority=priority_score, pool="A",
                 )
 
     # ------------------------------------------------------------------
-    # Trigger 4: Birthday — birthday within next 3 days
+    # Trigger 4: Birthday — birthday within next 3 days (no dormancy filter)
     # ------------------------------------------------------------------
     today = now.date()
     upcoming_mmdd = {(today + timedelta(days=d)).strftime("%m-%d") for d in range(4)}
@@ -257,33 +316,264 @@ async def generate_suggestions(
     for contact in birthday_result.scalars().all():
         if contact.id in queued_contact_ids:
             continue
-        # Extract MM-DD from birthday (supports "MM-DD" and "YYYY-MM-DD")
         bday = contact.birthday.strip()
         mmdd = bday[-5:]  # last 5 chars = "MM-DD"
         if mmdd not in upcoming_mmdd:
             continue
-        # Birthday suggestions get highest priority (1500)
         if contact.id not in candidates or 1500.0 > candidates[contact.id].priority:
             candidates[contact.id] = _Candidate(
-                contact=contact, trigger_type="birthday", priority=1500.0,
+                contact=contact, trigger_type="birthday", priority=1500.0, pool="A",
             )
 
-    # Phase 2: Sort by priority descending, take top N
-    sorted_candidates = sorted(candidates.values(), key=lambda c: c.priority, reverse=True)
-    top_candidates = sorted_candidates[:MAX_SUGGESTIONS_PER_RUN]
+    return candidates
 
-    # Phase 3: Create FollowUpSuggestion records for winners
+
+# -----------------------------------------------------------------------
+# Pool B — Dormant revival
+# -----------------------------------------------------------------------
+
+
+async def _collect_pool_b_candidates(
+    user_id: uuid.UUID,
+    db: AsyncSession,
+    now: datetime,
+    queued_contact_ids: set[uuid.UUID],
+) -> dict[uuid.UUID, _Candidate]:
+    """Collect candidates from dormant contacts worth reviving."""
+    candidates: dict[uuid.UUID, _Candidate] = {}
+    dormancy_cutoff = now - timedelta(days=DORMANCY_THRESHOLD_DAYS)
+    hard_cap_cutoff = now - timedelta(days=HARD_CAP_DORMANCY_YEARS * 365)
+
+    # Build interaction span subquery (CTE)
+    span_subq = (
+        select(
+            Interaction.contact_id,
+            func.extract(
+                'epoch',
+                func.max(Interaction.occurred_at) - func.min(Interaction.occurred_at)
+            ).label('span_seconds'),
+        )
+        .group_by(Interaction.contact_id)
+        .subquery()
+    )
+
+    # Base dormant filter: last_interaction_at IS NULL or < dormancy cutoff
+    _is_dormant = or_(
+        Contact.last_interaction_at.is_(None),
+        Contact.last_interaction_at < dormancy_cutoff,
+    )
+
+    # Score-0 contacts are dead relationships — not worth reviving
+    _has_nonzero_score = Contact.relationship_score > 0
+
+    # ------------------------------------------------------------------
+    # Trigger B1 — Deep Dormant
+    # interaction_count >= 15 OR relationship_score >= 7
+    # last_interaction_at between 1-5 years ago
+    # ------------------------------------------------------------------
+    b1_min_cutoff = now - timedelta(days=365)  # at least 1 year dormant
+    b1_max_cutoff = now - timedelta(days=B1_MAX_DORMANCY_YEARS * 365)
+    b1_result = await db.execute(
+        select(Contact, span_subq.c.span_seconds)
+        .outerjoin(span_subq, Contact.id == span_subq.c.contact_id)
+        .where(
+            Contact.user_id == user_id,
+            _not_2nd_tier,
+            _has_channel,
+            _not_archived,
+            _has_nonzero_score,
+            Contact.last_interaction_at.isnot(None),
+            Contact.last_interaction_at < b1_min_cutoff,
+            Contact.last_interaction_at >= b1_max_cutoff,
+            or_(
+                Contact.interaction_count >= B1_MIN_INTERACTIONS,
+                Contact.relationship_score >= B1_MIN_SCORE,
+            ),
+        )
+    )
+    for contact, span_seconds in b1_result.all():
+        if contact.id in queued_contact_ids:
+            continue
+        span_days = float(span_seconds or 0) / 86400.0
+        priority = compute_priority_b(
+            contact.interaction_count, contact.relationship_score, span_days, False,
+        )
+        if contact.id not in candidates or priority > candidates[contact.id].priority:
+            candidates[contact.id] = _Candidate(
+                contact=contact, trigger_type="dormant_deep", priority=priority, pool="B",
+            )
+
+    # ------------------------------------------------------------------
+    # Trigger B2 — Mid-Dormant
+    # interaction_count >= 8 AND span >= 90 days
+    # last_interaction_at between 1-3 years ago
+    # ------------------------------------------------------------------
+    b2_max_cutoff = now - timedelta(days=B2_MAX_DORMANCY_YEARS * 365)
+    b2_result = await db.execute(
+        select(Contact, span_subq.c.span_seconds)
+        .outerjoin(span_subq, Contact.id == span_subq.c.contact_id)
+        .where(
+            Contact.user_id == user_id,
+            _not_2nd_tier,
+            _has_channel,
+            _not_archived,
+            _has_nonzero_score,
+            Contact.last_interaction_at.isnot(None),
+            Contact.last_interaction_at < b1_min_cutoff,
+            Contact.last_interaction_at >= b2_max_cutoff,
+            Contact.interaction_count >= B2_MIN_INTERACTIONS,
+            func.coalesce(span_subq.c.span_seconds, 0) >= B2_MIN_SPAN_DAYS * 86400,
+        )
+    )
+    for contact, span_seconds in b2_result.all():
+        if contact.id in queued_contact_ids:
+            continue
+        if contact.id in candidates:
+            continue  # B1 already captured this contact with higher priority
+        span_days = float(span_seconds or 0) / 86400.0
+        priority = compute_priority_b(
+            contact.interaction_count, contact.relationship_score, span_days, False,
+        )
+        if contact.id not in candidates or priority > candidates[contact.id].priority:
+            candidates[contact.id] = _Candidate(
+                contact=contact, trigger_type="dormant_mid", priority=priority, pool="B",
+            )
+
+    # ------------------------------------------------------------------
+    # Trigger B3 — Event Revival
+    # DetectedEvent in last 14 days, confidence > 0.7
+    # Must pass depth qualification (interaction_count >= 8 OR score >= 6 OR span >= 180d)
+    # Overrides 5-year hard cap (can surface ancient contacts)
+    # ------------------------------------------------------------------
+    b3_event_cutoff = now - timedelta(days=B3_EVENT_WINDOW_DAYS)
+    b3_result = await db.execute(
+        select(DetectedEvent, Contact, span_subq.c.span_seconds)
+        .join(Contact, DetectedEvent.contact_id == Contact.id)
+        .outerjoin(span_subq, Contact.id == span_subq.c.contact_id)
+        .where(
+            Contact.user_id == user_id,
+            _not_2nd_tier,
+            _has_channel,
+            _not_archived,
+            _has_nonzero_score,
+            _is_dormant,
+            DetectedEvent.detected_at >= b3_event_cutoff,
+            DetectedEvent.confidence > EVENT_CONFIDENCE_THRESHOLD,
+            or_(
+                Contact.interaction_count >= POOL_B_MIN_INTERACTIONS,
+                Contact.relationship_score >= POOL_B_MIN_SCORE,
+                func.coalesce(span_subq.c.span_seconds, 0) >= POOL_B_MIN_SPAN_DAYS * 86400,
+            ),
+        )
+        .order_by(DetectedEvent.confidence.desc())
+    )
+    for event, contact, span_seconds in b3_result.all():
+        if contact.id in queued_contact_ids:
+            continue
+        span_days = float(span_seconds or 0) / 86400.0
+        priority = compute_priority_b(
+            contact.interaction_count, contact.relationship_score, span_days, True,
+        )
+        if contact.id not in candidates or priority > candidates[contact.id].priority:
+            candidates[contact.id] = _Candidate(
+                contact=contact, trigger_type="dormant_event", event=event, priority=priority, pool="B",
+            )
+
+    # Apply hard cap: exclude contacts dormant > 5 years UNLESS they have a B3 event trigger
+    to_remove = []
+    for cid, cand in candidates.items():
+        if cand.trigger_type == "dormant_event":
+            continue  # B3 overrides hard cap
+        contact = cand.contact
+        if contact.last_interaction_at and contact.last_interaction_at < hard_cap_cutoff:
+            to_remove.append(cid)
+        elif contact.last_interaction_at is None:
+            to_remove.append(cid)
+    for cid in to_remove:
+        del candidates[cid]
+
+    return candidates
+
+
+# -----------------------------------------------------------------------
+# Main orchestrator
+# -----------------------------------------------------------------------
+
+
+async def generate_suggestions(
+    user_id: uuid.UUID,
+    db: AsyncSession,
+    priority_settings: dict | None = None,
+) -> list[FollowUpSuggestion]:
+    """Main follow-up engine entry point.
+
+    Collects candidates from Pool A (active) and Pool B (dormant revival),
+    applies budget with rollover, and creates FollowUpSuggestion records.
+
+    Args:
+        user_id: The user for whom suggestions are generated.
+        db: Async database session (caller is responsible for commit).
+        priority_settings: Per-priority follow-up intervals (e.g. {"high": 30, "medium": 60, "low": 180}).
+            Also supports "pool_a_slots" and "pool_b_slots" overrides.
+
+    Returns:
+        List of newly created FollowUpSuggestion objects.
+    """
+    now = datetime.now(UTC)
+    settings = priority_settings or {}
+
+    # Skip contacts that already have a pending suggestion
+    existing_result = await db.execute(
+        select(FollowUpSuggestion.contact_id).where(
+            FollowUpSuggestion.user_id == user_id,
+            FollowUpSuggestion.status == "pending",
+        )
+    )
+    queued_contact_ids: set[uuid.UUID] = {row[0] for row in existing_result.all()}
+
+    # Collect candidates from both pools
+    pool_a = await _collect_pool_a_candidates(user_id, db, now, queued_contact_ids, priority_settings)
+    pool_b = await _collect_pool_b_candidates(user_id, db, now, queued_contact_ids)
+
+    # Sort each pool by priority descending
+    sorted_a = sorted(pool_a.values(), key=lambda c: c.priority, reverse=True)
+    sorted_b = sorted(pool_b.values(), key=lambda c: c.priority, reverse=True)
+
+    # Budget with rollover
+    a_budget = settings.get("pool_a_slots", POOL_A_SLOTS)
+    b_budget = settings.get("pool_b_slots", POOL_B_SLOTS)
+
+    actual_a = min(len(sorted_a), a_budget)
+    actual_b = min(len(sorted_b), b_budget)
+
+    # Distribute remaining slots
+    remaining = (a_budget - actual_a) + (b_budget - actual_b)
+    if remaining > 0:
+        # Give remaining to whichever pool has surplus candidates
+        extra_a = min(len(sorted_a) - actual_a, remaining)
+        if extra_a > 0:
+            actual_a += extra_a
+            remaining -= extra_a
+        extra_b = min(len(sorted_b) - actual_b, remaining)
+        if extra_b > 0:
+            actual_b += extra_b
+
+    top_candidates = sorted_a[:actual_a] + sorted_b[:actual_b]
+
+    # Create FollowUpSuggestion records for winners
     created: list[FollowUpSuggestion] = []
     for candidate in top_candidates:
         contact = candidate.contact
         try:
             channel = await _get_best_channel(contact.id, db)
             event_summary = candidate.event.summary if candidate.event else None
+            is_revival = candidate.pool == "B"
             message = await compose_followup_message(
                 contact_id=contact.id,
                 trigger_type=candidate.trigger_type,
                 event_summary=event_summary,
                 db=db,
+                revival_context=is_revival,
             )
             suggestion = FollowUpSuggestion(
                 contact_id=contact.id,
@@ -293,14 +583,15 @@ async def generate_suggestions(
                 suggested_message=message,
                 suggested_channel=channel,
                 status="pending",
+                pool=candidate.pool,
             )
             db.add(suggestion)
             await db.flush()
             await db.refresh(suggestion)
             created.append(suggestion)
             logger.info(
-                "generate_suggestions: %s suggestion created for contact %s (priority=%.1f)",
-                candidate.trigger_type, contact.id, candidate.priority,
+                "generate_suggestions: %s suggestion created for contact %s (pool=%s, priority=%.1f)",
+                candidate.trigger_type, contact.id, candidate.pool, candidate.priority,
             )
         except Exception:
             logger.exception(
@@ -309,7 +600,10 @@ async def generate_suggestions(
             )
 
     logger.info(
-        "generate_suggestions: created %d suggestion(s) for user %s", len(created), user_id
+        "generate_suggestions: created %d suggestion(s) for user %s (pool_a=%d, pool_b=%d)",
+        len(created), user_id,
+        sum(1 for s in created if s.pool == "A"),
+        sum(1 for s in created if s.pool == "B"),
     )
     return created
 

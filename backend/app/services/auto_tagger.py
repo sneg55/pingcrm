@@ -114,11 +114,18 @@ def _build_contact_summary(contact_data: dict) -> str:
     return "\n".join(parts) if parts else "(minimal data)"
 
 
-async def discover_taxonomy(contacts_summary: list[dict]) -> dict[str, list[str]]:
-    """Phase 1: Scan contacts and propose a categorized tag taxonomy.
+async def discover_taxonomy(
+    contacts_summary: list[dict],
+    existing_taxonomy: dict[str, list[str]] | None = None,
+) -> dict[str, list[str]]:
+    """Phase 0+1: Discover a minimal tag taxonomy from contacts.
+
+    When *existing_taxonomy* is provided (Phase 0 / vocabulary priming), the LLM
+    is instructed to extend rather than duplicate the existing tags.
 
     Args:
         contacts_summary: List of dicts with contact fields (name, title, company, bios, etc.)
+        existing_taxonomy: Previously approved taxonomy to anchor against (avoids drift across batches).
 
     Returns:
         Dict mapping category names to lists of tag strings.
@@ -139,25 +146,41 @@ async def discover_taxonomy(contacts_summary: list[dict]) -> dict[str, list[str]
 
     all_categories: dict[str, set[str]] = {}
 
+    # Phase 0: vocabulary priming preamble (anchors new batches to existing taxonomy)
+    phase0_preamble = ""
+    if existing_taxonomy:
+        existing_json = json.dumps(existing_taxonomy, indent=2)
+        phase0_preamble = (
+            "Existing taxonomy (do not duplicate these, only extend if genuinely "
+            "new patterns appear):\n"
+            f"{existing_json}\n\n"
+            "Now analyse this new batch and propose ONLY tags not already covered above.\n\n"
+        )
+
     for batch_idx, batch in enumerate(batches):
         summaries = []
         for i, c in enumerate(batch):
             summaries.append(f"Contact {i + 1}:\n{_build_contact_summary(c)}")
 
         prompt = (
-            "You are analysing a batch of professional contacts to discover common themes "
-            "and propose a tag taxonomy.\n\n"
-            "Here are the contacts:\n\n"
+            "You are analysing a batch of professional contacts to discover a MINIMAL "
+            "tag taxonomy.\n\n"
+            + phase0_preamble
+            + "Contacts:\n\n"
             + "\n---\n".join(summaries)
             + "\n\n"
-            "Based on these contacts, propose a categorized tag taxonomy. "
-            "Categories should be broad groups like: Role/Expertise, Industry, Events, "
-            "Interests/Hobbies, Cohort/Program, Geography, etc.\n"
-            "Tags should be specific, human-readable labels like: \"UX Designer\", "
-            "\"ETHdenver 2026\", \"AI Enthusiast\", \"YC W22\", \"Wine Collector\".\n\n"
-            "Return ONLY a JSON object where keys are category names and values are arrays of tags.\n"
-            "Example: {\"Role\": [\"UX Designer\", \"Solidity Dev\"], \"Events\": [\"ETHdenver 2026\"]}\n"
-            "Do not include any other text."
+            "Rules:\n"
+            "- Aim for FEWER, BROADER tags. A good taxonomy has 30-60 tags total, not 200.\n"
+            "- A tag must apply to AT LEAST 3 contacts in this batch to be proposed. "
+            "If it only fits 1-2 people, skip it.\n"
+            "- Prefer role clusters over job titles: \"Product\" beats \"Senior Product Manager\" "
+            "and \"VP of Product\" separately.\n"
+            "- Events: only include if the event recurs or has >5 attendees visible in this batch. "
+            "Skip one-off mentions.\n"
+            "- Geography: city/region only, not neighbourhood.\n"
+            "- No tags that are just a person's employer or a one-off project name.\n\n"
+            "Categories: Role/Expertise, Industry, Interests, Cohort/Program, Geography, Events.\n\n"
+            "Return ONLY a JSON object: keys are category names, values are arrays of tags."
         )
 
         try:
@@ -212,27 +235,26 @@ async def deduplicate_taxonomy(
     taxonomy_json = json.dumps(raw_taxonomy, indent=2)
 
     prompt = (
-        "You are deduplicating a tag taxonomy. Merge near-duplicate entries aggressively.\n\n"
-        "Rules:\n"
-        "1. Aggressively merge categories that overlap, are subsets, or cover the same domain. "
-        "Examples: \"Role/Title\" + \"Role/Expertise\" → \"Role\", "
-        "\"Industry\" + \"Industry/Specialization\" → \"Industry\", "
-        "\"Interest\" + \"Interests/Hobbies\" → \"Interests\". "
+        "You are cleaning a tag taxonomy in two passes.\n\n"
+        "PASS 1 - Merge duplicates:\n"
+        "1. Merge overlapping categories aggressively "
+        "(e.g. \"Role/Title\" + \"Role/Expertise\" → \"Role\"). "
         "Combine all tags from merged categories into the surviving one\n"
-        "2. Merge tags that are abbreviations, acronyms, or synonyms "
-        "(e.g. \"COO\" + \"Chief Operating Officer\" → \"COO\", "
-        "\"VC/Investment\" + \"Venture Capital\" → \"Venture Capital\")\n"
-        "3. Merge tags that differ only by seniority prefix or minor qualifier "
-        "(e.g. \"Senior Venture Principal\" + \"Venture Principal\" → \"Venture Principal\", "
-        "\"VC/Investor\" + \"Venture Capital\" → \"VC/Investor\")\n"
-        "4. When multiple tags cover the same role/concept, keep ONE canonical form — "
-        "the shorter, more commonly used version\n"
-        "5. If the same or very similar tag appears in multiple categories, keep it in "
-        "only the MOST appropriate category and remove it from the others "
-        "(e.g. \"Token Vesting\" in both \"Interest\" and \"Industry\" → keep only in \"Industry\")\n"
-        "6. Do NOT remove tags that are genuinely different in meaning\n\n"
+        "2. Merge abbreviations/synonyms, keep shorter canonical form "
+        "(e.g. \"COO\" + \"Chief Operating Officer\" → \"COO\")\n"
+        "3. Merge seniority variants "
+        "(\"Junior Engineer\" + \"Senior Engineer\" → \"Engineer\")\n"
+        "4. One tag per concept across all categories\n\n"
+        "PASS 2 - Prune narrow tags:\n"
+        "Remove any tag that:\n"
+        "- Describes a single named event with no obvious recurrence\n"
+        "- Is a job title so specific it fits <2% of a typical contact list "
+        "(e.g. \"Director of Revenue Operations EMEA\")\n"
+        "- Duplicates a broader tag already present "
+        "(if \"Startup Founder\" exists, remove \"First-time Founder\")\n"
+        "- Is a company name or personal project name\n\n"
         f"Input taxonomy:\n{taxonomy_json}\n\n"
-        "Return ONLY the deduplicated JSON object. Same format: "
+        "Return ONLY the cleaned JSON object. Same format: "
         "keys are category names, values are arrays of tag strings."
     )
 
@@ -302,14 +324,17 @@ async def assign_tags(
 
     prompt = (
         "You are tagging a professional contact using an approved taxonomy.\n\n"
-        f"Approved taxonomy:\n{taxonomy_text}\n\n"
+        f"Taxonomy:\n{taxonomy_text}\n\n"
         f"Contact:\n{summary}\n\n"
-        "Select all tags from the taxonomy that apply to this contact. "
-        "You may also suggest up to 2 new tags not in the taxonomy (prefix with \"NEW: \").\n\n"
-        "Return ONLY a JSON object with:\n"
-        "- \"tags\": array of tag strings from the taxonomy\n"
-        "- \"new_tags\": array of up to 2 suggested new tags (or empty array)\n"
-        "Do not include any other text."
+        "Instructions:\n"
+        "- Select tags that CLEARLY apply. When in doubt, omit.\n"
+        "- Maximum 8 tags total per contact.\n"
+        "- Prioritise: Role/Expertise first, then Industry, then everything else.\n"
+        "- Only suggest a NEW tag (prefix \"NEW: \") if it would apply to many other "
+        "contacts too, not just this one. Maximum 1 new tag suggestion.\n\n"
+        "Return ONLY a JSON object:\n"
+        "- \"tags\": array of up to 8 tag strings from the taxonomy\n"
+        "- \"new_tags\": array of 0-1 new tag suggestions"
     )
 
     try:

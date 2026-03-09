@@ -165,6 +165,7 @@ async def compose_followup_message(
     trigger_type: str,
     event_summary: str | None,
     db: AsyncSession,
+    revival_context: bool = False,
 ) -> str:
     """Compose a personalised follow-up message using Anthropic Claude.
 
@@ -245,11 +246,26 @@ async def compose_followup_message(
         reason = "A scheduled follow-up is due."
         example = "Example: 'Hey, just checking in — how have things been going?'"
 
+    # Override reason/example for revival (Pool B) contacts
+    if revival_context and trigger_type != "birthday":
+        last_date = contact.last_interaction_at.date() if contact.last_interaction_at else "a long time ago"
+        reason = (
+            f"You haven't spoken to this contact since {last_date}. "
+            "Write a warm reconnection message that acknowledges the time gap "
+            "without being apologetic. Reference shared history or a recent event."
+        )
+        if trigger_type == "event_based" and event_summary:
+            reason += f"\nA recent event provides a natural reason to reconnect: {event_summary}"
+        example = (
+            'Example: "Hey Alex, it\'s been way too long! I saw your company just '
+            'raised a round — congrats. Would love to catch up when you have a moment."'
+        )
+
     # ------------------------------------------------------------------
-    # Fetch Twitter context for time_based triggers
+    # Fetch Twitter context for time_based triggers and revival contacts
     # ------------------------------------------------------------------
     twitter_context = ""
-    if trigger_type == "time_based":
+    if trigger_type == "time_based" or revival_context:
         twitter_context = await _fetch_twitter_context(contact)
 
     preferred_channel = "email"

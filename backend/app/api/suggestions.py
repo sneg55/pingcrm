@@ -90,7 +90,6 @@ async def list_suggestions(
                 Contact.telegram_username.isnot(None),
                 Contact.linkedin_url.isnot(None),
             ),
-            Contact.last_interaction_at.isnot(None),
         )
         .order_by(FollowUpSuggestion.created_at.desc())
     )
@@ -255,6 +254,7 @@ async def regenerate_suggestion(
         trigger_type=suggestion.trigger_type,
         event_summary=None,
         db=db,
+        revival_context=(suggestion.pool == "B"),
     )
 
     suggestion.suggested_message = new_message

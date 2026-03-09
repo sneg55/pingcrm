@@ -13,6 +13,7 @@ class FollowUpResponse(BaseModel):
     suggested_message: str
     suggested_channel: str
     status: str
+    pool: str | None = None
     scheduled_for: datetime | None = None
     created_at: datetime
     updated_at: datetime | None = None
