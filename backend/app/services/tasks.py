@@ -140,7 +140,7 @@ def sync_gmail_all() -> dict:
 # ---------------------------------------------------------------------------
 
 
-@shared_task(name="app.services.tasks.sync_telegram_chats_for_user", bind=True, max_retries=3, soft_time_limit=300, time_limit=420)
+@shared_task(name="app.services.tasks.sync_telegram_chats_for_user", bind=True, max_retries=3, soft_time_limit=900, time_limit=1200)
 def sync_telegram_chats_for_user(self, user_id: str) -> dict:
     """Sync Telegram DM chats for a single user."""
     async def _sync(uid: uuid.UUID) -> dict:

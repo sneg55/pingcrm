@@ -23,7 +23,7 @@ from app.models.user import User
 logger = logging.getLogger(__name__)
 
 MAX_MESSAGES = 50  # messages fetched per dialog per sync run
-MAX_DIALOGS = 30  # max dialogs processed per sync run
+MAX_DIALOGS = 200  # max dialogs processed per sync run
 MAX_BIO_SYNC_CONTACTS = 100  # max contacts fetched per bio sync run
 
 
