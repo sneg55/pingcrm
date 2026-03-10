@@ -2,10 +2,6 @@
 
 import { cn } from "@/lib/utils";
 
-const API_BASE =
-  process.env.NEXT_PUBLIC_API_URL?.replace("/api/v1", "") ??
-  "http://localhost:8000";
-
 interface ContactAvatarProps {
   avatarUrl: string | null | undefined;
   name: string;
@@ -54,7 +50,7 @@ export function ContactAvatar({
   if (avatarUrl) {
     return (
       <img
-        src={`${API_BASE}${avatarUrl}`}
+        src={avatarUrl}
         alt={name}
         className={cn(
           classes,

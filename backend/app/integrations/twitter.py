@@ -662,40 +662,100 @@ async def _lookup_twitter_users_by_ids(
     return result
 
 
-async def _resolve_twitter_user_id(handle: str, headers: dict[str, str]) -> str | None:
-    """Resolve a Twitter handle to a user ID. Returns None on failure."""
-    handle = handle.lstrip("@").strip()
-    if not handle:
-        return None
-    try:
-        async with httpx.AsyncClient(timeout=15.0) as client:
-            resp = await client.get(
-                f"{_TWITTER_API_BASE}/users/by/username/{handle}",
-                headers=headers,
-            )
-            resp.raise_for_status()
-            return resp.json().get("data", {}).get("id")
-    except Exception:
-        logger.debug("_resolve_twitter_user_id: failed for @%s", handle)
-        return None
+_HANDLE_CACHE_TTL = 30 * 24 * 3600  # 30 days
+
+
+async def _cached_resolve_handles(
+    handles: list[str], headers: dict[str, str]
+) -> dict[str, str]:
+    """Resolve Twitter handles to user IDs using Redis cache + batch API.
+
+    Returns {handle_lower: twitter_id}.  Cached for 30 days per handle.
+    """
+    from app.core.redis import get_redis
+
+    if not handles:
+        return {}
+
+    redis = get_redis()
+    result: dict[str, str] = {}
+    uncached: list[str] = []
+
+    # Check cache first
+    cache_keys = [f"tw:h2id:{h.lower()}" for h in handles]
+    cached_values = await redis.mget(cache_keys)
+    for handle, value in zip(handles, cached_values):
+        if value is not None:
+            decoded = value.decode() if isinstance(value, bytes) else value
+            if decoded:  # non-empty means resolved
+                result[handle.lower()] = decoded
+            # empty string means previously unresolvable — skip API call
+        else:
+            uncached.append(handle)
+
+    # Batch resolve uncached handles (up to 100 per request)
+    for i in range(0, len(uncached), 100):
+        batch = uncached[i : i + 100]
+        try:
+            async with httpx.AsyncClient(timeout=15.0) as client:
+                resp = await client.get(
+                    f"{_TWITTER_API_BASE}/users/by",
+                    headers=headers,
+                    params={"usernames": ",".join(batch), "user.fields": "username"},
+                )
+                resp.raise_for_status()
+                for u in resp.json().get("data", []):
+                    username = u.get("username", "").lower()
+                    twitter_id = u["id"]
+                    result[username] = twitter_id
+                    await redis.set(f"tw:h2id:{username}", twitter_id, ex=_HANDLE_CACHE_TTL)
+        except Exception:
+            logger.warning("_cached_resolve_handles: batch lookup failed at offset %d", i)
+            continue
+
+        # Cache misses as empty string so we don't re-query
+        resolved_in_batch = {h.lower() for h in batch if h.lower() in result}
+        for handle in batch:
+            if handle.lower() not in resolved_in_batch:
+                await redis.set(f"tw:h2id:{handle.lower()}", "", ex=_HANDLE_CACHE_TTL)
+
+    return result
 
 
 async def _build_twitter_id_to_contact_map(
     user: User, db: AsyncSession, headers: dict[str, str]
 ) -> dict[str, Contact]:
-    """Build a mapping of Twitter user ID -> Contact for all contacts with twitter_handle."""
+    """Build a mapping of Twitter user ID -> Contact for all contacts with twitter_handle.
+
+    Uses stored twitter_user_id when available; only resolves handles that
+    haven't been resolved yet, then persists the result.
+    """
     result = await db.execute(
         select(Contact).where(Contact.user_id == user.id, Contact.twitter_handle.isnot(None))
     )
     contacts = list(result.scalars().all())
+
     id_map: dict[str, Contact] = {}
+    needs_resolve: dict[str, list[Contact]] = {}  # handle -> contacts
+
     for contact in contacts:
-        handle = (contact.twitter_handle or "").lstrip("@").strip()
-        if not handle:
+        # Use stored ID if available
+        if contact.twitter_user_id:
+            id_map[contact.twitter_user_id] = contact
             continue
-        twitter_id = await _resolve_twitter_user_id(handle, headers)
-        if twitter_id:
-            id_map[twitter_id] = contact
+        handle = (contact.twitter_handle or "").lstrip("@").strip().lower()
+        if handle:
+            needs_resolve.setdefault(handle, []).append(contact)
+
+    # Batch resolve only the handles we don't have IDs for
+    if needs_resolve:
+        handle_to_id = await _cached_resolve_handles(list(needs_resolve.keys()), headers)
+        for handle, twitter_id in handle_to_id.items():
+            for contact in needs_resolve.get(handle, []):
+                contact.twitter_user_id = twitter_id
+                id_map[twitter_id] = contact
+        await db.flush()
+
     return id_map
 
 
@@ -824,6 +884,7 @@ async def sync_twitter_dms(
                 family_name=parts[1] if len(parts) > 1 else None,
                 full_name=name or username or None,
                 twitter_handle=username or None,
+                twitter_user_id=twitter_id,
                 source="twitter",
             )
             db.add(contact)

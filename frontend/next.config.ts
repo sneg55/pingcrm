@@ -11,6 +11,10 @@ const nextConfig: NextConfig = {
         source: "/api/:path*",
         destination: `${process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000"}/api/:path*`,
       },
+      {
+        source: "/static/:path*",
+        destination: `${process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000"}/static/:path*`,
+      },
     ];
   },
 };

@@ -35,6 +35,7 @@ class Contact(Base):
     title: Mapped[str | None] = mapped_column(String, nullable=True)
 
     twitter_handle: Mapped[str | None] = mapped_column(String, nullable=True)
+    twitter_user_id: Mapped[str | None] = mapped_column(String, nullable=True, index=True)
     twitter_bio: Mapped[str | None] = mapped_column(Text, nullable=True)
     telegram_username: Mapped[str | None] = mapped_column(String, nullable=True, index=True)
     telegram_user_id: Mapped[str | None] = mapped_column(String, nullable=True, index=True)
