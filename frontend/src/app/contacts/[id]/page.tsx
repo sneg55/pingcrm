@@ -27,7 +27,7 @@ import {
   X,
 } from "lucide-react";
 import Link from "next/link";
-import { useContact, useUpdateContact, useDeleteContact, useContactDuplicates, useMergeContacts, useContactActivity, type Contact } from "@/hooks/use-contacts";
+import { useContact, useUpdateContact, useDeleteContact, useContactDuplicates, useMergeContacts, useContactActivity, useContacts, type Contact } from "@/hooks/use-contacts";
 import { ActivityBreakdown, ActivityBreakdownSkeleton } from "@/components/activity-breakdown";
 import { ScoreBadge } from "@/components/score-badge";
 import { Timeline, type TimelineEntry } from "@/components/timeline";
@@ -61,6 +61,93 @@ interface NotificationItem {
   created_at: string | null;
 }
 
+function DuplicateRow({
+  dup,
+  contactId,
+  mergeConfirmId,
+  setMergeConfirmId,
+  onMerge,
+  isPending,
+  onClose,
+  score,
+}: {
+  dup: { id: string; full_name?: string | null; given_name?: string | null; family_name?: string | null; emails?: string[] | null; company?: string | null; twitter_handle?: string | null; telegram_username?: string | null };
+  contactId: string;
+  mergeConfirmId: string | null;
+  setMergeConfirmId: (id: string | null) => void;
+  onMerge: (id: string) => void;
+  isPending: boolean;
+  onClose: () => void;
+  score?: number;
+}) {
+  const name =
+    dup.full_name ||
+    [dup.given_name, dup.family_name].filter(Boolean).join(" ") ||
+    "Unnamed";
+  const isConfirming = mergeConfirmId === dup.id;
+  if (dup.id === contactId) return null;
+  return (
+    <div className="flex items-center gap-3 p-3 rounded-lg border border-stone-200 hover:border-teal-300 hover:bg-teal-50/50 transition-colors">
+      <Link
+        href={`/contacts/${dup.id}`}
+        onClick={onClose}
+        className="flex items-center gap-3 min-w-0 flex-1"
+      >
+        <div className="w-10 h-10 rounded-full bg-indigo-100 flex items-center justify-center text-indigo-700 font-semibold text-sm flex-shrink-0">
+          {name
+            .split(" ")
+            .map((w: string) => w[0])
+            .slice(0, 2)
+            .join("")
+            .toUpperCase()}
+        </div>
+        <div className="min-w-0 flex-1">
+          <p className="font-medium text-gray-900 truncate">{name}</p>
+          <p className="text-xs text-gray-500 truncate">
+            {[
+              dup.company,
+              dup.emails?.[0],
+              dup.twitter_handle ? `@${dup.twitter_handle}` : null,
+              dup.telegram_username ? `@${dup.telegram_username}` : null,
+            ]
+              .filter(Boolean)
+              .join(" · ")}
+          </p>
+        </div>
+        {score !== undefined && (
+          <span className="text-sm font-semibold text-teal-600 font-mono-data flex-shrink-0">
+            {Math.round(score * 100)}%
+          </span>
+        )}
+      </Link>
+      {isConfirming ? (
+        <div className="flex items-center gap-1.5 flex-shrink-0">
+          <button
+            onClick={() => onMerge(dup.id)}
+            disabled={isPending}
+            className="px-2.5 py-1.5 text-xs font-medium rounded-md bg-indigo-600 text-white hover:bg-indigo-700 disabled:opacity-50 transition-colors"
+          >
+            {isPending ? "Merging..." : "Confirm"}
+          </button>
+          <button
+            onClick={() => setMergeConfirmId(null)}
+            className="px-2.5 py-1.5 text-xs rounded-md border border-gray-200 text-gray-600 hover:bg-gray-50 transition-colors"
+          >
+            Cancel
+          </button>
+        </div>
+      ) : (
+        <button
+          onClick={() => setMergeConfirmId(dup.id)}
+          className="px-3 py-1.5 text-xs font-medium rounded-md border border-indigo-200 text-indigo-600 hover:bg-indigo-50 transition-colors flex-shrink-0"
+        >
+          Merge
+        </button>
+      )}
+    </div>
+  );
+}
+
 function DuplicatesModal({
   contactId,
   contactName,
@@ -74,8 +161,16 @@ function DuplicatesModal({
   const duplicates = data?.data ?? [];
   const mergeContacts = useMergeContacts();
   const [mergeConfirmId, setMergeConfirmId] = useState<string | null>(null);
+  const [searchQuery, setSearchQuery] = useState("");
   const queryClient = useQueryClient();
   const router = useRouter();
+
+  const { data: searchData } = useContacts(
+    searchQuery.length >= 2 ? { search: searchQuery, page_size: 10 } : {}
+  );
+  const searchResults = searchQuery.length >= 2
+    ? (searchData?.data ?? []).filter((c) => c.id !== contactId)
+    : [];
 
   const handleMerge = (otherId: string) => {
     mergeContacts.mutate(
@@ -94,6 +189,8 @@ function DuplicatesModal({
     );
   };
 
+  const showSearch = searchQuery.length >= 2;
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
       <div className="bg-white rounded-xl shadow-xl max-w-lg w-full mx-4 max-h-[80vh] flex flex-col">
@@ -108,8 +205,48 @@ function DuplicatesModal({
             <X className="w-5 h-5 text-stone-500" />
           </button>
         </div>
-        <div className="overflow-y-auto flex-1 p-5">
-          {isLoading ? (
+        <div className="px-5 pt-4 pb-2">
+          <input
+            type="text"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            placeholder="Search contacts to merge..."
+            className="w-full px-3 py-2 text-sm rounded-lg border border-stone-200 focus:border-teal-400 focus:ring-1 focus:ring-teal-400 outline-none transition-colors"
+          />
+        </div>
+        <div className="overflow-y-auto flex-1 p-5 pt-2">
+          {showSearch ? (
+            searchResults.length === 0 ? (
+              <div className="text-center py-6 text-gray-400">
+                <p className="text-sm">No contacts matching &ldquo;{searchQuery}&rdquo;</p>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                <p className="text-xs font-medium text-stone-400 uppercase tracking-wide">Search results</p>
+                {searchResults.map((c) => (
+                  <DuplicateRow
+                    key={c.id}
+                    dup={{
+                      id: c.id,
+                      full_name: c.full_name ?? undefined,
+                      given_name: c.given_name ?? undefined,
+                      family_name: c.family_name ?? undefined,
+                      emails: c.emails ?? [],
+                      company: c.company ?? undefined,
+                      twitter_handle: c.twitter_handle ?? undefined,
+                      telegram_username: c.telegram_username ?? undefined,
+                    }}
+                    contactId={contactId}
+                    mergeConfirmId={mergeConfirmId}
+                    setMergeConfirmId={setMergeConfirmId}
+                    onMerge={handleMerge}
+                    isPending={mergeContacts.isPending}
+                    onClose={onClose}
+                  />
+                ))}
+              </div>
+            )
+          ) : isLoading ? (
             <div className="space-y-3">
               {[1, 2, 3].map((n) => (
                 <div key={n} className="h-16 rounded-lg bg-gray-100 animate-pulse" />
@@ -122,74 +259,19 @@ function DuplicatesModal({
             </div>
           ) : (
             <div className="space-y-3">
-              {duplicates.map((dup) => {
-                const name =
-                  dup.full_name ||
-                  [dup.given_name, dup.family_name].filter(Boolean).join(" ") ||
-                  "Unnamed";
-                const isConfirming = mergeConfirmId === dup.id;
-                return (
-                  <div
-                    key={dup.id}
-                    className="flex items-center gap-3 p-3 rounded-lg border border-stone-200 hover:border-teal-300 hover:bg-teal-50/50 transition-colors"
-                  >
-                    <Link
-                      href={`/contacts/${dup.id}`}
-                      onClick={onClose}
-                      className="flex items-center gap-3 min-w-0 flex-1"
-                    >
-                      <div className="w-10 h-10 rounded-full bg-indigo-100 flex items-center justify-center text-indigo-700 font-semibold text-sm flex-shrink-0">
-                        {name
-                          .split(" ")
-                          .map((w) => w[0])
-                          .slice(0, 2)
-                          .join("")
-                          .toUpperCase()}
-                      </div>
-                      <div className="min-w-0 flex-1">
-                        <p className="font-medium text-gray-900 truncate">{name}</p>
-                        <p className="text-xs text-gray-500 truncate">
-                          {[
-                            dup.company,
-                            dup.emails[0],
-                            dup.twitter_handle ? `@${dup.twitter_handle}` : null,
-                            dup.telegram_username ? `@${dup.telegram_username}` : null,
-                          ]
-                            .filter(Boolean)
-                            .join(" · ")}
-                        </p>
-                      </div>
-                      <span className="text-sm font-semibold text-teal-600 font-mono-data flex-shrink-0">
-                        {Math.round(dup.score * 100)}%
-                      </span>
-                    </Link>
-                    {isConfirming ? (
-                      <div className="flex items-center gap-1.5 flex-shrink-0">
-                        <button
-                          onClick={() => handleMerge(dup.id)}
-                          disabled={mergeContacts.isPending}
-                          className="px-2.5 py-1.5 text-xs font-medium rounded-md bg-indigo-600 text-white hover:bg-indigo-700 disabled:opacity-50 transition-colors"
-                        >
-                          {mergeContacts.isPending ? "Merging..." : "Confirm"}
-                        </button>
-                        <button
-                          onClick={() => setMergeConfirmId(null)}
-                          className="px-2.5 py-1.5 text-xs rounded-md border border-gray-200 text-gray-600 hover:bg-gray-50 transition-colors"
-                        >
-                          Cancel
-                        </button>
-                      </div>
-                    ) : (
-                      <button
-                        onClick={() => setMergeConfirmId(dup.id)}
-                        className="px-3 py-1.5 text-xs font-medium rounded-md border border-indigo-200 text-indigo-600 hover:bg-indigo-50 transition-colors flex-shrink-0"
-                      >
-                        Merge
-                      </button>
-                    )}
-                  </div>
-                );
-              })}
+              {duplicates.map((dup) => (
+                <DuplicateRow
+                  key={dup.id}
+                  dup={dup}
+                  contactId={contactId}
+                  mergeConfirmId={mergeConfirmId}
+                  setMergeConfirmId={setMergeConfirmId}
+                  onMerge={handleMerge}
+                  isPending={mergeContacts.isPending}
+                  onClose={onClose}
+                  score={dup.score}
+                />
+              ))}
             </div>
           )}
         </div>
