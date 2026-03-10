@@ -1,0 +1,830 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>PingCRM — Contact Detail</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<script src="https://unpkg.com/lucide@latest"></script>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,300..700;1,9..40,300..700&family=Plus+Jakarta+Sans:wght@500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<script>
+tailwind.config = { theme: { extend: { fontFamily: {
+  body: ['DM Sans', 'sans-serif'], display: ['Plus Jakarta Sans', 'sans-serif'], mono: ['JetBrains Mono', 'monospace'],
+}}}};
+</script>
+<style>
+  body { font-family: 'DM Sans', sans-serif; }
+  .font-display { font-family: 'Plus Jakarta Sans', sans-serif; }
+  .font-mono { font-family: 'JetBrains Mono', monospace; }
+  @keyframes fadeUp { from { opacity:0; transform:translateY(8px); } to { opacity:1; transform:translateY(0); } }
+  .anim-in { animation: fadeUp 0.3s ease-out both; }
+  .d1{animation-delay:0ms} .d2{animation-delay:50ms} .d3{animation-delay:100ms} .d4{animation-delay:150ms} .d5{animation-delay:200ms}
+
+  .nav-group:hover .nav-dropdown, .nav-dropdown:hover { display: block; }
+  .nav-dropdown { display: none; }
+
+  /* Score ring */
+  .score-ring { transition: stroke-dashoffset 0.8s cubic-bezier(0.4, 0, 0.2, 1); }
+
+  /* Interaction timeline */
+  .timeline-item { transition: background 0.15s; }
+  .timeline-item:hover { background: #fafaf9; }
+
+  /* Tab */
+  .detail-tab { transition: all 0.15s; border-bottom: 2px solid transparent; }
+  .detail-tab:hover { color: #0d9488; }
+  .detail-tab.active { color: #0d9488; border-bottom-color: #0d9488; }
+
+  /* Section card */
+  .section-card { transition: box-shadow 0.2s; }
+  .section-card:hover { box-shadow: 0 2px 12px rgba(0,0,0,0.04); }
+
+  /* Suggestion card — collapsed / expanded (same as dashboard) */
+  .suggestion-card { transition: box-shadow 0.2s, border-color 0.2s; cursor: pointer; }
+  .suggestion-card:hover { box-shadow: 0 2px 12px rgba(0,0,0,0.06); border-color: #d6d3d1; }
+  .suggestion-card .composer { display: none; }
+  .suggestion-card.expanded .composer { display: block; animation: fadeUp 0.25s ease-out; }
+  .suggestion-card.expanded { cursor: default; border-color: #99f6e4; box-shadow: 0 2px 16px rgba(13,148,136,0.08); }
+
+  /* Inline editable fields */
+  .editable {
+    cursor: pointer;
+    border-bottom: 1px dashed transparent;
+    transition: border-color 0.15s, background 0.15s;
+    padding: 1px 4px;
+    margin: -1px -4px;
+    border-radius: 4px;
+  }
+  .editable:hover {
+    border-bottom-color: #d6d3d1;
+    background: #fafaf9;
+  }
+  .editable:hover .edit-hint { opacity: 1; }
+  .edit-hint { opacity: 0; transition: opacity 0.15s; }
+
+  /* Active editing state */
+  .editable-active {
+    background: white;
+    border: 1px solid #0d9488;
+    border-radius: 6px;
+    padding: 2px 8px;
+    margin: -3px -9px;
+    outline: none;
+    box-shadow: 0 0 0 3px rgba(13,148,136,0.1);
+  }
+</style>
+</head>
+<body class="bg-stone-50 text-stone-900 min-h-screen">
+
+<!-- Navbar -->
+<nav class="sticky top-0 z-40 bg-white border-b border-stone-200">
+  <div class="max-w-6xl mx-auto px-4 h-14 flex items-center gap-6">
+    <a href="#" class="flex items-center gap-2 text-lg font-display font-bold text-teal-600 shrink-0">
+      <span class="w-2.5 h-2.5 rounded-full bg-teal-500"></span> Ping
+    </a>
+    <button class="flex items-center gap-2 px-3 py-1.5 rounded-md text-sm text-stone-400 border border-stone-200 hover:border-stone-300 transition-colors">
+      <i data-lucide="search" class="w-3.5 h-3.5"></i> Search contacts
+      <kbd class="px-1.5 py-0.5 text-[10px] font-mono bg-stone-100 rounded text-stone-400">⌘K</kbd>
+    </button>
+    <div class="flex-1"></div>
+    <div class="flex items-center gap-0.5">
+      <a href="#" class="flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm font-medium text-stone-600 hover:bg-stone-100"><i data-lucide="layout-dashboard" class="w-4 h-4"></i> Dashboard</a>
+      <div class="nav-group relative">
+        <a href="/contacts" class="relative flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm font-medium text-teal-700">
+          <i data-lucide="users" class="w-4 h-4"></i> Contacts <i data-lucide="chevron-down" class="w-3 h-3 text-stone-400"></i>
+          <span class="absolute bottom-[-9px] left-2 right-2 h-[2px] bg-teal-600 rounded-full"></span>
+        </a>
+        <div class="nav-dropdown absolute top-full left-0 mt-1 w-48 bg-white rounded-lg border border-stone-200 shadow-md py-1 z-50">
+          <a href="/contacts" class="flex items-center gap-2 px-3 py-2 text-sm text-stone-600 hover:bg-stone-50"><i data-lucide="users" class="w-4 h-4"></i> All Contacts</a>
+          <a href="/contacts/archive" class="flex items-center gap-2 px-3 py-2 text-sm text-stone-600 hover:bg-stone-50"><i data-lucide="archive" class="w-4 h-4"></i> Archive</a>
+          <a href="/identity" class="flex items-center gap-2 px-3 py-2 text-sm text-stone-600 hover:bg-stone-50"><i data-lucide="git-merge" class="w-4 h-4"></i> Resolve Duplicates</a>
+        </div>
+      </div>
+      <a href="#" class="flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm font-medium text-stone-600 hover:bg-stone-100"><i data-lucide="building-2" class="w-4 h-4"></i> Orgs</a>
+      <a href="#" class="flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm font-medium text-stone-600 hover:bg-stone-100"><i data-lucide="sparkles" class="w-4 h-4"></i> Suggestions</a>
+      <a href="#" class="flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm font-medium text-stone-600 hover:bg-stone-100"><i data-lucide="settings" class="w-4 h-4"></i> Settings</a>
+    </div>
+    <div class="flex items-center gap-1.5">
+      <button class="relative p-2 rounded-md text-stone-500 hover:bg-stone-100"><i data-lucide="bell" class="w-5 h-5"></i></button>
+      <button class="flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm text-stone-700 hover:bg-stone-100">Alex <i data-lucide="chevron-down" class="w-3.5 h-3.5 text-stone-400"></i></button>
+    </div>
+  </div>
+</nav>
+
+<!-- CONTACT DETAIL PAGE -->
+<main class="max-w-6xl mx-auto px-4 py-8">
+
+  <!-- ═══════ TOP: Contact header ═══════ -->
+  <div class="bg-white rounded-xl border border-stone-200 p-6 mb-6 anim-in d2">
+    <div class="flex items-start gap-6">
+      <!-- Avatar + score ring + upload overlay -->
+      <div class="relative shrink-0 group/avatar">
+        <div class="w-20 h-20 rounded-full bg-violet-100 text-violet-700 flex items-center justify-center text-2xl font-display font-bold overflow-hidden">
+          JG
+        </div>
+        <!-- Upload overlay (shows on hover) -->
+        <div class="absolute inset-0 w-20 h-20 rounded-full bg-black/50 flex items-center justify-center opacity-0 group-hover/avatar:opacity-100 transition-opacity cursor-pointer" onclick="document.getElementById('avatarUpload').click()">
+          <i data-lucide="camera" class="w-5 h-5 text-white"></i>
+        </div>
+        <input type="file" id="avatarUpload" accept="image/*" class="hidden">
+        <svg class="absolute -inset-1 w-[88px] h-[88px]" viewBox="0 0 88 88">
+          <circle cx="44" cy="44" r="40" fill="none" stroke="#e7e5e4" stroke-width="3"/>
+          <circle cx="44" cy="44" r="40" fill="none" stroke="#f59e0b" stroke-width="3" stroke-linecap="round"
+            stroke-dasharray="251" stroke-dashoffset="126" class="score-ring" transform="rotate(-90 44 44)"/>
+        </svg>
+        <div class="absolute -bottom-1 -right-1 w-7 h-7 rounded-full bg-amber-50 border-2 border-white flex items-center justify-center">
+          <span class="font-mono text-xs font-bold text-amber-700">5</span>
+        </div>
+      </div>
+
+      <!-- Info -->
+      <div class="flex-1 min-w-0">
+        <!-- Name row: click name to edit -->
+        <div class="flex items-center gap-3 mb-0.5">
+          <h1 class="editable text-xl font-display font-bold text-stone-900" onclick="this.contentEditable=true;this.focus();this.classList.add('editable-active')" onblur="this.contentEditable=false;this.classList.remove('editable-active')">Jason Goldberg</h1>
+          <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-medium bg-amber-50 text-amber-700 border border-amber-200">
+            <span class="w-1.5 h-1.5 rounded-full bg-amber-400"></span> Warm
+          </span>
+        </div>
+
+        <!-- Org + title + location + birthday: click to edit -->
+        <div class="flex items-center gap-1.5 mb-3 flex-wrap">
+          <span class="editable text-sm text-stone-500" onclick="this.contentEditable=true;this.focus();this.classList.add('editable-active')" onblur="this.contentEditable=false;this.classList.remove('editable-active')">CTO</span>
+          <span class="text-sm text-stone-300">at</span>
+          <a href="#" class="editable text-sm font-medium text-teal-600 hover:text-teal-700">DeFi Labs</a>
+          <span class="text-stone-200 mx-0.5">&middot;</span>
+          <span class="inline-flex items-center gap-1 text-sm text-stone-400">
+            <i data-lucide="map-pin" class="w-3 h-3"></i>
+            <span class="editable text-stone-500" onclick="this.contentEditable=true;this.focus();this.classList.add('editable-active')" onblur="this.contentEditable=false;this.classList.remove('editable-active')">New York, NY</span>
+          </span>
+          <span class="text-stone-200 mx-0.5">&middot;</span>
+          <span class="inline-flex items-center gap-1 text-sm text-stone-400">
+            <i data-lucide="cake" class="w-3 h-3"></i>
+            <span class="editable text-stone-500" onclick="this.contentEditable=true;this.focus();this.classList.add('editable-active')" onblur="this.contentEditable=false;this.classList.remove('editable-active')">Mar 22</span>
+          </span>
+        </div>
+
+        <!-- Bios: prominently visible -->
+        <div class="space-y-1.5 mb-4">
+          <div class="flex items-start gap-2">
+            <i data-lucide="twitter" class="w-3.5 h-3.5 text-stone-400 mt-0.5 shrink-0"></i>
+            <p class="text-xs text-stone-600 leading-relaxed">CTO @DeFiLabs | Building the future of cross-chain DeFi | Previously @Polygon</p>
+          </div>
+          <div class="flex items-start gap-2">
+            <i data-lucide="message-circle" class="w-3.5 h-3.5 text-sky-400 mt-0.5 shrink-0"></i>
+            <p class="text-xs text-stone-600 leading-relaxed">Building bridges, literally. DM me about L2 infra.</p>
+          </div>
+        </div>
+
+        <!-- Contact channels: email, telegram, twitter, linkedin, phone -->
+        <div class="flex flex-wrap gap-2 mb-4">
+          <a href="mailto:jason@defi.xyz" class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs text-stone-600 bg-stone-50 hover:bg-stone-100 transition-colors">
+            <i data-lucide="mail" class="w-3.5 h-3.5 text-red-400"></i> jason@defi.xyz
+          </a>
+          <a href="#" class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs text-stone-600 bg-stone-50 hover:bg-stone-100 transition-colors">
+            <i data-lucide="message-circle" class="w-3.5 h-3.5 text-sky-500"></i> @jgoldberg
+          </a>
+          <a href="#" class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs text-stone-600 bg-stone-50 hover:bg-stone-100 transition-colors">
+            <i data-lucide="twitter" class="w-3.5 h-3.5 text-stone-500"></i> @jason_defi
+          </a>
+          <a href="#" class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs text-stone-600 bg-stone-50 hover:bg-stone-100 transition-colors">
+            <svg class="w-3.5 h-3.5 text-blue-600" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <rect x="3" y="3" width="18" height="18" rx="2"/><path d="M8 11v5M8 8v.01M12 16v-5c0-1 1-2 2-2s2 1 2 2v5"/>
+            </svg>
+            jason-goldberg
+          </a>
+          <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs text-stone-400 bg-stone-50">
+            <i data-lucide="phone" class="w-3.5 h-3.5"></i> +1 (555) 012-3456
+          </span>
+        </div>
+
+        <!-- Tags -->
+        <div class="flex flex-wrap gap-1.5">
+          <span class="px-2.5 py-0.5 rounded-full text-[11px] font-medium bg-violet-50 text-violet-700 border border-violet-200">crypto</span>
+          <span class="px-2.5 py-0.5 rounded-full text-[11px] font-medium bg-violet-50 text-violet-700 border border-violet-200">defi</span>
+          <span class="px-2.5 py-0.5 rounded-full text-[11px] font-medium bg-teal-50 text-teal-700 border border-teal-200">close-friend</span>
+          <span class="px-2.5 py-0.5 rounded-full text-[11px] font-medium bg-amber-50 text-amber-700 border border-amber-200">conference-met</span>
+          <button class="px-2 py-0.5 rounded-full text-[11px] text-stone-400 border border-dashed border-stone-300 hover:bg-stone-50">+</button>
+        </div>
+      </div>
+
+      <!-- Top-right: priority toggle + archive + menu -->
+      <div class="flex items-center gap-1 shrink-0">
+        <!-- Priority: single-click cycle through levels -->
+        <div class="flex items-center rounded-lg border border-stone-200 overflow-hidden">
+          <button onclick="setPriority(this,'high')" class="px-2.5 py-1.5 text-xs bg-red-50 text-red-600 border-r border-stone-200" title="High">🔥</button>
+          <button onclick="setPriority(this,'medium')" class="px-2.5 py-1.5 text-xs text-stone-400 border-r border-stone-200 hover:bg-stone-50" title="Medium">⚡</button>
+          <button onclick="setPriority(this,'low')" class="px-2.5 py-1.5 text-xs text-stone-400 hover:bg-stone-50" title="Low">💤</button>
+        </div>
+        <button class="p-2 rounded-lg text-stone-400 hover:text-amber-600 hover:bg-amber-50 transition-colors" title="Archive contact">
+          <i data-lucide="archive" class="w-4 h-4"></i>
+        </button>
+        <div class="relative">
+          <button onclick="this.nextElementSibling.classList.toggle('hidden')" class="p-2 rounded-lg text-stone-400 hover:bg-stone-100 transition-colors">
+            <i data-lucide="more-vertical" class="w-4 h-4"></i>
+          </button>
+          <!-- Contact detail kebab menu (shown) -->
+          <div class="absolute right-0 top-full mt-1 w-52 bg-white rounded-lg border border-stone-200 shadow-lg py-1 z-50">
+            <a href="#" class="flex items-center gap-2.5 px-3 py-2 text-sm text-stone-700 hover:bg-stone-50">
+              <i data-lucide="refresh-cw" class="w-4 h-4 text-stone-400"></i> Refresh details
+            </a>
+            <a href="#" class="flex items-center gap-2.5 px-3 py-2 text-sm text-stone-700 hover:bg-stone-50">
+              <i data-lucide="sparkles" class="w-4 h-4 text-stone-400"></i> Enrich with Apollo
+            </a>
+            <a href="#" class="flex items-center gap-2.5 px-3 py-2 text-sm text-stone-700 hover:bg-stone-50">
+              <i data-lucide="wand-2" class="w-4 h-4 text-stone-400"></i> Auto-tag with AI
+            </a>
+            <div class="my-1 h-px bg-stone-100"></div>
+            <a href="#" class="flex items-center gap-2.5 px-3 py-2 text-sm text-stone-700 hover:bg-stone-50">
+              <i data-lucide="send" class="w-4 h-4 text-stone-400"></i> Send message
+            </a>
+            <a href="#" onclick="document.getElementById('logInteractionModal').classList.remove('hidden');event.preventDefault()" class="flex items-center gap-2.5 px-3 py-2 text-sm text-stone-700 hover:bg-stone-50">
+              <i data-lucide="calendar-plus" class="w-4 h-4 text-stone-400"></i> Log interaction
+            </a>
+            <a href="#" class="flex items-center gap-2.5 px-3 py-2 text-sm text-stone-700 hover:bg-stone-50">
+              <i data-lucide="users" class="w-4 h-4 text-stone-400"></i> Show duplicates
+            </a>
+            <div class="my-1 h-px bg-stone-100"></div>
+            <a href="#" class="flex items-center gap-2.5 px-3 py-2 text-sm text-stone-700 hover:bg-stone-50">
+              <i data-lucide="archive" class="w-4 h-4 text-stone-400"></i> Archive contact
+            </a>
+            <a href="#" class="flex items-center gap-2.5 px-3 py-2 text-sm text-red-600 hover:bg-red-50">
+              <i data-lucide="trash-2" class="w-4 h-4"></i> Delete contact
+            </a>
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- ═══════ TWO COLUMN ═══════ -->
+  <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+
+    <!-- LEFT (2/3): Tabs content -->
+    <div class="lg:col-span-2 space-y-6">
+
+      <!-- Tab bar -->
+      <div class="flex gap-4 border-b border-stone-200 anim-in d3">
+        <button class="detail-tab active pb-3 text-sm font-medium" onclick="switchDetailTab(this, 'timeline')">
+          Timeline
+        </button>
+        <button class="detail-tab pb-3 text-sm font-medium text-stone-500" onclick="switchDetailTab(this, 'details')">
+          Details
+        </button>
+      </div>
+
+      <!-- Timeline tab -->
+      <div id="tab-timeline" class="anim-in d4">
+
+        <!-- Pending follow-up card (same pattern as dashboard — click to expand) -->
+        <div class="suggestion-card bg-white rounded-xl border border-stone-200 p-4 mb-4" onclick="toggleSuggestion(this)">
+          <div class="flex items-start gap-3">
+            <div class="w-10 h-10 rounded-full bg-violet-100 text-violet-700 flex items-center justify-center text-sm font-semibold shrink-0">JG</div>
+            <div class="flex-1 min-w-0">
+              <div class="flex items-center justify-between">
+                <div class="flex items-center gap-2">
+                  <p class="text-sm font-medium text-stone-900">Follow-up suggested</p>
+                  <span class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium bg-amber-50 text-amber-600 border border-amber-200">
+                    <i data-lucide="sparkles" class="w-3 h-3"></i>
+                  </span>
+                </div>
+                <span class="text-[11px] text-stone-400 shrink-0">7 days ago</span>
+              </div>
+              <p class="text-xs text-stone-500 mt-1 line-clamp-2">Haven't caught up in a while. Mention the DeFi project you discussed at ETH Denver...</p>
+
+              <!-- Expanded composer (hidden by default, shown on click) -->
+              <div class="composer mt-4 pt-4 border-t border-stone-100" onclick="event.stopPropagation()">
+                <!-- Channel selector -->
+                <div class="flex gap-2 mb-3">
+                  <button class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-medium border text-sky-600 bg-sky-50 border-sky-200">
+                    <i data-lucide="message-circle" class="w-3.5 h-3.5"></i> Telegram
+                  </button>
+                  <button class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-medium border text-stone-500 bg-white border-stone-200 hover:bg-stone-50">
+                    <i data-lucide="mail" class="w-3.5 h-3.5"></i> Email
+                  </button>
+                  <button class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-medium border text-stone-500 bg-white border-stone-200 hover:bg-stone-50">
+                    <i data-lucide="twitter" class="w-3.5 h-3.5"></i> Twitter
+                  </button>
+                </div>
+                <!-- Message textarea -->
+                <textarea rows="3" class="w-full text-sm border border-stone-200 rounded-lg p-3 resize-none focus:outline-none focus:ring-2 focus:ring-teal-400 placeholder:text-stone-400">Hey Jason! Been thinking about that L2 bridge idea you mentioned at ETH Denver — any progress on it? Would love to catch up over coffee if you're around this week.</textarea>
+                <!-- Actions -->
+                <div class="flex items-center justify-between mt-3">
+                  <div class="flex items-center gap-2">
+                    <button class="inline-flex items-center gap-1 px-2.5 py-1.5 text-xs rounded-md text-stone-500 border border-stone-200 hover:bg-stone-50 transition-colors">
+                      <i data-lucide="refresh-cw" class="w-3 h-3"></i> Regenerate
+                    </button>
+                    <div class="relative inline-block">
+                      <button onclick="this.nextElementSibling.classList.toggle('hidden');event.stopPropagation()" class="inline-flex items-center gap-1 px-2.5 py-1.5 text-xs rounded-md text-amber-600 border border-amber-200 bg-amber-50 hover:bg-amber-100 transition-colors">
+                        <i data-lucide="clock" class="w-3 h-3"></i> Snooze <i data-lucide="chevron-down" class="w-2.5 h-2.5"></i>
+                      </button>
+                      <div class="hidden absolute left-0 bottom-full mb-1 w-32 bg-white rounded-lg border border-stone-200 shadow-lg py-1 z-50">
+                        <button class="w-full flex items-center gap-2 px-3 py-1.5 text-xs text-stone-700 hover:bg-stone-50"><i data-lucide="clock" class="w-3 h-3 text-stone-400"></i> 2 weeks</button>
+                        <button class="w-full flex items-center gap-2 px-3 py-1.5 text-xs text-stone-700 hover:bg-stone-50"><i data-lucide="clock" class="w-3 h-3 text-stone-400"></i> 1 month</button>
+                        <button class="w-full flex items-center gap-2 px-3 py-1.5 text-xs text-stone-700 hover:bg-stone-50"><i data-lucide="clock" class="w-3 h-3 text-stone-400"></i> 3 months</button>
+                      </div>
+                    </div>
+                    <button class="inline-flex items-center gap-1 px-2.5 py-1.5 text-xs rounded-md text-stone-400 border border-stone-200 hover:bg-stone-50 transition-colors">
+                      <i data-lucide="x" class="w-3 h-3"></i> Dismiss
+                    </button>
+                  </div>
+                  <button class="inline-flex items-center gap-1.5 px-4 py-1.5 text-xs font-medium rounded-lg bg-teal-600 text-white hover:bg-teal-700 transition-colors">
+                    <i data-lucide="send" class="w-3.5 h-3.5"></i> Send
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Add note input -->
+        <div class="bg-white rounded-xl border border-stone-200 p-3 mb-4 flex items-start gap-3">
+          <i data-lucide="sticky-note" class="w-4 h-4 text-amber-400 mt-1.5 shrink-0"></i>
+          <div class="flex-1">
+            <textarea id="noteInput" rows="1" placeholder="Add a note..." class="w-full text-sm border-0 resize-none focus:outline-none placeholder:text-stone-400 py-1" onfocus="this.rows=3;document.getElementById('noteActions').classList.remove('hidden')" onblur="setTimeout(()=>{if(!this.value){this.rows=1;document.getElementById('noteActions').classList.add('hidden')}},150)"></textarea>
+            <div id="noteActions" class="hidden flex items-center justify-end gap-2 mt-2 pt-2 border-t border-stone-100">
+              <button class="px-3 py-1.5 text-xs text-stone-500 hover:bg-stone-50 rounded-md transition-colors" onclick="document.getElementById('noteInput').value='';document.getElementById('noteInput').rows=1;this.parentElement.classList.add('hidden')">Cancel</button>
+              <button class="px-3 py-1.5 text-xs font-medium rounded-md bg-teal-600 text-white hover:bg-teal-700 transition-colors">Save note</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- ═══ EMPTY STATE (shown when contact has 0 interactions) ═══ -->
+        <div class="hidden bg-white rounded-xl border border-stone-200 p-10 text-center mb-4" id="emptyTimeline">
+          <div class="w-12 h-12 rounded-full bg-stone-100 flex items-center justify-center mx-auto mb-3">
+            <i data-lucide="message-circle" class="w-6 h-6 text-stone-400"></i>
+          </div>
+          <h3 class="text-sm font-display font-bold text-stone-900 mb-1">No interactions yet</h3>
+          <p class="text-xs text-stone-500 mb-4 max-w-xs mx-auto">Connect an account to sync messages, or manually log your first interaction.</p>
+          <button onclick="document.getElementById('logInteractionModal').classList.remove('hidden')" class="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg bg-teal-600 text-white hover:bg-teal-700 transition-colors">
+            <i data-lucide="plus" class="w-3.5 h-3.5"></i> Log interaction
+          </button>
+        </div>
+
+        <!-- Chat-like timeline (interactions + notes mixed) -->
+        <div class="bg-white rounded-xl border border-stone-200 p-4 space-y-1">
+
+          <!-- Date separator -->
+          <div class="flex items-center gap-3 py-2">
+            <div class="flex-1 h-px bg-stone-100"></div>
+            <span class="text-[10px] font-medium text-stone-400 uppercase tracking-wider">Mar 2, 2026</span>
+            <div class="flex-1 h-px bg-stone-100"></div>
+          </div>
+
+          <!-- Inbound message (left aligned) -->
+          <div class="flex items-end gap-2 max-w-[85%]">
+            <div class="w-6 h-6 rounded-full bg-violet-100 text-violet-700 flex items-center justify-center text-[10px] font-semibold shrink-0">JG</div>
+            <div>
+              <div class="bg-stone-100 rounded-2xl rounded-bl-md px-3.5 py-2.5">
+                <p class="text-[13px] text-stone-800 leading-relaxed">Yo! Just deployed the testnet for the bridge. Still ironing out some sequencer stuff but it's looking good. Let me know if you want alpha access 🚀</p>
+              </div>
+              <div class="flex items-center gap-1.5 mt-1 ml-1">
+                <i data-lucide="message-circle" class="w-3 h-3 text-sky-400"></i>
+                <span class="text-[10px] text-stone-400">Telegram &middot; 4:23 PM</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- ═══ NOTE — distinct style: amber left border, full width ═══ -->
+          <div class="my-3 ml-2 pl-3 border-l-2 border-amber-300 py-1.5 group">
+            <div class="flex items-start justify-between">
+              <div>
+                <p class="text-[13px] text-stone-700 leading-relaxed">Wants alpha access to testnet. Follow up once it's stable.</p>
+              </div>
+              <div class="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity shrink-0 ml-2">
+                <button class="p-1 rounded text-stone-400 hover:text-stone-600 hover:bg-stone-100"><i data-lucide="pencil" class="w-3 h-3"></i></button>
+                <button class="p-1 rounded text-stone-400 hover:text-red-500 hover:bg-red-50"><i data-lucide="trash-2" class="w-3 h-3"></i></button>
+              </div>
+            </div>
+            <div class="flex items-center gap-1.5 mt-1">
+              <i data-lucide="sticky-note" class="w-3 h-3 text-amber-400"></i>
+              <span class="text-[10px] text-stone-400">Note &middot; Mar 2</span>
+            </div>
+          </div>
+
+          <!-- Date separator -->
+          <div class="flex items-center gap-3 py-2 mt-2">
+            <div class="flex-1 h-px bg-stone-100"></div>
+            <span class="text-[10px] font-medium text-stone-400 uppercase tracking-wider">Feb 27, 2026</span>
+            <div class="flex-1 h-px bg-stone-100"></div>
+          </div>
+
+          <!-- Outbound message (right aligned) -->
+          <div class="flex items-end gap-2 max-w-[85%] ml-auto flex-row-reverse">
+            <div class="w-6 h-6 rounded-full bg-teal-100 text-teal-700 flex items-center justify-center text-[10px] font-semibold shrink-0">You</div>
+            <div>
+              <div class="bg-teal-600 text-white rounded-2xl rounded-br-md px-3.5 py-2.5">
+                <p class="text-[13px] leading-relaxed">Hey man, how's the bridge project coming along? Saw the announcement about the new proving system — congrats!</p>
+              </div>
+              <div class="flex items-center gap-1.5 mt-1 mr-1 justify-end">
+                <span class="text-[10px] text-stone-400">2:15 PM &middot; Telegram</span>
+                <i data-lucide="message-circle" class="w-3 h-3 text-sky-400"></i>
+              </div>
+            </div>
+          </div>
+
+          <!-- Date separator -->
+          <div class="flex items-center gap-3 py-2 mt-2">
+            <div class="flex-1 h-px bg-stone-100"></div>
+            <span class="text-[10px] font-medium text-stone-400 uppercase tracking-wider">Feb 24, 2026</span>
+            <div class="flex-1 h-px bg-stone-100"></div>
+          </div>
+
+          <!-- Inbound — Twitter -->
+          <div class="flex items-end gap-2 max-w-[85%]">
+            <div class="w-6 h-6 rounded-full bg-violet-100 text-violet-700 flex items-center justify-center text-[10px] font-semibold shrink-0">JG</div>
+            <div>
+              <div class="bg-stone-100 rounded-2xl rounded-bl-md px-3.5 py-2.5">
+                <p class="text-[13px] text-stone-800 leading-relaxed">Thanks for the RT! Appreciate the support. Let me know if you want to grab coffee at ETH Denver next week</p>
+              </div>
+              <div class="flex items-center gap-1.5 mt-1 ml-1">
+                <i data-lucide="twitter" class="w-3 h-3 text-stone-400"></i>
+                <span class="text-[10px] text-stone-400">Twitter DM &middot; 11:02 AM</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Date separator -->
+          <div class="flex items-center gap-3 py-2 mt-2">
+            <div class="flex-1 h-px bg-stone-100"></div>
+            <span class="text-[10px] font-medium text-stone-400 uppercase tracking-wider">Feb 10, 2026</span>
+            <div class="flex-1 h-px bg-stone-100"></div>
+          </div>
+
+          <!-- ═══ NOTE — older note, between interactions ═══ -->
+          <div class="my-3 ml-2 pl-3 border-l-2 border-amber-300 py-1.5 group">
+            <div class="flex items-start justify-between">
+              <div>
+                <p class="text-[13px] text-stone-700 leading-relaxed">Key interests: ZK proofs, cross-chain bridges, DeFi infrastructure. Wants to collaborate on a side event at ETH Denver 2026.</p>
+              </div>
+              <div class="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity shrink-0 ml-2">
+                <button class="p-1 rounded text-stone-400 hover:text-stone-600 hover:bg-stone-100"><i data-lucide="pencil" class="w-3 h-3"></i></button>
+                <button class="p-1 rounded text-stone-400 hover:text-red-500 hover:bg-red-50"><i data-lucide="trash-2" class="w-3 h-3"></i></button>
+              </div>
+            </div>
+            <div class="flex items-center gap-1.5 mt-1">
+              <i data-lucide="sticky-note" class="w-3 h-3 text-amber-400"></i>
+              <span class="text-[10px] text-stone-400">Note &middot; Feb 10</span>
+            </div>
+          </div>
+
+          <!-- Outbound — Email -->
+          <div class="flex items-end gap-2 max-w-[85%] ml-auto flex-row-reverse">
+            <div class="w-6 h-6 rounded-full bg-teal-100 text-teal-700 flex items-center justify-center text-[10px] font-semibold shrink-0">You</div>
+            <div>
+              <div class="bg-teal-600 text-white rounded-2xl rounded-br-md px-3.5 py-2.5">
+                <p class="text-[13px] leading-relaxed">Re: ETH Denver meetup — Sounds great, let's do the side event together. I'll send you the venue details...</p>
+              </div>
+              <div class="flex items-center gap-1.5 mt-1 mr-1 justify-end">
+                <span class="text-[10px] text-stone-400">9:30 AM &middot; Email</span>
+                <i data-lucide="mail" class="w-3 h-3 text-red-400"></i>
+              </div>
+            </div>
+          </div>
+
+          <!-- Date separator — big gap -->
+          <div class="flex items-center gap-3 py-2 mt-2">
+            <div class="flex-1 h-px bg-stone-100"></div>
+            <span class="text-[10px] font-medium text-stone-400 uppercase tracking-wider">Nov 15, 2024</span>
+            <div class="flex-1 h-px bg-stone-100"></div>
+          </div>
+
+          <!-- System event: manual meeting -->
+          <div class="flex justify-center py-1">
+            <div class="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-stone-50 border border-stone-100">
+              <i data-lucide="calendar" class="w-3.5 h-3.5 text-teal-500"></i>
+              <span class="text-[11px] text-stone-500">Meeting &middot; Zurich Ethereum meetup &middot; Discussed L2 bridge architecture</span>
+            </div>
+          </div>
+
+          <!-- ═══ NOTE — first note, attached to meeting ═══ -->
+          <div class="my-3 ml-2 pl-3 border-l-2 border-amber-300 py-1.5 group">
+            <div class="flex items-start justify-between">
+              <div>
+                <p class="text-[13px] text-stone-700 leading-relaxed">Met at Zurich ETH meetup. Working on L2 bridge protocol. Seems very sharp — potential long-term collaborator.</p>
+              </div>
+              <div class="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity shrink-0 ml-2">
+                <button class="p-1 rounded text-stone-400 hover:text-stone-600 hover:bg-stone-100"><i data-lucide="pencil" class="w-3 h-3"></i></button>
+                <button class="p-1 rounded text-stone-400 hover:text-red-500 hover:bg-red-50"><i data-lucide="trash-2" class="w-3 h-3"></i></button>
+              </div>
+            </div>
+            <div class="flex items-center gap-1.5 mt-1">
+              <i data-lucide="sticky-note" class="w-3 h-3 text-amber-400"></i>
+              <span class="text-[10px] text-stone-400">Note &middot; Nov 15, 2024</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Load more -->
+        <button class="w-full mt-3 py-2 text-xs font-medium text-teal-600 hover:text-teal-700 hover:bg-teal-50 rounded-lg transition-colors">
+          Load more interactions...
+        </button>
+      </div>
+
+      <!-- Details tab (hidden) — supplementary fields not shown in header -->
+      <div id="tab-details" class="hidden">
+        <div class="bg-white rounded-xl border border-stone-200 p-5 space-y-4">
+          <p class="text-xs text-stone-400 mb-2">Most fields can be edited inline by clicking them in the header above. Additional fields below.</p>
+          <div class="grid grid-cols-2 gap-4">
+            <div><label class="text-xs font-medium text-stone-500 mb-1 block">Phone</label><input value="+1 (555) 012-3456" class="w-full text-sm border border-stone-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-teal-400"></div>
+            <div><label class="text-xs font-medium text-stone-500 mb-1 block">LinkedIn URL</label><input value="linkedin.com/in/jason-goldberg" class="w-full text-sm border border-stone-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-teal-400"></div>
+            <div><label class="text-xs font-medium text-stone-500 mb-1 block">Additional emails</label><input placeholder="Add email..." class="w-full text-sm border border-stone-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-teal-400 placeholder:text-stone-300"></div>
+            <div><label class="text-xs font-medium text-stone-500 mb-1 block">Website</label><input placeholder="https://..." class="w-full text-sm border border-stone-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-teal-400 placeholder:text-stone-300"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- RIGHT (1/3): Score breakdown + sidebar -->
+    <div class="space-y-6">
+
+      <!-- Relationship Health (combined: score + stats + trend) -->
+      <div class="section-card bg-white rounded-xl border border-stone-200 p-5 anim-in d3">
+        <!-- Score header -->
+        <div class="flex items-center justify-between mb-4">
+          <h3 class="text-sm font-display font-semibold text-stone-900">Relationship Health</h3>
+          <span class="font-mono text-lg font-bold text-amber-600">5<span class="text-stone-300 font-normal text-sm">/10</span></span>
+        </div>
+
+        <!-- Score dimension bars -->
+        <div class="space-y-2.5 mb-5">
+          <div>
+            <div class="flex items-center justify-between mb-1">
+              <span class="text-xs text-stone-600">Reciprocity</span>
+              <span class="font-mono text-[11px] text-stone-400">2/4</span>
+            </div>
+            <div class="h-1.5 bg-stone-100 rounded-full overflow-hidden">
+              <div class="h-full bg-teal-500 rounded-full" style="width:50%"></div>
+            </div>
+          </div>
+          <div>
+            <div class="flex items-center justify-between mb-1">
+              <span class="text-xs text-stone-600">Recency</span>
+              <span class="font-mono text-[11px] text-stone-400">2/3</span>
+            </div>
+            <div class="h-1.5 bg-stone-100 rounded-full overflow-hidden">
+              <div class="h-full bg-teal-500 rounded-full" style="width:66%"></div>
+            </div>
+          </div>
+          <div>
+            <div class="flex items-center justify-between mb-1">
+              <span class="text-xs text-stone-600">Frequency</span>
+              <span class="font-mono text-[11px] text-stone-400">1/2</span>
+            </div>
+            <div class="h-1.5 bg-stone-100 rounded-full overflow-hidden">
+              <div class="h-full bg-teal-500 rounded-full" style="width:50%"></div>
+            </div>
+          </div>
+          <div>
+            <div class="flex items-center justify-between mb-1">
+              <span class="text-xs text-stone-600">Breadth</span>
+              <span class="font-mono text-[11px] text-stone-400">0/1</span>
+            </div>
+            <div class="h-1.5 bg-stone-100 rounded-full overflow-hidden">
+              <div class="h-full bg-stone-200 rounded-full" style="width:0%"></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Stats row -->
+        <div class="border-t border-stone-100 pt-4 mb-4 space-y-2.5">
+          <div class="flex items-center justify-between">
+            <span class="text-xs text-stone-500">Last contacted</span>
+            <div class="text-right">
+              <span class="text-xs font-medium text-stone-900">7 days ago</span>
+              <span class="text-[10px] text-stone-400 ml-1">via Telegram</span>
+            </div>
+          </div>
+          <div class="flex items-center justify-between">
+            <span class="text-xs text-stone-500">Total interactions</span>
+            <div class="text-right">
+              <span class="text-xs font-medium text-stone-900">47</span>
+              <span class="text-[10px] text-stone-400 ml-1">18 out / 29 in</span>
+            </div>
+          </div>
+          <div class="flex items-center justify-between">
+            <span class="text-xs text-stone-500">Since</span>
+            <span class="text-xs font-medium text-stone-900">Nov 2024</span>
+          </div>
+        </div>
+
+        <!-- 6-month trend -->
+        <div class="border-t border-stone-100 pt-4">
+          <p class="text-[10px] font-semibold text-stone-400 uppercase tracking-wider mb-2">6-month trend</p>
+          <div class="flex items-end gap-1.5 h-12">
+            <div class="flex-1 flex flex-col items-center gap-1">
+              <div class="w-full bg-stone-200 rounded-t" style="height:0px"></div>
+              <span class="text-[9px] text-stone-400">Oct</span>
+            </div>
+            <div class="flex-1 flex flex-col items-center gap-1">
+              <div class="w-full bg-teal-300 rounded-t" style="height:10px"></div>
+              <span class="text-[9px] text-stone-400">Nov</span>
+            </div>
+            <div class="flex-1 flex flex-col items-center gap-1">
+              <div class="w-full bg-stone-200 rounded-t" style="height:0px"></div>
+              <span class="text-[9px] text-stone-400">Dec</span>
+            </div>
+            <div class="flex-1 flex flex-col items-center gap-1">
+              <div class="w-full bg-stone-200 rounded-t" style="height:0px"></div>
+              <span class="text-[9px] text-stone-400">Jan</span>
+            </div>
+            <div class="flex-1 flex flex-col items-center gap-1">
+              <div class="w-full bg-teal-400 rounded-t" style="height:36px"></div>
+              <span class="text-[9px] text-stone-400">Feb</span>
+            </div>
+            <div class="flex-1 flex flex-col items-center gap-1">
+              <div class="w-full bg-teal-500 rounded-t" style="height:16px"></div>
+              <span class="text-[9px] text-stone-400">Mar</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Possible Duplicates -->
+      <div class="section-card bg-white rounded-xl border border-stone-200 p-5 anim-in d5">
+        <div class="flex items-center justify-between mb-3">
+          <h3 class="text-sm font-display font-semibold text-stone-900">Possible Duplicates</h3>
+          <span class="text-[11px] font-medium text-stone-400">1 pending</span>
+        </div>
+
+        <!-- Match card -->
+        <div class="border border-stone-200 rounded-lg overflow-hidden">
+          <!-- Match header: score + method -->
+          <div class="flex items-center justify-between px-3 py-2 bg-stone-50 border-b border-stone-100">
+            <div class="flex items-center gap-2">
+              <span class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium bg-sky-50 text-sky-700 border border-sky-200">Probable match</span>
+            </div>
+            <div class="flex items-center gap-1.5">
+              <div class="w-12 h-1.5 bg-stone-200 rounded-full overflow-hidden">
+                <div class="h-full bg-amber-400 rounded-full" style="width:78%"></div>
+              </div>
+              <span class="font-mono text-xs font-bold text-amber-600">78%</span>
+            </div>
+          </div>
+
+          <!-- Candidate contact -->
+          <div class="px-3 py-3">
+            <div class="flex items-center gap-2.5 mb-2.5">
+              <div class="w-8 h-8 rounded-full bg-violet-100 text-violet-700 flex items-center justify-center text-[11px] font-semibold shrink-0">JG</div>
+              <div class="min-w-0">
+                <p class="text-xs font-medium text-stone-900">Jason G.</p>
+                <p class="text-[10px] text-stone-400">Via Google Contacts</p>
+              </div>
+            </div>
+
+            <!-- Field comparison: what matched -->
+            <div class="space-y-1.5 mb-3">
+              <div class="flex items-center gap-2">
+                <i data-lucide="check" class="w-3 h-3 text-emerald-500 shrink-0"></i>
+                <span class="text-[11px] text-stone-600">Email domain: <strong class="text-stone-800">defi.xyz</strong></span>
+              </div>
+              <div class="flex items-center gap-2">
+                <i data-lucide="check" class="w-3 h-3 text-emerald-500 shrink-0"></i>
+                <span class="text-[11px] text-stone-600">Name: <strong class="text-stone-800">Jason G.</strong> ~ Jason Goldberg</span>
+              </div>
+              <div class="flex items-center gap-2">
+                <i data-lucide="check" class="w-3 h-3 text-emerald-500 shrink-0"></i>
+                <span class="text-[11px] text-stone-600">Company: <strong class="text-stone-800">DeFi Labs</strong></span>
+              </div>
+              <div class="flex items-center gap-2">
+                <i data-lucide="minus" class="w-3 h-3 text-stone-300 shrink-0"></i>
+                <span class="text-[11px] text-stone-400">No matching handles</span>
+              </div>
+            </div>
+
+            <!-- Actions -->
+            <div class="flex items-center gap-2">
+              <button class="flex-1 inline-flex items-center justify-center gap-1 px-2.5 py-1.5 text-[11px] font-medium rounded-md border border-stone-200 text-stone-600 hover:bg-stone-50 transition-colors">
+                <i data-lucide="x" class="w-3 h-3"></i> Not the same
+              </button>
+              <button class="flex-1 inline-flex items-center justify-center gap-1 px-2.5 py-1.5 text-[11px] font-medium rounded-md bg-teal-600 text-white hover:bg-teal-700 transition-colors">
+                <i data-lucide="git-merge" class="w-3 h-3"></i> Merge
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Link to full identity page -->
+        <a href="/identity" class="flex items-center justify-center gap-1 mt-3 text-[11px] text-teal-600 hover:text-teal-700 font-medium">
+          View all duplicates <i data-lucide="arrow-right" class="w-3 h-3"></i>
+        </a>
+      </div>
+
+      <!-- Related Contacts -->
+      <div class="section-card bg-white rounded-xl border border-stone-200 p-5 anim-in d5">
+        <div class="flex items-center justify-between mb-3">
+          <h3 class="text-sm font-display font-semibold text-stone-900">Related Contacts</h3>
+        </div>
+        <p class="text-xs text-stone-400 mb-3">People with shared tags, company, or frequent co-mentions</p>
+        <div class="space-y-3">
+          <div class="flex items-center gap-3">
+            <div class="w-8 h-8 rounded-full bg-teal-100 text-teal-700 flex items-center justify-center text-xs font-semibold shrink-0">SM</div>
+            <div class="flex-1 min-w-0">
+              <p class="text-xs font-medium text-stone-900 truncate">Sarah Mitchell</p>
+              <p class="text-[10px] text-stone-400">Acme Corp &middot; 3 shared tags</p>
+            </div>
+            <a href="#" class="text-[10px] text-teal-600 hover:text-teal-700 font-medium shrink-0">View</a>
+          </div>
+          <div class="flex items-center gap-3">
+            <div class="w-8 h-8 rounded-full bg-stone-200 text-stone-600 flex items-center justify-center text-xs font-semibold shrink-0">DV</div>
+            <div class="flex-1 min-w-0">
+              <p class="text-xs font-medium text-stone-900 truncate">David Vatchev</p>
+              <p class="text-[10px] text-stone-400">crypto, defi &middot; co-mentioned 4x</p>
+            </div>
+            <a href="#" class="text-[10px] text-teal-600 hover:text-teal-700 font-medium shrink-0">View</a>
+          </div>
+          <div class="flex items-center gap-3">
+            <div class="w-8 h-8 rounded-full bg-sky-100 text-sky-700 flex items-center justify-center text-xs font-semibold shrink-0">EP</div>
+            <div class="flex-1 min-w-0">
+              <p class="text-xs font-medium text-stone-900 truncate">Elena Petrov</p>
+              <p class="text-[10px] text-stone-400">DeFi Labs &middot; same company</p>
+            </div>
+            <a href="#" class="text-[10px] text-teal-600 hover:text-teal-700 font-medium shrink-0">View</a>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</main>
+
+<!-- ═══════ LOG INTERACTION MODAL ═══════ -->
+<div id="logInteractionModal" class="hidden fixed inset-0 z-50 flex items-center justify-center" style="background:rgba(28,25,23,0.4); backdrop-filter:blur(2px);">
+  <div class="bg-white rounded-2xl border border-stone-200 shadow-2xl w-full max-w-lg mx-4 anim-in">
+    <div class="flex items-center justify-between px-6 py-4 border-b border-stone-100">
+      <h2 class="text-lg font-display font-bold text-stone-900">Log Interaction</h2>
+      <button onclick="document.getElementById('logInteractionModal').classList.add('hidden')" class="p-1.5 rounded-lg text-stone-400 hover:bg-stone-100 transition-colors">
+        <i data-lucide="x" class="w-5 h-5"></i>
+      </button>
+    </div>
+    <div class="px-6 py-5 space-y-4">
+      <div class="grid grid-cols-2 gap-3">
+        <div>
+          <label class="text-xs font-medium text-stone-500 mb-1 block">Date</label>
+          <input type="date" value="2026-03-10" class="w-full text-sm border border-stone-200 rounded-lg px-3 py-2.5 focus:outline-none focus:ring-2 focus:ring-teal-400">
+        </div>
+        <div>
+          <label class="text-xs font-medium text-stone-500 mb-1 block">Type</label>
+          <select class="w-full text-sm border border-stone-200 rounded-lg px-3 py-2.5 focus:outline-none focus:ring-2 focus:ring-teal-400 text-stone-700">
+            <option>Meeting</option>
+            <option>Call</option>
+            <option>Coffee chat</option>
+            <option>Conference</option>
+            <option>Other</option>
+          </select>
+        </div>
+      </div>
+      <div>
+        <label class="text-xs font-medium text-stone-500 mb-1 block">Platform</label>
+        <div class="flex gap-2">
+          <button class="flex-1 px-3 py-2 text-xs font-medium rounded-lg border border-stone-200 text-stone-500 hover:bg-stone-50 transition-colors">In person</button>
+          <button class="flex-1 px-3 py-2 text-xs font-medium rounded-lg border border-teal-200 bg-teal-50 text-teal-700 ring-1 ring-teal-300 transition-colors">Zoom/Video</button>
+          <button class="flex-1 px-3 py-2 text-xs font-medium rounded-lg border border-stone-200 text-stone-500 hover:bg-stone-50 transition-colors">Phone</button>
+        </div>
+      </div>
+      <div>
+        <label class="text-xs font-medium text-stone-500 mb-1 block">Summary</label>
+        <textarea rows="3" placeholder="What did you discuss?" class="w-full text-sm border border-stone-200 rounded-lg px-3 py-2.5 focus:outline-none focus:ring-2 focus:ring-teal-400 placeholder:text-stone-300 resize-none"></textarea>
+      </div>
+      <div>
+        <label class="text-xs font-medium text-stone-500 mb-1 block">Key takeaways (optional)</label>
+        <textarea rows="2" placeholder="Action items, follow-ups, important notes..." class="w-full text-sm border border-stone-200 rounded-lg px-3 py-2.5 focus:outline-none focus:ring-2 focus:ring-teal-400 placeholder:text-stone-300 resize-none"></textarea>
+      </div>
+    </div>
+    <div class="flex items-center justify-end gap-2 px-6 py-4 border-t border-stone-100 bg-stone-50/50 rounded-b-2xl">
+      <button onclick="document.getElementById('logInteractionModal').classList.add('hidden')" class="px-4 py-2 text-sm font-medium text-stone-600 hover:bg-stone-100 rounded-lg transition-colors">Cancel</button>
+      <button class="px-4 py-2 text-sm font-medium rounded-lg bg-teal-600 text-white hover:bg-teal-700 transition-colors shadow-sm">
+        <span class="flex items-center gap-1.5"><i data-lucide="check" class="w-4 h-4"></i> Log Interaction</span>
+      </button>
+    </div>
+  </div>
+</div>
+
+<script>
+  lucide.createIcons();
+
+  function switchDetailTab(btn, tabId) {
+    document.querySelectorAll('.detail-tab').forEach(t => { t.classList.remove('active'); t.classList.add('text-stone-500'); });
+    btn.classList.add('active'); btn.classList.remove('text-stone-500');
+    document.querySelectorAll('[id^="tab-"]').forEach(p => p.classList.add('hidden'));
+    document.getElementById('tab-' + tabId).classList.remove('hidden');
+  }
+
+  function setPriority(btn, level) {
+    const group = btn.parentElement;
+    group.querySelectorAll('button').forEach(b => {
+      b.className = 'px-2.5 py-1.5 text-xs text-stone-400 hover:bg-stone-50' + (b.nextElementSibling ? ' border-r border-stone-200' : '');
+    });
+    const colors = { high: 'bg-red-50 text-red-600', medium: 'bg-amber-50 text-amber-600', low: 'bg-sky-50 text-sky-600' };
+    btn.className = 'px-2.5 py-1.5 text-xs ' + colors[level] + (btn.nextElementSibling ? ' border-r border-stone-200' : '');
+  }
+
+  function toggleSuggestion(el) {
+    if (el.classList.contains('expanded')) return;
+    document.querySelectorAll('.suggestion-card').forEach(c => c.classList.remove('expanded'));
+    el.classList.add('expanded');
+    lucide.createIcons();
+  }
+</script>
+</body>
+</html>

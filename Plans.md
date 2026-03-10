@@ -57,6 +57,54 @@
 
 ---
 
+## Phase 11: Mockup Improvements (from UX Report)
+
+作成日: 2026-03-10
+
+> Improve HTML mockups in `mockups/` to cover gaps found during critical review.
+> Each task = update the relevant mockup HTML file. No backend/frontend code changes.
+
+### 11.1 Dashboard — Missing Widgets (Medium)
+
+| # | Task | Status | DoD | Depends |
+|---|------|--------|-----|---------|
+| 1 | Add "Birthdays this week" widget to `dashboard-v2.html` | `cc:完了` | Card shows upcoming birthdays (next 7d) with contact name, date, quick-action link | — |
+| 2 | Add "New contacts with activity" widget to `dashboard-v2.html` | `cc:完了` | Card shows recently added contacts that already have interactions | — |
+
+### 11.2 Contacts List — Bulk & Filters (Medium)
+
+| # | Task | Status | DoD | Depends |
+|---|------|--------|-----|---------|
+| 3 | Add bulk selection + action bar to `contacts-v2.html` | `cc:完了` | Checkbox column, select-all, floating action bar (archive, tag, delete) | — |
+| 4 | Add column resize/reorder handles to `contacts-v2.html` | `cc:完了` | Visual drag handles on column headers | — |
+| 5 | Add saved/custom filters UI to `contacts-v2.html` | `cc:完了` | "Save filter" button + dropdown of saved filter presets | — |
+| 6 | Add export contacts button to `contacts-v2.html` | `cc:完了` | Export button (CSV/vCard) in toolbar area | — |
+
+### 11.3 Contact Detail — Enhancements (Medium)
+
+| # | Task | Status | DoD | Depends |
+|---|------|--------|-----|---------|
+| 7 | Add avatar upload UI to `contact-detail.html` | `cc:完了` | Click avatar circle → file picker overlay, preview, remove option | — |
+| 8 | Add "similar contacts" / relationship graph placeholder to `contact-detail.html` | `cc:完了` | Sidebar card showing related contacts with shared tags/company | — |
+| 9 | Add structured interaction logging form to `contact-detail.html` | `cc:完了` | Modal/drawer with date, type, platform, summary fields | — |
+
+### 11.4 Settings — Account & Data (High)
+
+| # | Task | Status | DoD | Depends |
+|---|------|--------|-----|---------|
+| 10 | Add account/profile management section to `settings-redesign.html` | `cc:完了` | Name, email, password change, user photo upload, timezone | — |
+| 11 | Add danger zone section to `settings-redesign.html` | `cc:完了` | Delete account (with confirmation modal), export all data button | 10 |
+| 12 | Add import history/log section to `settings-redesign.html` | `cc:完了` | Table of past imports with date, file, counts, error details | — |
+| 13 | Add sync-now visualization to `settings-redesign.html` | `cc:完了` | Last-synced timestamps, sync-now buttons, progress indicator per platform | — |
+
+### 11.5 Cross-Cutting — Empty States (Low)
+
+| # | Task | Status | DoD | Depends |
+|---|------|--------|-----|---------|
+| 14 | Add empty state variants for all mockups | `cc:完了` | Each page has a zero-data view with illustration + CTA | 1-13 |
+
+---
+
 ## Backlog: Feature Exploration (from GitHub Issues)
 
 | Issue | Title | Priority |

@@ -1,0 +1,1008 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>PingCRM — Settings Redesign</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<script src="https://unpkg.com/lucide@latest"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,300..700;1,9..40,300..700&family=Plus+Jakarta+Sans:wght@500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<script>
+tailwind.config = {
+  theme: {
+    extend: {
+      fontFamily: {
+        body: ['DM Sans', 'sans-serif'],
+        display: ['Plus Jakarta Sans', 'sans-serif'],
+        mono: ['JetBrains Mono', 'monospace'],
+      },
+    },
+  },
+};
+</script>
+<style>
+  body { font-family: 'DM Sans', sans-serif; }
+  .font-display { font-family: 'Plus Jakarta Sans', sans-serif; }
+  .font-mono { font-family: 'JetBrains Mono', monospace; }
+
+  /* Tab underline animation */
+  .tab-indicator {
+    position: absolute;
+    bottom: -1px;
+    height: 2px;
+    background: #0d9488;
+    border-radius: 1px;
+    transition: left 0.3s cubic-bezier(0.4, 0, 0.2, 1), width 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+
+  /* Card entrance */
+  @keyframes cardIn {
+    from { opacity: 0; transform: translateY(8px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+  .card-enter { animation: cardIn 0.35s ease-out both; }
+  .card-enter:nth-child(1) { animation-delay: 0ms; }
+  .card-enter:nth-child(2) { animation-delay: 60ms; }
+  .card-enter:nth-child(3) { animation-delay: 120ms; }
+  .card-enter:nth-child(4) { animation-delay: 180ms; }
+
+  /* Subtle card hover */
+  .settings-card {
+    transition: box-shadow 0.2s ease, border-color 0.2s ease;
+  }
+  .settings-card:hover {
+    box-shadow: 0 2px 12px rgba(0,0,0,0.06);
+    border-color: #d6d3d1;
+  }
+
+  /* Toggle switch */
+  .toggle-track {
+    width: 40px; height: 22px;
+    border-radius: 11px;
+    background: #d6d3d1;
+    transition: background 0.2s ease;
+    cursor: pointer;
+    position: relative;
+  }
+  .toggle-track.active { background: #0d9488; }
+  .toggle-thumb {
+    width: 18px; height: 18px;
+    border-radius: 50%;
+    background: white;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.15);
+    position: absolute;
+    top: 2px; left: 2px;
+    transition: transform 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+  .toggle-track.active .toggle-thumb { transform: translateX(18px); }
+
+  /* Range slider custom */
+  input[type="range"] {
+    -webkit-appearance: none;
+    appearance: none;
+    height: 6px;
+    border-radius: 3px;
+    background: #e7e5e4;
+    outline: none;
+  }
+  input[type="range"]::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    width: 20px; height: 20px;
+    border-radius: 50%;
+    background: #0d9488;
+    border: 3px solid white;
+    box-shadow: 0 1px 4px rgba(0,0,0,0.2);
+    cursor: pointer;
+    transition: transform 0.15s ease;
+  }
+  input[type="range"]::-webkit-slider-thumb:hover {
+    transform: scale(1.15);
+  }
+
+  /* Pulse for sync status */
+  @keyframes livePulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.5; }
+  }
+  .live-dot { animation: livePulse 2s ease-in-out infinite; }
+
+  /* Tag pill remove animation */
+  .tag-pill {
+    transition: transform 0.15s ease, opacity 0.15s ease;
+  }
+  .tag-pill:hover { transform: scale(1.03); }
+
+  /* Section divider */
+  .section-divider {
+    height: 1px;
+    background: linear-gradient(90deg, transparent, #e7e5e4 20%, #e7e5e4 80%, transparent);
+  }
+
+  /* Tab panel transitions */
+  .tab-panel { display: none; }
+  .tab-panel.active {
+    display: block;
+    animation: cardIn 0.25s ease-out;
+  }
+
+  /* Toast notification */
+  @keyframes toastIn {
+    from { opacity: 0; transform: translateY(-12px) scale(0.96); }
+    to { opacity: 1; transform: translateY(0) scale(1); }
+  }
+  @keyframes toastProgress {
+    from { width: 100%; }
+    to { width: 0%; }
+  }
+  .toast { animation: toastIn 0.3s ease-out; }
+  .toast-progress { animation: toastProgress 4s linear; }
+</style>
+</head>
+<body class="bg-stone-50 text-stone-900 min-h-screen">
+
+<!-- ═══════════════════════ NAVBAR ═══════════════════════ -->
+<nav class="sticky top-0 z-40 bg-white border-b border-stone-200">
+  <div class="max-w-6xl mx-auto px-4 h-14 flex items-center justify-between">
+    <a href="#" class="flex items-center gap-2 text-lg font-display font-bold text-teal-600">
+      <span class="w-2.5 h-2.5 rounded-full bg-teal-500"></span>
+      Ping
+    </a>
+    <div class="flex items-center gap-0.5">
+      <a href="#" class="flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm font-medium text-stone-600 hover:bg-stone-100 transition-colors">
+        <i data-lucide="layout-dashboard" class="w-4 h-4"></i> Dashboard
+      </a>
+      <a href="#" class="flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm font-medium text-stone-600 hover:bg-stone-100 transition-colors">
+        <i data-lucide="users" class="w-4 h-4"></i> Contacts
+      </a>
+      <a href="#" class="flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm font-medium text-stone-600 hover:bg-stone-100 transition-colors">
+        <i data-lucide="building-2" class="w-4 h-4"></i> Orgs
+      </a>
+      <a href="#" class="flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm font-medium text-stone-600 hover:bg-stone-100 transition-colors">
+        <i data-lucide="sparkles" class="w-4 h-4"></i> Suggestions
+      </a>
+      <a href="#" class="relative flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm font-medium text-teal-700">
+        <i data-lucide="settings" class="w-4 h-4"></i> Settings
+        <span class="absolute bottom-[-9px] left-2 right-2 h-[2px] bg-teal-600 rounded-full"></span>
+      </a>
+    </div>
+    <div class="flex items-center gap-2">
+      <button class="flex items-center gap-2 px-3 py-1.5 rounded-md text-sm text-stone-400 border border-stone-200 hover:border-stone-300 transition-colors">
+        <i data-lucide="search" class="w-3.5 h-3.5"></i>
+        <span class="hidden sm:inline">Search</span>
+        <kbd class="hidden sm:inline-flex px-1.5 py-0.5 text-[10px] font-mono bg-stone-100 rounded text-stone-400">⌘K</kbd>
+      </button>
+      <button class="relative p-2 rounded-md text-stone-500 hover:bg-stone-100 transition-colors">
+        <i data-lucide="bell" class="w-5 h-5"></i>
+        <span class="absolute -top-0.5 -right-0.5 flex items-center justify-center w-[18px] h-[18px] rounded-full bg-red-500 text-white text-[10px] font-bold">3</span>
+      </button>
+      <button class="flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm text-stone-700 hover:bg-stone-100 transition-colors">
+        <span>Alex</span>
+        <i data-lucide="chevron-down" class="w-3.5 h-3.5 text-stone-400"></i>
+      </button>
+    </div>
+  </div>
+</nav>
+
+<!-- ═══════ TOAST NOTIFICATIONS (shown after sync actions) ═══════ -->
+<div class="fixed top-4 right-4 z-50 space-y-2" id="toastContainer">
+  <!-- Toast 1: Sync started -->
+  <div class="toast bg-white rounded-lg border border-stone-200 shadow-lg w-80 overflow-hidden">
+    <div class="flex items-start gap-3 px-4 pt-3 pb-2">
+      <div class="w-7 h-7 rounded-full bg-teal-100 flex items-center justify-center shrink-0 mt-0.5">
+        <i data-lucide="refresh-cw" class="w-3.5 h-3.5 text-teal-600"></i>
+      </div>
+      <div class="flex-1 min-w-0">
+        <p class="text-sm font-medium text-stone-900">Gmail sync started</p>
+        <p class="text-xs text-stone-500 mt-0.5">Syncing emails, contacts, and calendar...</p>
+      </div>
+      <button class="text-stone-400 hover:text-stone-600 p-0.5 -mr-1 -mt-0.5">
+        <i data-lucide="x" class="w-3.5 h-3.5"></i>
+      </button>
+    </div>
+    <div class="h-[2px] bg-stone-100">
+      <div class="h-full bg-teal-500 toast-progress rounded-full"></div>
+    </div>
+  </div>
+
+  <!-- Toast 2: Sync complete (success state) -->
+  <div class="toast bg-white rounded-lg border border-stone-200 shadow-lg w-80 overflow-hidden" style="animation-delay: 0.15s">
+    <div class="flex items-start gap-3 px-4 pt-3 pb-2">
+      <div class="w-7 h-7 rounded-full bg-emerald-100 flex items-center justify-center shrink-0 mt-0.5">
+        <i data-lucide="check" class="w-3.5 h-3.5 text-emerald-600"></i>
+      </div>
+      <div class="flex-1 min-w-0">
+        <p class="text-sm font-medium text-stone-900">Telegram sync complete</p>
+        <p class="text-xs text-stone-500 mt-0.5">342 contacts &middot; 47 new messages</p>
+      </div>
+      <button class="text-stone-400 hover:text-stone-600 p-0.5 -mr-1 -mt-0.5">
+        <i data-lucide="x" class="w-3.5 h-3.5"></i>
+      </button>
+    </div>
+    <div class="h-[2px] bg-emerald-500 rounded-full"></div>
+  </div>
+</div>
+
+<!-- ═══════════════════════ SETTINGS PAGE ═══════════════════════ -->
+<main class="max-w-3xl mx-auto px-4 py-8">
+
+  <!-- Page header -->
+  <div class="mb-6">
+    <h1 class="text-2xl font-display font-bold text-stone-900">Settings</h1>
+    <p class="text-sm text-stone-500 mt-1">Manage integrations, imports, follow-up rules, tags, and your account.</p>
+  </div>
+
+  <!-- ═══════ TAB BAR ═══════ -->
+  <div class="relative border-b border-stone-200 mb-8" id="tabBar">
+    <div class="flex gap-1">
+      <button onclick="switchTab('integrations')" data-tab="integrations"
+        class="tab-btn relative px-4 py-3 text-sm font-medium text-teal-700 transition-colors">
+        <span class="flex items-center gap-2">
+          <i data-lucide="plug" class="w-4 h-4"></i>
+          Integrations
+        </span>
+      </button>
+      <button onclick="switchTab('import')" data-tab="import"
+        class="tab-btn relative px-4 py-3 text-sm font-medium text-stone-500 hover:text-stone-700 transition-colors">
+        <span class="flex items-center gap-2">
+          <i data-lucide="file-down" class="w-4 h-4"></i>
+          Import
+        </span>
+      </button>
+      <button onclick="switchTab('followup')" data-tab="followup"
+        class="tab-btn relative px-4 py-3 text-sm font-medium text-stone-500 hover:text-stone-700 transition-colors">
+        <span class="flex items-center gap-2">
+          <i data-lucide="clock" class="w-4 h-4"></i>
+          Follow-up Rules
+        </span>
+      </button>
+      <button onclick="switchTab('tags')" data-tab="tags"
+        class="tab-btn relative px-4 py-3 text-sm font-medium text-stone-500 hover:text-stone-700 transition-colors">
+        <span class="flex items-center gap-2">
+          <i data-lucide="tag" class="w-4 h-4"></i>
+          Tags
+        </span>
+      </button>
+      <button onclick="switchTab('account')" data-tab="account"
+        class="tab-btn relative px-4 py-3 text-sm font-medium text-stone-500 hover:text-stone-700 transition-colors">
+        <span class="flex items-center gap-2">
+          <i data-lucide="user" class="w-4 h-4"></i>
+          Account
+        </span>
+      </button>
+    </div>
+    <div class="tab-indicator" id="tabIndicator"></div>
+  </div>
+
+  <!-- ═══════════════════════════════════════════════════════════ -->
+  <!-- TAB 1: INTEGRATIONS                                        -->
+  <!-- ═══════════════════════════════════════════════════════════ -->
+  <div id="panel-integrations" class="tab-panel active">
+    <div class="space-y-4">
+
+      <!-- Gmail Card -->
+      <div class="settings-card bg-white rounded-xl border border-stone-200 p-5 card-enter">
+        <div class="flex items-start justify-between">
+          <div class="flex items-start gap-4">
+            <div class="w-11 h-11 rounded-lg bg-red-50 flex items-center justify-center shrink-0">
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none">
+                <path d="M2 6l10 7 10-7" stroke="#dc2626" stroke-width="2" stroke-linecap="round"/>
+                <rect x="2" y="4" width="20" height="16" rx="2" stroke="#dc2626" stroke-width="2" fill="none"/>
+              </svg>
+            </div>
+            <div>
+              <div class="flex items-center gap-2.5">
+                <h3 class="text-sm font-display font-semibold text-stone-900">Gmail</h3>
+                <span class="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[11px] font-medium bg-emerald-50 text-emerald-700 border border-emerald-200">
+                  <span class="w-1.5 h-1.5 rounded-full bg-emerald-500 live-dot"></span>
+                  Connected
+                </span>
+              </div>
+              <p class="text-xs text-stone-500 mt-0.5">Sync email threads and contact info from Google.</p>
+              <p class="text-xs text-teal-600 mt-1">Connected as <strong>alex.miller@gmail.com</strong></p>
+              <div class="flex items-center gap-4 mt-2">
+                <span class="text-xs text-stone-400">
+                  <span class="font-medium text-stone-600">Last sync:</span> 12 min ago
+                </span>
+                <span class="text-xs text-stone-400">
+                  <span class="font-medium text-stone-600">Contacts:</span> 1,247
+                </span>
+                <span class="text-xs text-stone-400">
+                  <span class="font-medium text-stone-600">Threads:</span> 8,430
+                </span>
+              </div>
+              <!-- Sync progress indicator (shown during active sync) -->
+              <div class="mt-2.5">
+                <div class="flex items-center justify-between mb-1">
+                  <span class="text-[10px] text-teal-600 font-medium">Syncing emails...</span>
+                  <span class="text-[10px] text-stone-400">67%</span>
+                </div>
+                <div class="h-1 bg-stone-100 rounded-full overflow-hidden">
+                  <div class="h-full bg-teal-500 rounded-full transition-all" style="width:67%"></div>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="flex items-center gap-2">
+            <button class="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg border border-stone-200 text-stone-600 hover:bg-stone-50 transition-colors">
+              <i data-lucide="refresh-cw" class="w-3.5 h-3.5"></i>
+              Sync now
+            </button>
+            <div class="relative">
+              <button onclick="this.nextElementSibling.classList.toggle('hidden')" class="p-1.5 rounded-md text-stone-400 hover:bg-stone-100 transition-colors">
+                <i data-lucide="more-vertical" class="w-4 h-4"></i>
+              </button>
+              <!-- Gmail kebab menu (shown) -->
+              <div class="absolute right-0 top-full mt-1 w-52 bg-white rounded-lg border border-stone-200 shadow-lg py-1 z-50">
+                <a href="#" class="flex items-center gap-2.5 px-3 py-2 text-sm text-stone-700 hover:bg-stone-50">
+                  <i data-lucide="settings" class="w-4 h-4 text-stone-400"></i> Sync settings
+                </a>
+                <a href="#" class="flex items-center gap-2.5 px-3 py-2 text-sm text-stone-700 hover:bg-stone-50">
+                  <i data-lucide="key" class="w-4 h-4 text-stone-400"></i> Re-authorize
+                </a>
+                <a href="#" class="flex items-center gap-2.5 px-3 py-2 text-sm text-stone-700 hover:bg-stone-50">
+                  <i data-lucide="history" class="w-4 h-4 text-stone-400"></i> Sync history
+                </a>
+                <div class="my-1 h-px bg-stone-100"></div>
+                <a href="#" class="flex items-center gap-2.5 px-3 py-2 text-sm text-red-600 hover:bg-red-50">
+                  <i data-lucide="unplug" class="w-4 h-4"></i> Disconnect Gmail
+                </a>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Telegram Card -->
+      <div class="settings-card bg-white rounded-xl border border-stone-200 p-5 card-enter">
+        <div class="flex items-start justify-between">
+          <div class="flex items-start gap-4">
+            <div class="w-11 h-11 rounded-lg bg-sky-50 flex items-center justify-center shrink-0">
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none">
+                <path d="M21 3L9.5 13.5M21 3l-7 18-3.5-7.5L3 10l18-7z" stroke="#0284c7" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+              </svg>
+            </div>
+            <div>
+              <div class="flex items-center gap-2.5">
+                <h3 class="text-sm font-display font-semibold text-stone-900">Telegram</h3>
+                <span class="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[11px] font-medium bg-emerald-50 text-emerald-700 border border-emerald-200">
+                  <span class="w-1.5 h-1.5 rounded-full bg-emerald-500 live-dot"></span>
+                  Connected
+                </span>
+              </div>
+              <p class="text-xs text-stone-500 mt-0.5">Chat history and contact sync via MTProto session.</p>
+              <p class="text-xs text-teal-600 mt-1">Connected as <strong>@alexmiller</strong></p>
+              <div class="flex items-center gap-4 mt-2">
+                <span class="text-xs text-stone-400">
+                  <span class="font-medium text-stone-600">Last sync:</span> 3 hrs ago
+                </span>
+                <span class="text-xs text-stone-400">
+                  <span class="font-medium text-stone-600">Contacts:</span> 342
+                </span>
+                <span class="text-xs text-stone-400">
+                  <span class="font-medium text-stone-600">Messages:</span> 2,156
+                </span>
+              </div>
+            </div>
+          </div>
+          <div class="flex items-center gap-2">
+            <button class="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg border border-stone-200 text-stone-600 hover:bg-stone-50 transition-colors">
+              <i data-lucide="refresh-cw" class="w-3.5 h-3.5"></i>
+              Sync now
+            </button>
+            <div class="relative">
+              <button onclick="this.nextElementSibling.classList.toggle('hidden')" class="p-1.5 rounded-md text-stone-400 hover:bg-stone-100 transition-colors">
+                <i data-lucide="more-vertical" class="w-4 h-4"></i>
+              </button>
+              <!-- Telegram kebab menu (hidden by default) -->
+              <div class="hidden absolute right-0 top-full mt-1 w-52 bg-white rounded-lg border border-stone-200 shadow-lg py-1 z-50">
+                <a href="#" class="flex items-center gap-2.5 px-3 py-2 text-sm text-stone-700 hover:bg-stone-50">
+                  <i data-lucide="settings" class="w-4 h-4 text-stone-400"></i> Sync settings
+                </a>
+                <a href="#" class="flex items-center gap-2.5 px-3 py-2 text-sm text-stone-700 hover:bg-stone-50">
+                  <i data-lucide="rotate-ccw" class="w-4 h-4 text-stone-400"></i> Reset session
+                </a>
+                <a href="#" class="flex items-center gap-2.5 px-3 py-2 text-sm text-stone-700 hover:bg-stone-50">
+                  <i data-lucide="history" class="w-4 h-4 text-stone-400"></i> Sync history
+                </a>
+                <div class="my-1 h-px bg-stone-100"></div>
+                <a href="#" class="flex items-center gap-2.5 px-3 py-2 text-sm text-red-600 hover:bg-red-50">
+                  <i data-lucide="unplug" class="w-4 h-4"></i> Disconnect Telegram
+                </a>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Twitter Card — not connected -->
+      <div class="settings-card bg-white rounded-xl border border-stone-200 p-5 card-enter">
+        <div class="flex items-start justify-between">
+          <div class="flex items-start gap-4">
+            <div class="w-11 h-11 rounded-lg bg-stone-100 flex items-center justify-center shrink-0">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
+                <path d="M4 4l11.7 16h4.3L8.3 4H4zm1.7 0L20 20M20 4l-7.3 8" stroke="#78716c" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+              </svg>
+            </div>
+            <div>
+              <div class="flex items-center gap-2.5">
+                <h3 class="text-sm font-display font-semibold text-stone-900">Twitter / X</h3>
+                <span class="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[11px] font-medium bg-stone-100 text-stone-500 border border-stone-200">
+                  Not connected
+                </span>
+              </div>
+              <p class="text-xs text-stone-500 mt-0.5">Sync DMs, mentions, and bio changes from X.</p>
+            </div>
+          </div>
+          <button class="inline-flex items-center gap-1.5 px-4 py-2 text-xs font-medium rounded-lg bg-teal-600 text-white hover:bg-teal-700 transition-colors shadow-sm">
+            <i data-lucide="link" class="w-3.5 h-3.5"></i>
+            Connect
+          </button>
+        </div>
+      </div>
+
+      <!-- Auto-sync settings -->
+      <div class="section-divider mt-6 mb-5"></div>
+      <div class="settings-card bg-white rounded-xl border border-stone-200 p-5 card-enter">
+        <h3 class="text-sm font-display font-semibold text-stone-900 mb-4">Sync Schedule</h3>
+        <div class="space-y-4">
+          <div class="flex items-center justify-between">
+            <div>
+              <p class="text-sm text-stone-700">Background sync</p>
+              <p class="text-xs text-stone-400">Automatically sync all connected platforms every 6 hours</p>
+            </div>
+            <div class="toggle-track active" onclick="this.classList.toggle('active')">
+              <div class="toggle-thumb"></div>
+            </div>
+          </div>
+          <div class="flex items-center justify-between">
+            <div>
+              <p class="text-sm text-stone-700">Sync frequency</p>
+              <p class="text-xs text-stone-400">How often background sync runs</p>
+            </div>
+            <select class="text-sm border border-stone-200 rounded-lg px-3 py-1.5 text-stone-700 focus:outline-none focus:ring-2 focus:ring-teal-400">
+              <option>Every 3 hours</option>
+              <option selected>Every 6 hours</option>
+              <option>Every 12 hours</option>
+              <option>Once daily</option>
+            </select>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══════════════════════════════════════════════════════════ -->
+  <!-- TAB 2: IMPORT                                               -->
+  <!-- ═══════════════════════════════════════════════════════════ -->
+  <div id="panel-import" class="tab-panel">
+    <div class="space-y-4">
+
+      <!-- CSV Import -->
+      <div class="settings-card bg-white rounded-xl border border-stone-200 p-5 card-enter">
+        <div class="flex items-start gap-4">
+          <div class="w-11 h-11 rounded-lg bg-emerald-50 flex items-center justify-center shrink-0">
+            <i data-lucide="file-spreadsheet" class="w-5 h-5 text-emerald-600"></i>
+          </div>
+          <div class="flex-1">
+            <h3 class="text-sm font-display font-semibold text-stone-900">CSV Import</h3>
+            <p class="text-xs text-stone-500 mt-0.5 mb-4">Upload a CSV file with contact data. Supports Google Contacts export format.</p>
+
+            <!-- Upload area -->
+            <div class="border-2 border-dashed border-stone-200 rounded-lg p-6 text-center hover:border-teal-300 hover:bg-teal-50/30 transition-colors cursor-pointer">
+              <i data-lucide="upload-cloud" class="w-8 h-8 text-stone-300 mx-auto mb-2"></i>
+              <p class="text-sm text-stone-600 font-medium">Drop your CSV here or click to browse</p>
+              <p class="text-xs text-stone-400 mt-1">Maximum 50,000 rows &middot; UTF-8 encoding</p>
+            </div>
+
+            <div class="flex items-center gap-3 mt-3">
+              <span class="text-xs text-stone-400">Last import: 247 contacts on Feb 15, 2026</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- LinkedIn Import -->
+      <div class="settings-card bg-white rounded-xl border border-stone-200 p-5 card-enter">
+        <div class="flex items-start gap-4">
+          <div class="w-11 h-11 rounded-lg bg-blue-50 flex items-center justify-center shrink-0">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
+              <rect x="3" y="3" width="18" height="18" rx="2" stroke="#2563eb" stroke-width="2"/>
+              <path d="M8 11v5M8 8v.01M12 16v-5c0-1 1-2 2-2s2 1 2 2v5" stroke="#2563eb" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+          </div>
+          <div class="flex-1">
+            <h3 class="text-sm font-display font-semibold text-stone-900">LinkedIn Export</h3>
+            <p class="text-xs text-stone-500 mt-0.5 mb-4">Import your LinkedIn connections. Download your data from LinkedIn first.</p>
+
+            <div class="bg-stone-50 rounded-lg p-4 mb-4">
+              <h4 class="text-xs font-semibold text-stone-700 mb-2">How to export from LinkedIn:</h4>
+              <ol class="text-xs text-stone-500 space-y-1.5 list-decimal ml-4">
+                <li>Go to <span class="font-medium text-stone-600">Settings → Data Privacy → Get a copy of your data</span></li>
+                <li>Select <span class="font-medium text-stone-600">"Connections"</span> and request the archive</li>
+                <li>Download the CSV when ready and upload it here</li>
+              </ol>
+            </div>
+
+            <div class="border-2 border-dashed border-stone-200 rounded-lg p-6 text-center hover:border-blue-300 hover:bg-blue-50/30 transition-colors cursor-pointer">
+              <i data-lucide="upload-cloud" class="w-8 h-8 text-stone-300 mx-auto mb-2"></i>
+              <p class="text-sm text-stone-600 font-medium">Upload LinkedIn Connections.csv</p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Import History -->
+      <div class="section-divider mt-6 mb-5"></div>
+      <div class="settings-card bg-white rounded-xl border border-stone-200 p-5 card-enter">
+        <div class="flex items-center justify-between mb-4">
+          <div>
+            <h3 class="text-sm font-display font-semibold text-stone-900">Import History</h3>
+            <p class="text-xs text-stone-500 mt-0.5">Previous imports and their status.</p>
+          </div>
+        </div>
+        <div class="border border-stone-200 rounded-lg overflow-hidden">
+          <div class="grid grid-cols-[1fr_80px_80px_80px_60px] gap-2 px-3 py-2 bg-stone-50 border-b border-stone-200 text-[10px] font-semibold text-stone-500 uppercase tracking-wider">
+            <div>File</div>
+            <div class="text-center">Rows</div>
+            <div class="text-center">Success</div>
+            <div class="text-center">Errors</div>
+            <div></div>
+          </div>
+          <div class="grid grid-cols-[1fr_80px_80px_80px_60px] gap-2 px-3 py-2.5 border-b border-stone-100 items-center">
+            <div>
+              <p class="text-xs font-medium text-stone-700">contacts_feb2026.csv</p>
+              <p class="text-[10px] text-stone-400">Feb 15, 2026</p>
+            </div>
+            <div class="text-center font-mono text-xs text-stone-600">247</div>
+            <div class="text-center font-mono text-xs text-emerald-600">243</div>
+            <div class="text-center font-mono text-xs text-red-500">4</div>
+            <div class="flex justify-end">
+              <button class="text-[10px] text-teal-600 hover:text-teal-700 font-medium">Details</button>
+            </div>
+          </div>
+          <div class="grid grid-cols-[1fr_80px_80px_80px_60px] gap-2 px-3 py-2.5 border-b border-stone-100 items-center">
+            <div>
+              <p class="text-xs font-medium text-stone-700">linkedin_connections.csv</p>
+              <p class="text-[10px] text-stone-400">Jan 28, 2026</p>
+            </div>
+            <div class="text-center font-mono text-xs text-stone-600">512</div>
+            <div class="text-center font-mono text-xs text-emerald-600">508</div>
+            <div class="text-center font-mono text-xs text-red-500">4</div>
+            <div class="flex justify-end">
+              <button class="text-[10px] text-teal-600 hover:text-teal-700 font-medium">Details</button>
+            </div>
+          </div>
+          <div class="grid grid-cols-[1fr_80px_80px_80px_60px] gap-2 px-3 py-2.5 items-center">
+            <div>
+              <p class="text-xs font-medium text-stone-700">google_contacts.csv</p>
+              <p class="text-[10px] text-stone-400">Dec 3, 2025</p>
+            </div>
+            <div class="text-center font-mono text-xs text-stone-600">1,891</div>
+            <div class="text-center font-mono text-xs text-emerald-600">1,891</div>
+            <div class="text-center font-mono text-xs text-stone-300">0</div>
+            <div class="flex justify-end">
+              <button class="text-[10px] text-teal-600 hover:text-teal-700 font-medium">Details</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- NOTE: Google Contacts Sync removed. Consolidate 3 separate Google sync buttons
+           (Gmail threads, Google contacts, Google calendar) into a single "Sync Google Account"
+           action on the Integrations tab Gmail card. One button syncs everything. -->
+    </div>
+  </div>
+
+  <!-- ═══════════════════════════════════════════════════════════ -->
+  <!-- TAB 3: FOLLOW-UP RULES                                     -->
+  <!-- ═══════════════════════════════════════════════════════════ -->
+  <div id="panel-followup" class="tab-panel">
+    <div class="space-y-6">
+
+      <!-- Priority thresholds -->
+      <div class="settings-card bg-white rounded-xl border border-stone-200 p-5 card-enter">
+        <h3 class="text-sm font-display font-semibold text-stone-900 mb-1">Priority Thresholds</h3>
+        <p class="text-xs text-stone-500 mb-5">How many days of silence before a follow-up is suggested, based on priority level.</p>
+
+        <div class="space-y-6">
+          <!-- High priority -->
+          <div>
+            <div class="flex items-center justify-between mb-2">
+              <div class="flex items-center gap-2">
+                <span class="w-2.5 h-2.5 rounded-full bg-red-500"></span>
+                <span class="text-sm font-medium text-stone-700">High priority</span>
+              </div>
+              <div class="flex items-center gap-1.5">
+                <span class="font-mono text-sm font-medium text-stone-900 bg-stone-100 px-2 py-0.5 rounded" id="highVal">7</span>
+                <span class="text-xs text-stone-400">days</span>
+              </div>
+            </div>
+            <input type="range" min="1" max="30" value="7" class="w-full" oninput="document.getElementById('highVal').textContent=this.value">
+            <div class="flex justify-between mt-1">
+              <span class="text-[10px] text-stone-300">1 day</span>
+              <span class="text-[10px] text-stone-300">30 days</span>
+            </div>
+          </div>
+
+          <!-- Medium priority -->
+          <div>
+            <div class="flex items-center justify-between mb-2">
+              <div class="flex items-center gap-2">
+                <span class="w-2.5 h-2.5 rounded-full bg-amber-500"></span>
+                <span class="text-sm font-medium text-stone-700">Medium priority</span>
+              </div>
+              <div class="flex items-center gap-1.5">
+                <span class="font-mono text-sm font-medium text-stone-900 bg-stone-100 px-2 py-0.5 rounded" id="medVal">30</span>
+                <span class="text-xs text-stone-400">days</span>
+              </div>
+            </div>
+            <input type="range" min="7" max="90" value="30" class="w-full" oninput="document.getElementById('medVal').textContent=this.value">
+            <div class="flex justify-between mt-1">
+              <span class="text-[10px] text-stone-300">7 days</span>
+              <span class="text-[10px] text-stone-300">90 days</span>
+            </div>
+          </div>
+
+          <!-- Low priority -->
+          <div>
+            <div class="flex items-center justify-between mb-2">
+              <div class="flex items-center gap-2">
+                <span class="w-2.5 h-2.5 rounded-full bg-blue-500"></span>
+                <span class="text-sm font-medium text-stone-700">Low priority</span>
+              </div>
+              <div class="flex items-center gap-1.5">
+                <span class="font-mono text-sm font-medium text-stone-900 bg-stone-100 px-2 py-0.5 rounded" id="lowVal">90</span>
+                <span class="text-xs text-stone-400">days</span>
+              </div>
+            </div>
+            <input type="range" min="14" max="365" value="90" class="w-full" oninput="document.getElementById('lowVal').textContent=this.value">
+            <div class="flex justify-between mt-1">
+              <span class="text-[10px] text-stone-300">14 days</span>
+              <span class="text-[10px] text-stone-300">365 days</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="mt-5 pt-4 border-t border-stone-100 flex justify-end">
+          <button class="inline-flex items-center gap-1.5 px-4 py-2 text-xs font-medium rounded-lg bg-teal-600 text-white hover:bg-teal-700 transition-colors shadow-sm">
+            Save thresholds
+          </button>
+        </div>
+      </div>
+
+      <!-- Suggestion preferences -->
+      <div class="settings-card bg-white rounded-xl border border-stone-200 p-5 card-enter">
+        <h3 class="text-sm font-display font-semibold text-stone-900 mb-1">Suggestion Preferences</h3>
+        <p class="text-xs text-stone-500 mb-5">Control how and when follow-up suggestions are generated.</p>
+
+        <div class="space-y-4">
+          <div class="flex items-center justify-between">
+            <div>
+              <p class="text-sm text-stone-700">Max suggestions per batch</p>
+              <p class="text-xs text-stone-400">How many suggestions to generate at once</p>
+            </div>
+            <select class="text-sm border border-stone-200 rounded-lg px-3 py-1.5 text-stone-700 focus:outline-none focus:ring-2 focus:ring-teal-400">
+              <option>5</option>
+              <option selected>10</option>
+              <option>15</option>
+              <option>20</option>
+            </select>
+          </div>
+          <div class="flex items-center justify-between">
+            <div>
+              <p class="text-sm text-stone-700">Include dormant revival (Pool B)</p>
+              <p class="text-xs text-stone-400">Suggest re-engaging contacts you haven't spoken to in a while</p>
+            </div>
+            <div class="toggle-track active" onclick="this.classList.toggle('active')">
+              <div class="toggle-thumb"></div>
+            </div>
+          </div>
+          <div class="flex items-center justify-between">
+            <div>
+              <p class="text-sm text-stone-700">Birthday reminders</p>
+              <p class="text-xs text-stone-400">Generate suggestions for upcoming birthdays</p>
+            </div>
+            <div class="toggle-track active" onclick="this.classList.toggle('active')">
+              <div class="toggle-thumb"></div>
+            </div>
+          </div>
+          <div class="flex items-center justify-between">
+            <div>
+              <p class="text-sm text-stone-700">Preferred channel</p>
+              <p class="text-xs text-stone-400">Default channel for new suggestions</p>
+            </div>
+            <select class="text-sm border border-stone-200 rounded-lg px-3 py-1.5 text-stone-700 focus:outline-none focus:ring-2 focus:ring-teal-400">
+              <option selected>Auto-detect</option>
+              <option>Email</option>
+              <option>Telegram</option>
+              <option>Twitter</option>
+            </select>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══════════════════════════════════════════════════════════ -->
+  <!-- TAB 4: TAGS                                                 -->
+  <!-- ═══════════════════════════════════════════════════════════ -->
+  <div id="panel-tags" class="tab-panel">
+    <div class="space-y-6">
+
+      <!-- Tag overview -->
+      <div class="settings-card bg-white rounded-xl border border-stone-200 p-5 card-enter">
+        <div class="flex items-center justify-between mb-4">
+          <div>
+            <h3 class="text-sm font-display font-semibold text-stone-900">Tag Taxonomy</h3>
+            <p class="text-xs text-stone-500 mt-0.5">Organize contacts with tags. Tags can be applied manually or auto-assigned by AI.</p>
+          </div>
+          <button class="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg bg-teal-600 text-white hover:bg-teal-700 transition-colors shadow-sm">
+            <i data-lucide="plus" class="w-3.5 h-3.5"></i>
+            New tag
+          </button>
+        </div>
+
+        <!-- Relationship tags -->
+        <div class="mb-5">
+          <h4 class="text-xs font-semibold text-stone-500 uppercase tracking-wider mb-3">Relationship</h4>
+          <div class="flex flex-wrap gap-2">
+            <span class="tag-pill inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium bg-teal-50 text-teal-700 border border-teal-200">
+              close-friend
+              <button class="hover:text-teal-900 transition-colors"><i data-lucide="x" class="w-3 h-3"></i></button>
+            </span>
+            <span class="tag-pill inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium bg-teal-50 text-teal-700 border border-teal-200">
+              mentor
+              <button class="hover:text-teal-900"><i data-lucide="x" class="w-3 h-3"></i></button>
+            </span>
+            <span class="tag-pill inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium bg-teal-50 text-teal-700 border border-teal-200">
+              former-colleague
+              <button class="hover:text-teal-900"><i data-lucide="x" class="w-3 h-3"></i></button>
+            </span>
+            <span class="tag-pill inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium bg-teal-50 text-teal-700 border border-teal-200">
+              acquaintance
+              <button class="hover:text-teal-900"><i data-lucide="x" class="w-3 h-3"></i></button>
+            </span>
+          </div>
+        </div>
+
+        <!-- Industry tags -->
+        <div class="mb-5">
+          <h4 class="text-xs font-semibold text-stone-500 uppercase tracking-wider mb-3">Industry</h4>
+          <div class="flex flex-wrap gap-2">
+            <span class="tag-pill inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium bg-violet-50 text-violet-700 border border-violet-200">
+              crypto
+              <button class="hover:text-violet-900"><i data-lucide="x" class="w-3 h-3"></i></button>
+            </span>
+            <span class="tag-pill inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium bg-violet-50 text-violet-700 border border-violet-200">
+              ai-ml
+              <button class="hover:text-violet-900"><i data-lucide="x" class="w-3 h-3"></i></button>
+            </span>
+            <span class="tag-pill inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium bg-violet-50 text-violet-700 border border-violet-200">
+              fintech
+              <button class="hover:text-violet-900"><i data-lucide="x" class="w-3 h-3"></i></button>
+            </span>
+            <span class="tag-pill inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium bg-violet-50 text-violet-700 border border-violet-200">
+              defi
+              <button class="hover:text-violet-900"><i data-lucide="x" class="w-3 h-3"></i></button>
+            </span>
+            <span class="tag-pill inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium bg-violet-50 text-violet-700 border border-violet-200">
+              saas
+              <button class="hover:text-violet-900"><i data-lucide="x" class="w-3 h-3"></i></button>
+            </span>
+          </div>
+        </div>
+
+        <!-- Context tags -->
+        <div class="mb-5">
+          <h4 class="text-xs font-semibold text-stone-500 uppercase tracking-wider mb-3">Context</h4>
+          <div class="flex flex-wrap gap-2">
+            <span class="tag-pill inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium bg-amber-50 text-amber-700 border border-amber-200">
+              investor
+              <button class="hover:text-amber-900"><i data-lucide="x" class="w-3 h-3"></i></button>
+            </span>
+            <span class="tag-pill inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium bg-amber-50 text-amber-700 border border-amber-200">
+              hiring
+              <button class="hover:text-amber-900"><i data-lucide="x" class="w-3 h-3"></i></button>
+            </span>
+            <span class="tag-pill inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium bg-amber-50 text-amber-700 border border-amber-200">
+              conference-met
+              <button class="hover:text-amber-900"><i data-lucide="x" class="w-3 h-3"></i></button>
+            </span>
+            <span class="tag-pill inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium bg-amber-50 text-amber-700 border border-amber-200">
+              potential-partner
+              <button class="hover:text-amber-900"><i data-lucide="x" class="w-3 h-3"></i></button>
+            </span>
+          </div>
+        </div>
+
+        <!-- Manual tag management note -->
+        <div class="section-divider mb-4"></div>
+        <div class="bg-amber-50 border border-amber-200 rounded-lg p-3 mb-4">
+          <div class="flex items-start gap-2">
+            <i data-lucide="alert-triangle" class="w-4 h-4 text-amber-500 shrink-0 mt-0.5"></i>
+            <div>
+              <p class="text-xs font-medium text-amber-800">Manual tag management requires backend changes</p>
+              <p class="text-[11px] text-amber-600 mt-0.5">Creating, renaming, and deleting tags currently needs a new Tag model, CRUD API endpoints, and a many-to-many relationship with contacts.</p>
+            </div>
+          </div>
+        </div>
+
+        <!-- AI auto-tag settings -->
+        <div class="flex items-center justify-between">
+          <div>
+            <p class="text-sm font-medium text-stone-700">AI auto-tagging</p>
+            <p class="text-xs text-stone-400">Let Claude analyze interactions and suggest tags automatically</p>
+          </div>
+          <div class="toggle-track active" onclick="this.classList.toggle('active')">
+            <div class="toggle-thumb"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══════════════════════════════════════════════════════════ -->
+  <!-- TAB 5: ACCOUNT                                              -->
+  <!-- ═══════════════════════════════════════════════════════════ -->
+  <div id="panel-account" class="tab-panel">
+    <div class="space-y-6">
+
+      <!-- Profile -->
+      <div class="settings-card bg-white rounded-xl border border-stone-200 p-5 card-enter">
+        <h3 class="text-sm font-display font-semibold text-stone-900 mb-1">Profile</h3>
+        <p class="text-xs text-stone-500 mb-5">Your personal information and preferences.</p>
+
+        <div class="flex items-start gap-5 mb-6">
+          <div class="relative group/avatar shrink-0">
+            <div class="w-16 h-16 rounded-full bg-teal-100 text-teal-700 flex items-center justify-center text-xl font-display font-bold">
+              AM
+            </div>
+            <div class="absolute inset-0 w-16 h-16 rounded-full bg-black/50 flex items-center justify-center opacity-0 group-hover/avatar:opacity-100 transition-opacity cursor-pointer">
+              <i data-lucide="camera" class="w-4 h-4 text-white"></i>
+            </div>
+          </div>
+          <div class="flex-1 space-y-3">
+            <div>
+              <label class="text-xs font-medium text-stone-500 mb-1 block">Display name</label>
+              <input type="text" value="Alex Miller" class="w-full text-sm border border-stone-200 rounded-lg px-3 py-2.5 focus:outline-none focus:ring-2 focus:ring-teal-400">
+            </div>
+            <div>
+              <label class="text-xs font-medium text-stone-500 mb-1 block">Email</label>
+              <input type="email" value="alex.miller@gmail.com" class="w-full text-sm border border-stone-200 rounded-lg px-3 py-2.5 focus:outline-none focus:ring-2 focus:ring-teal-400">
+            </div>
+          </div>
+        </div>
+
+        <div class="grid grid-cols-2 gap-4 mb-5">
+          <div>
+            <label class="text-xs font-medium text-stone-500 mb-1 block">Timezone</label>
+            <select class="w-full text-sm border border-stone-200 rounded-lg px-3 py-2.5 text-stone-700 focus:outline-none focus:ring-2 focus:ring-teal-400">
+              <option>(UTC-5) Eastern Time</option>
+              <option selected>(UTC-8) Pacific Time</option>
+              <option>(UTC+0) UTC</option>
+              <option>(UTC+1) Central European</option>
+            </select>
+          </div>
+          <div>
+            <label class="text-xs font-medium text-stone-500 mb-1 block">Locale</label>
+            <select class="w-full text-sm border border-stone-200 rounded-lg px-3 py-2.5 text-stone-700 focus:outline-none focus:ring-2 focus:ring-teal-400">
+              <option selected>English (US)</option>
+              <option>English (UK)</option>
+              <option>Deutsch</option>
+              <option>Francais</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="flex justify-end pt-4 border-t border-stone-100">
+          <button class="inline-flex items-center gap-1.5 px-4 py-2 text-xs font-medium rounded-lg bg-teal-600 text-white hover:bg-teal-700 transition-colors shadow-sm">
+            Save profile
+          </button>
+        </div>
+      </div>
+
+      <!-- Change Password -->
+      <div class="settings-card bg-white rounded-xl border border-stone-200 p-5 card-enter">
+        <h3 class="text-sm font-display font-semibold text-stone-900 mb-1">Change Password</h3>
+        <p class="text-xs text-stone-500 mb-5">Update your account password.</p>
+
+        <div class="space-y-3 max-w-sm">
+          <div>
+            <label class="text-xs font-medium text-stone-500 mb-1 block">Current password</label>
+            <input type="password" placeholder="Enter current password" class="w-full text-sm border border-stone-200 rounded-lg px-3 py-2.5 focus:outline-none focus:ring-2 focus:ring-teal-400 placeholder:text-stone-300">
+          </div>
+          <div>
+            <label class="text-xs font-medium text-stone-500 mb-1 block">New password</label>
+            <input type="password" placeholder="Enter new password" class="w-full text-sm border border-stone-200 rounded-lg px-3 py-2.5 focus:outline-none focus:ring-2 focus:ring-teal-400 placeholder:text-stone-300">
+          </div>
+          <div>
+            <label class="text-xs font-medium text-stone-500 mb-1 block">Confirm new password</label>
+            <input type="password" placeholder="Confirm new password" class="w-full text-sm border border-stone-200 rounded-lg px-3 py-2.5 focus:outline-none focus:ring-2 focus:ring-teal-400 placeholder:text-stone-300">
+          </div>
+        </div>
+
+        <div class="flex justify-end pt-4 mt-4 border-t border-stone-100">
+          <button class="inline-flex items-center gap-1.5 px-4 py-2 text-xs font-medium rounded-lg bg-teal-600 text-white hover:bg-teal-700 transition-colors shadow-sm">
+            Update password
+          </button>
+        </div>
+      </div>
+
+      <!-- Danger Zone -->
+      <div class="settings-card bg-white rounded-xl border border-red-200 p-5 card-enter">
+        <div class="flex items-center gap-2 mb-1">
+          <i data-lucide="alert-triangle" class="w-4 h-4 text-red-500"></i>
+          <h3 class="text-sm font-display font-semibold text-red-700">Danger Zone</h3>
+        </div>
+        <p class="text-xs text-stone-500 mb-5">Irreversible actions. Proceed with caution.</p>
+
+        <div class="space-y-4">
+          <div class="flex items-center justify-between p-4 border border-stone-200 rounded-lg">
+            <div>
+              <p class="text-sm font-medium text-stone-700">Export all data</p>
+              <p class="text-xs text-stone-400">Download all your contacts, interactions, and notes as a ZIP archive (JSON + CSV)</p>
+            </div>
+            <button class="inline-flex items-center gap-1.5 px-3 py-2 text-xs font-medium rounded-lg border border-stone-200 text-stone-600 hover:bg-stone-50 transition-colors">
+              <i data-lucide="download" class="w-3.5 h-3.5"></i> Export
+            </button>
+          </div>
+          <div class="flex items-center justify-between p-4 border border-red-200 rounded-lg bg-red-50/50">
+            <div>
+              <p class="text-sm font-medium text-red-700">Delete account</p>
+              <p class="text-xs text-red-500/80">Permanently delete your account and all data. This cannot be undone.</p>
+            </div>
+            <button class="inline-flex items-center gap-1.5 px-3 py-2 text-xs font-medium rounded-lg bg-red-600 text-white hover:bg-red-700 transition-colors">
+              <i data-lucide="trash-2" class="w-3.5 h-3.5"></i> Delete account
+            </button>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+</main>
+
+<script>
+  // Initialize Lucide icons
+  lucide.createIcons();
+
+  // Tab switching logic
+  function switchTab(tabId) {
+    // Hide all panels
+    document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+    // Show target panel
+    document.getElementById('panel-' + tabId).classList.add('active');
+
+    // Update button styles
+    document.querySelectorAll('.tab-btn').forEach(btn => {
+      btn.classList.remove('text-teal-700');
+      btn.classList.add('text-stone-500');
+    });
+    const activeBtn = document.querySelector(`[data-tab="${tabId}"]`);
+    activeBtn.classList.remove('text-stone-500');
+    activeBtn.classList.add('text-teal-700');
+
+    // Animate indicator
+    const indicator = document.getElementById('tabIndicator');
+    const rect = activeBtn.getBoundingClientRect();
+    const barRect = document.getElementById('tabBar').getBoundingClientRect();
+    indicator.style.left = (rect.left - barRect.left) + 'px';
+    indicator.style.width = rect.width + 'px';
+
+    // Re-initialize lucide icons for newly visible panel
+    lucide.createIcons();
+  }
+
+  // Set initial indicator position
+  window.addEventListener('load', () => {
+    switchTab('integrations');
+  });
+  window.addEventListener('resize', () => {
+    const active = document.querySelector('.tab-btn.text-teal-700');
+    if (active) switchTab(active.dataset.tab);
+  });
+</script>
+</body>
+</html>

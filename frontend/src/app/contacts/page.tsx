@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useRef, useState } from "react";
+import { Suspense, useCallback, useRef, useState } from "react";
 import Link from "next/link";
 import { useSearchParams, useRouter } from "next/navigation";
 import { useQuery, useQueryClient, useMutation } from "@tanstack/react-query";
@@ -171,7 +171,7 @@ function BulkActionBar({
   );
 }
 
-export default function ContactsPage() {
+function ContactsPageContent() {
   const searchParams = useSearchParams();
   const router = useRouter();
   const queryClient = useQueryClient();
@@ -701,5 +701,31 @@ export default function ContactsPage() {
         )}
       </div>
     </div>
+  );
+}
+
+function ContactsPageLoading() {
+  return (
+    <div className="min-h-screen bg-stone-50">
+      <div className="max-w-6xl mx-auto px-4 py-8">
+        <div className="h-8 w-32 bg-stone-200 rounded animate-pulse mb-6" />
+        <div className="bg-white rounded-lg border border-stone-200 overflow-hidden">
+          {Array.from({ length: 8 }).map((_, i) => (
+            <div key={i} className="flex items-center gap-4 px-4 py-3 border-b border-stone-100">
+              <div className="w-7 h-7 rounded-full bg-stone-100 animate-pulse" />
+              <div className="flex-1 h-4 bg-stone-100 rounded animate-pulse" />
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+export default function ContactsPage() {
+  return (
+    <Suspense fallback={<ContactsPageLoading />}>
+      <ContactsPageContent />
+    </Suspense>
   );
 }
