@@ -59,21 +59,21 @@ function NavDropdown({
   pathname: string;
 }) {
   const [open, setOpen] = useState(false);
-  const ref = useRef<HTMLDivElement>(null);
+  const timeoutRef = useRef<NodeJS.Timeout | null>(null);
   const isActive = pathname === href || pathname.startsWith(href + "/") || pathname === "/identity";
 
-  useEffect(() => {
-    const handleClick = (e: MouseEvent) => {
-      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
-    };
-    document.addEventListener("mousedown", handleClick);
-    return () => document.removeEventListener("mousedown", handleClick);
-  }, []);
+  const handleEnter = () => {
+    if (timeoutRef.current) clearTimeout(timeoutRef.current);
+    setOpen(true);
+  };
+  const handleLeave = () => {
+    timeoutRef.current = setTimeout(() => setOpen(false), 150);
+  };
 
   return (
-    <div ref={ref} className="relative">
-      <button
-        onClick={() => setOpen((v) => !v)}
+    <div className="relative" onMouseEnter={handleEnter} onMouseLeave={handleLeave}>
+      <Link
+        href={href}
         className={cn(
           "relative flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm font-medium transition-colors",
           isActive ? "text-teal-700" : "text-stone-600 hover:bg-stone-100 hover:text-stone-900",
@@ -81,11 +81,11 @@ function NavDropdown({
       >
         <Icon className="w-4 h-4" />
         {label}
-        <ChevronDown className={cn("w-3 h-3 transition-transform", open && "rotate-180")} />
+        <ChevronDown className="w-3 h-3 text-stone-400" />
         {isActive && (
           <span className="absolute bottom-[-9px] left-2 right-2 h-[2px] bg-teal-600 rounded-full" />
         )}
-      </button>
+      </Link>
       {open && (
         <div className="absolute top-full left-0 mt-1 w-48 bg-white rounded-lg border border-stone-200 shadow-md py-1 z-50">
           {children.map((child) => {
@@ -199,30 +199,32 @@ function NavSearch() {
         />
       </div>
       {query.length >= 2 && (
-        <div className="absolute top-full left-0 right-0 mt-1 bg-white rounded-lg border border-stone-200 shadow-lg z-50 max-h-80 overflow-auto">
-          {results.length === 0 ? (
-            <p className="px-3 py-4 text-sm text-stone-400 text-center">No contacts found</p>
-          ) : (
-            results.map((c) => (
-              <button
-                key={c.id}
-                onClick={() => navigate(c.id)}
-                className="w-full flex items-center gap-3 px-3 py-2.5 text-left hover:bg-stone-50 transition-colors"
-              >
-                <div className="w-8 h-8 rounded-full bg-teal-100 text-teal-700 flex items-center justify-center text-xs font-medium shrink-0">
-                  {(c.full_name || c.emails?.[0] || "?")[0].toUpperCase()}
-                </div>
-                <div className="min-w-0">
-                  <p className="text-sm font-medium text-stone-900 truncate">
-                    {c.full_name || c.emails?.[0] || "Unnamed"}
-                  </p>
-                  {c.company && (
-                    <p className="text-xs text-stone-400 truncate">{c.company}</p>
-                  )}
-                </div>
-              </button>
-            ))
-          )}
+        <div className="absolute top-full left-0 right-0 mt-1 bg-white rounded-lg border border-stone-200 shadow-lg z-50 flex flex-col">
+          <div className="max-h-72 overflow-auto">
+            {results.length === 0 ? (
+              <p className="px-3 py-4 text-sm text-stone-400 text-center">No contacts found</p>
+            ) : (
+              results.map((c) => (
+                <button
+                  key={c.id}
+                  onClick={() => navigate(c.id)}
+                  className="w-full flex items-center gap-3 px-3 py-2.5 text-left hover:bg-stone-50 transition-colors"
+                >
+                  <div className="w-8 h-8 rounded-full bg-teal-100 text-teal-700 flex items-center justify-center text-xs font-medium shrink-0">
+                    {(c.full_name || c.emails?.[0] || "?")[0].toUpperCase()}
+                  </div>
+                  <div className="min-w-0">
+                    <p className="text-sm font-medium text-stone-900 truncate">
+                      {c.full_name || c.emails?.[0] || "Unnamed"}
+                    </p>
+                    {c.company && (
+                      <p className="text-xs text-stone-400 truncate">{c.company}</p>
+                    )}
+                  </div>
+                </button>
+              ))
+            )}
+          </div>
           {query && (
             <button
               onClick={() => {
@@ -230,7 +232,7 @@ function NavSearch() {
                 setQuery("");
                 router.push(`/contacts?q=${encodeURIComponent(query)}`);
               }}
-              className="w-full px-3 py-2 text-xs text-teal-600 hover:bg-teal-50 border-t border-stone-100 transition-colors"
+              className="shrink-0 w-full px-3 py-2 text-xs text-teal-600 hover:bg-teal-50 border-t border-stone-100 transition-colors rounded-b-lg"
             >
               View all results for &ldquo;{query}&rdquo;
             </button>

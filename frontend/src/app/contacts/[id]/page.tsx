@@ -161,6 +161,7 @@ function CopyButton({ text }: { text: string }) {
 function InlineField({
   label,
   value,
+  displayValue,
   onSave,
   copyable,
   isLink,
@@ -168,6 +169,7 @@ function InlineField({
 }: {
   label: string;
   value: string | null | undefined;
+  displayValue?: string;
   onSave: (v: string) => void;
   copyable?: boolean;
   isLink?: boolean;
@@ -192,8 +194,8 @@ function InlineField({
   };
 
   return (
-    <div className="group/row flex items-center justify-between py-1.5">
-      <span className="text-xs text-stone-500">{label}</span>
+    <div className="group/row flex items-center justify-between gap-4 py-1.5">
+      <span className="text-xs text-stone-500 shrink-0">{label}</span>
       {editing ? (
         <div className="flex items-center gap-1">
           <input
@@ -207,24 +209,24 @@ function InlineField({
           <button onClick={cancel} className="px-1.5 py-0.5 text-[10px] font-medium rounded text-stone-500 hover:bg-stone-100">Cancel</button>
         </div>
       ) : (
-        <div className="flex items-center gap-1.5">
+        <div className="flex items-center gap-1.5 min-w-0">
           {value ? (
             isLink && linkPrefix !== undefined ? (
               <a
                 href={`${linkPrefix}${value}`}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="text-xs font-medium text-teal-600 hover:text-teal-700 cursor-pointer"
+                className="text-xs font-medium text-teal-600 hover:text-teal-700 cursor-pointer truncate"
                 onClick={(e) => e.stopPropagation()}
               >
-                {value}
+                {displayValue ?? value}
               </a>
             ) : (
               <span
-                className="text-xs font-medium text-stone-900 cursor-pointer hover:bg-stone-50 rounded px-1 -mx-1 transition-colors"
+                className="text-xs font-medium text-stone-900 cursor-pointer hover:bg-stone-50 rounded px-1 -mx-1 transition-colors truncate"
                 onClick={() => { setDraft(value); setEditing(true); }}
               >
-                {value}
+                {displayValue ?? value}
               </span>
             )
           ) : (
@@ -1375,7 +1377,15 @@ export default function ContactDetailPage() {
                 <InlineListField label="Email" values={contact.emails ?? []} onSave={(v) => saveField("emails", v)} copyable isLink linkPrefix="mailto:" />
                 <InlineField label="Telegram" value={contact.telegram_username} onSave={(v) => saveField("telegram_username", v)} copyable />
                 <InlineField label="Twitter" value={contact.twitter_handle} onSave={(v) => saveField("twitter_handle", v)} copyable />
-                <InlineField label="LinkedIn" value={contact.linkedin_url} onSave={(v) => saveField("linkedin_url", v)} copyable />
+                <InlineField
+                  label="LinkedIn"
+                  value={contact.linkedin_url}
+                  displayValue={contact.linkedin_url?.replace(/^https?:\/\/(www\.)?linkedin\.com\/in\//, "")?.replace(/\/$/, "")}
+                  onSave={(v) => saveField("linkedin_url", v)}
+                  isLink
+                  linkPrefix=""
+                  copyable
+                />
                 <InlineListField label="Phone" values={contact.phones ?? []} onSave={(v) => saveField("phones", v)} copyable isLink linkPrefix="tel:" />
               </div>
             </div>
