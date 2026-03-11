@@ -6,36 +6,136 @@ import { Suspense, useCallback, useRef, useState } from "react";
 import Link from "next/link";
 import { useSearchParams, useRouter } from "next/navigation";
 import { useQuery, useQueryClient, useMutation } from "@tanstack/react-query";
-import { Search, Plus, X, Filter, Tag, Archive, CheckSquare, GitMerge, ArrowUp, ArrowDown } from "lucide-react";
+import {
+  Search,
+  Plus,
+  X,
+  SlidersHorizontal,
+  Tag,
+  Archive,
+  CheckSquare,
+  GitMerge,
+  Trash2,
+  ArrowUpDown,
+  ArrowDown,
+  Mail,
+  MessageCircle,
+  Twitter,
+  SearchX,
+} from "lucide-react";
 import { useContacts } from "@/hooks/use-contacts";
 import { ScoreBadge } from "@/components/score-badge";
 import { ContactAvatar } from "@/components/contact-avatar";
 import { formatDistanceToNow } from "date-fns";
 import { client } from "@/lib/api-client";
 
-const scoreTierLabels: Record<string, string> = {
-  strong: "Strong (8+)",
-  active: "Warm (4-7)",
-  dormant: "Cold (0-3)",
-};
+// ---------------------------------------------------------------------------
+// Constants
+// ---------------------------------------------------------------------------
 
-const sourceLabels: Record<string, string> = {
-  google: "Google",
-  gmail: "Gmail",
-  google_calendar: "Calendar",
-  csv: "CSV Import",
-  linkedin: "LinkedIn",
-  telegram: "Telegram",
-  twitter: "Twitter",
-  manual: "Manual",
-};
+const priorityConfig = [
+  { key: "high", label: "High", icon: "\uD83D\uDD25", activeColor: "bg-red-50 text-red-700 border-red-200 ring-1 ring-red-300 ring-offset-1" },
+  { key: "medium", label: "Medium", icon: "\u26A1", activeColor: "bg-amber-50 text-amber-700 border-amber-200 ring-1 ring-amber-300 ring-offset-1" },
+  { key: "low", label: "Low", icon: "\uD83D\uDCA4", activeColor: "bg-blue-50 text-blue-700 border-blue-200 ring-1 ring-blue-300 ring-offset-1" },
+] as const;
+
+const scoreConfig = [
+  { key: "strong", label: "Strong", dotColor: "bg-emerald-500", activeColor: "bg-emerald-50 text-emerald-700 border-emerald-200 ring-1 ring-emerald-300 ring-offset-1" },
+  { key: "active", label: "Warm", dotColor: "bg-amber-400", activeColor: "bg-amber-50 text-amber-700 border-amber-200 ring-1 ring-amber-300 ring-offset-1" },
+  { key: "dormant", label: "Cold", dotColor: "bg-red-400", activeColor: "bg-red-50 text-red-700 border-red-200 ring-1 ring-red-300 ring-offset-1" },
+] as const;
+
+const datePresets = [
+  { label: "7d", days: 7 },
+  { label: "30d", days: 30 },
+  { label: "3mo", days: 90 },
+  { label: "6mo", days: 180 },
+  { label: "12mo", days: 365 },
+] as const;
+
+const sortColumns = [
+  { key: "name", label: "Contact" },
+  { key: "company", label: "Company" },
+  { key: "score", label: "Score" },
+  { key: "priority", label: "Priority" },
+  { key: "activity", label: "Activity" },
+  { key: "interaction", label: "Last" },
+] as const;
+
+// ---------------------------------------------------------------------------
+// Score number badge
+// ---------------------------------------------------------------------------
+
+function ScoreNumberBadge({ score }: { score: number }) {
+  let color = "bg-sky-50 text-sky-700 border-sky-100";
+  let dotColor = "bg-sky-400";
+  if (score >= 8) { color = "bg-emerald-50 text-emerald-700 border-emerald-100"; dotColor = "bg-emerald-500"; }
+  else if (score >= 4) { color = "bg-amber-50 text-amber-700 border-amber-100"; dotColor = "bg-amber-400"; }
+  else if (score >= 1) { color = "bg-red-50 text-red-700 border-red-100"; dotColor = "bg-red-400"; }
+
+  return (
+    <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-medium border ${color}`}>
+      <span className={`w-1.5 h-1.5 rounded-full ${dotColor}`} />
+      <span className="font-mono-data">{score}</span>
+    </span>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Priority badge
+// ---------------------------------------------------------------------------
+
+function PriorityBadge({ level }: { level: string }) {
+  const icons: Record<string, string> = { high: "\uD83D\uDD25", medium: "\u26A1", low: "\uD83D\uDCA4" };
+  const icon = icons[level];
+  if (!icon) return <span className="text-stone-300">&mdash;</span>;
+  return (
+    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-medium bg-red-50 text-red-700 border border-red-100">
+      {icon}
+    </span>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Platform icons for contact row
+// ---------------------------------------------------------------------------
+
+function PlatformIcons({ emails, telegram, twitter }: { emails: string[]; telegram: string | null; twitter: string | null }) {
+  return (
+    <span className="inline-flex items-center gap-1.5">
+      {emails.length > 0 && <Mail className="w-3 h-3 text-red-400" title="Email" />}
+      {telegram && <MessageCircle className="w-3 h-3 text-sky-400" title="Telegram" />}
+      {twitter && <Twitter className="w-3 h-3 text-stone-400" title="Twitter/X" />}
+    </span>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Days-ago label
+// ---------------------------------------------------------------------------
+
+function DaysAgo({ dateStr }: { dateStr: string | null }) {
+  if (!dateStr) return <span className="text-stone-300">&mdash;</span>;
+  const days = Math.floor((Date.now() - new Date(dateStr).getTime()) / 86400000);
+  const isOverdue = days > 30;
+  return (
+    <span className={`font-mono-data text-xs ${isOverdue ? "font-medium text-red-500" : "text-stone-500"}`}>
+      {days}d
+    </span>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Bulk Action Bar
+// ---------------------------------------------------------------------------
 
 function BulkActionBar({
   selectedCount,
   allTags,
   onAddTag,
   onRemoveTag,
-  onSetPriority,
+  onArchive,
+  onDelete,
   onMerge,
   onClear,
   isPending,
@@ -44,7 +144,8 @@ function BulkActionBar({
   allTags: string[];
   onAddTag: (tag: string) => void;
   onRemoveTag: (tag: string) => void;
-  onSetPriority: (level: string) => void;
+  onArchive: () => void;
+  onDelete: () => void;
   onMerge: () => void;
   onClear: () => void;
   isPending: boolean;
@@ -58,36 +159,32 @@ function BulkActionBar({
   );
 
   return (
-    <div className="sticky top-14 z-30 bg-teal-600 text-white px-4 py-2.5 rounded-lg mb-4 flex items-center gap-3 shadow-lg">
-      <div className="flex items-center gap-2 flex-shrink-0">
-        <CheckSquare className="w-4 h-4" />
-        <span className="text-sm font-medium font-mono-data">{selectedCount}</span>
-        <span className="text-sm">selected</span>
-      </div>
-
-      <div className="h-5 w-px bg-teal-400" />
+    <div className="sticky bottom-4 z-30 mx-auto w-fit bg-stone-900 text-white rounded-xl shadow-2xl px-5 py-3 flex items-center gap-4">
+      <span className="text-sm font-medium">
+        <span className="font-mono-data">{selectedCount}</span> selected
+      </span>
+      <div className="w-px h-5 bg-stone-700" />
 
       {/* Tag actions */}
       <div className="relative">
         <div className="flex items-center gap-1">
           <button
             onClick={() => { setTagMode("add"); setShowTagDropdown((v) => !v); }}
-            className="inline-flex items-center gap-1 px-2.5 py-1.5 text-xs font-medium rounded-md bg-teal-500 hover:bg-teal-400 transition-colors"
+            disabled={isPending}
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg bg-stone-800 hover:bg-stone-700 transition-colors disabled:opacity-50"
           >
-            <Tag className="w-3 h-3" />
-            Add Tag
+            <Tag className="w-3.5 h-3.5" /> Add Tag
           </button>
           <button
             onClick={() => { setTagMode("remove"); setShowTagDropdown((v) => !v); }}
-            className="inline-flex items-center gap-1 px-2.5 py-1.5 text-xs font-medium rounded-md bg-teal-500 hover:bg-teal-400 transition-colors"
+            disabled={isPending}
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg bg-stone-800 hover:bg-stone-700 transition-colors disabled:opacity-50"
           >
-            <X className="w-3 h-3" />
-            Remove Tag
+            <X className="w-3.5 h-3.5" /> Remove Tag
           </button>
         </div>
-
         {showTagDropdown && (
-          <div className="absolute left-0 top-full mt-1 w-56 bg-white rounded-lg border border-stone-200 shadow-lg z-50 p-2">
+          <div className="absolute left-0 bottom-full mb-1 w-56 bg-white rounded-lg border border-stone-200 shadow-lg z-50 p-2">
             <input
               type="text"
               placeholder={tagMode === "add" ? "Type tag name..." : "Select tag to remove..."}
@@ -135,89 +232,158 @@ function BulkActionBar({
         )}
       </div>
 
-      <div className="h-5 w-px bg-teal-400" />
-
-      {/* Priority actions */}
-      <button
-        onClick={() => onSetPriority("archived")}
-        disabled={isPending}
-        className="inline-flex items-center gap-1 px-2.5 py-1.5 text-xs font-medium rounded-md bg-teal-500 hover:bg-teal-400 transition-colors disabled:opacity-50"
-      >
-        <Archive className="w-3 h-3" />
-        Archive All
-      </button>
-
       {selectedCount >= 2 && (
         <>
-          <div className="h-5 w-px bg-teal-400" />
           <button
             onClick={onMerge}
             disabled={isPending}
-            className="inline-flex items-center gap-1 px-2.5 py-1.5 text-xs font-medium rounded-md bg-teal-500 hover:bg-teal-400 transition-colors disabled:opacity-50"
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg bg-stone-800 hover:bg-stone-700 transition-colors disabled:opacity-50"
           >
-            <GitMerge className="w-3 h-3" />
-            Merge
+            <GitMerge className="w-3.5 h-3.5" /> Merge
           </button>
         </>
       )}
 
-      <div className="flex-1" />
+      <button
+        onClick={onArchive}
+        disabled={isPending}
+        className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg bg-stone-800 hover:bg-stone-700 transition-colors disabled:opacity-50"
+      >
+        <Archive className="w-3.5 h-3.5" /> Archive
+      </button>
+
+      <button
+        onClick={onDelete}
+        disabled={isPending}
+        className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg bg-red-600 hover:bg-red-700 transition-colors disabled:opacity-50"
+      >
+        <Trash2 className="w-3.5 h-3.5" /> Delete
+      </button>
 
       <button
         onClick={onClear}
-        className="text-xs text-teal-200 hover:text-white underline"
+        className="p-1.5 rounded-lg hover:bg-stone-700 text-stone-400 transition-colors ml-1"
       >
-        Clear selection
+        <X className="w-4 h-4" />
       </button>
     </div>
   );
 }
+
+// ---------------------------------------------------------------------------
+// Pagination with numbered pages
+// ---------------------------------------------------------------------------
+
+function Pagination({
+  page,
+  totalPages,
+  total,
+  pageSize,
+  onPageChange,
+}: {
+  page: number;
+  totalPages: number;
+  total: number;
+  pageSize: number;
+  onPageChange: (p: number) => void;
+}) {
+  const from = (page - 1) * pageSize + 1;
+  const to = Math.min(page * pageSize, total);
+
+  // Build page numbers to show
+  const pages: (number | "...")[] = [];
+  if (totalPages <= 5) {
+    for (let i = 1; i <= totalPages; i++) pages.push(i);
+  } else {
+    pages.push(1);
+    if (page > 3) pages.push("...");
+    for (let i = Math.max(2, page - 1); i <= Math.min(totalPages - 1, page + 1); i++) pages.push(i);
+    if (page < totalPages - 2) pages.push("...");
+    pages.push(totalPages);
+  }
+
+  return (
+    <div className="flex items-center justify-between mt-4">
+      <p className="text-xs text-stone-500">
+        Showing <strong>{from}-{to}</strong> of <strong>{total}</strong>
+      </p>
+      <div className="flex items-center gap-1.5">
+        <button
+          disabled={page <= 1}
+          onClick={() => onPageChange(page - 1)}
+          className="px-3 py-1.5 text-xs font-medium rounded-lg border border-stone-200 text-stone-600 hover:bg-stone-50 disabled:text-stone-300 disabled:bg-stone-50 disabled:cursor-not-allowed transition-colors"
+        >
+          Previous
+        </button>
+        {pages.map((p, i) =>
+          p === "..." ? (
+            <span key={`dots-${i}`} className="text-xs text-stone-400 px-1">...</span>
+          ) : (
+            <button
+              key={p}
+              onClick={() => onPageChange(p)}
+              className={`px-2.5 py-1.5 text-xs font-medium rounded-lg min-w-[32px] text-center transition-colors ${
+                p === page
+                  ? "bg-teal-600 text-white"
+                  : "border border-stone-200 text-stone-600 hover:bg-stone-50"
+              }`}
+            >
+              {p}
+            </button>
+          )
+        )}
+        <button
+          disabled={page >= totalPages}
+          onClick={() => onPageChange(page + 1)}
+          className="px-3 py-1.5 text-xs font-medium rounded-lg border border-stone-200 text-stone-600 hover:bg-stone-50 disabled:text-stone-300 disabled:bg-stone-50 disabled:cursor-not-allowed transition-colors"
+        >
+          Next
+        </button>
+      </div>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Main Content
+// ---------------------------------------------------------------------------
 
 function ContactsPageContent() {
   const searchParams = useSearchParams();
   const router = useRouter();
   const queryClient = useQueryClient();
 
-  // Read all filters from URL search params
+  // URL-based state
   const searchFromUrl = searchParams.get("q") ?? "";
   const [searchInput, setSearchInput] = useState(searchFromUrl);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const search = searchFromUrl;
   const page = Number(searchParams.get("page") ?? "1");
   const scoreFilter = searchParams.get("score") ?? undefined;
+  const priorityFilter = searchParams.get("priority") ?? undefined;
   const tagFilter = searchParams.get("tag") ?? "";
   const sourceFilter = searchParams.get("source") ?? "";
   const dateFrom = searchParams.get("date_from") ?? "";
   const dateTo = searchParams.get("date_to") ?? "";
   const sortParam = searchParams.get("sort") ?? "score";
-  const hasInteractions = searchParams.get("has_interactions") === "true" ? true : undefined;
-  const interactionDays = searchParams.get("interaction_days") ? Number(searchParams.get("interaction_days")) : undefined;
-  const hasBirthday = searchParams.get("has_birthday") === "true" ? true : undefined;
   const showFilters = searchParams.get("filters") === "1";
 
-  // Multi-select state
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
 
-  // Helper to update URL params without full page reload
   const setParams = useCallback(
     (updates: Record<string, string | undefined>) => {
       const params = new URLSearchParams(searchParams.toString());
       for (const [key, value] of Object.entries(updates)) {
-        if (value) {
-          params.set(key, value);
-        } else {
-          params.delete(key);
-        }
+        if (value) params.set(key, value);
+        else params.delete(key);
       }
-      // Reset page to 1 when any filter changes (unless page itself is being set)
-      if (!("page" in updates)) {
-        params.delete("page");
-      }
+      if (!("page" in updates)) params.delete("page");
       router.replace(`/contacts?${params.toString()}`, { scroll: false });
     },
     [searchParams, router]
   );
 
+  // Data queries
   const { data: allTags = [] } = useQuery({
     queryKey: ["tags"],
     queryFn: async () => {
@@ -226,9 +392,14 @@ function ContactsPageContent() {
     },
   });
 
-  const activeFilterCount = [tagFilter, sourceFilter, dateFrom, dateTo, scoreFilter].filter(Boolean).length;
+  const statsQuery = useQuery({
+    queryKey: ["contacts", "stats"],
+    queryFn: async () => {
+      const { data } = await client.GET("/api/v1/contacts/stats");
+      return data?.data as { total: number; strong: number; active: number; dormant: number } | undefined;
+    },
+  });
 
-  const priorityFilter = searchParams.get("priority") || undefined;
   const { data, isLoading, isError } = useContacts({
     search: search || undefined,
     page,
@@ -239,16 +410,16 @@ function ContactsPageContent() {
     source: sourceFilter || undefined,
     date_from: dateFrom || undefined,
     date_to: dateTo || undefined,
-    has_interactions: hasInteractions,
-    interaction_days: interactionDays,
-    has_birthday: hasBirthday,
     sort: sortParam,
   });
 
   const contacts = data?.data ?? [];
   const meta = data?.meta;
+  const activeFilterCount = [tagFilter, sourceFilter, dateFrom, dateTo, scoreFilter, priorityFilter].filter(Boolean).length;
+  const stats = statsQuery.data;
+  const activeRelationships = stats ? stats.strong + stats.active : 0;
 
-  // Bulk update mutation
+  // Bulk mutations
   const bulkUpdate = useMutation({
     mutationFn: async (body: {
       contact_ids: string[];
@@ -256,9 +427,7 @@ function ContactsPageContent() {
       remove_tags?: string[];
       priority_level?: string;
     }) => {
-      const { data, error } = await client.POST("/api/v1/contacts/bulk-update" as any, {
-        body,
-      });
+      const { data, error } = await client.POST("/api/v1/contacts/bulk-update" as any, { body });
       if (error) throw new Error((error as { detail?: string })?.detail ?? "Bulk update failed");
       return data;
     },
@@ -269,13 +438,26 @@ function ContactsPageContent() {
     },
   });
 
-  // Merge mutation: chain-merge all selected into the first one
   const mergeMutation = useMutation({
     mutationFn: async (contactIds: string[]) => {
       const [primaryId, ...otherIds] = contactIds;
       for (const otherId of otherIds) {
         await client.POST("/api/v1/contacts/{contact_id}/merge/{other_id}" as any, {
           params: { path: { contact_id: primaryId, other_id: otherId } },
+        });
+      }
+    },
+    onSuccess: () => {
+      setSelectedIds(new Set());
+      void queryClient.invalidateQueries({ queryKey: ["contacts"] });
+    },
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: async (contactIds: string[]) => {
+      for (const id of contactIds) {
+        await client.DELETE("/api/v1/contacts/{contact_id}", {
+          params: { path: { contact_id: id } },
         });
       }
     },
@@ -295,255 +477,291 @@ function ContactsPageContent() {
   };
 
   const toggleSelectAll = () => {
-    if (selectedIds.size === contacts.length) {
-      setSelectedIds(new Set());
-    } else {
-      setSelectedIds(new Set(contacts.map((c) => c.id)));
-    }
+    if (selectedIds.size === contacts.length) setSelectedIds(new Set());
+    else setSelectedIds(new Set(contacts.map((c) => c.id)));
   };
 
   const selectedArray = Array.from(selectedIds);
+  const isPending = bulkUpdate.isPending || mergeMutation.isPending || deleteMutation.isPending;
 
   return (
     <div className="min-h-screen bg-stone-50">
       <div className="max-w-6xl mx-auto px-4 py-8">
+        {/* Header */}
         <div className="flex items-center justify-between mb-6">
           <div>
             <h1 className="text-2xl font-display font-bold text-stone-900">Contacts</h1>
-            {meta && (
+            {stats && (
               <p className="text-sm text-stone-500 mt-0.5">
-                <span className="font-mono-data">{meta.total}</span> total contacts
+                <span className="font-mono-data">{stats.total.toLocaleString()}</span> contacts
+                {" \u00B7 "}
+                <span className="font-mono-data">{activeRelationships}</span> active relationships
               </p>
             )}
           </div>
           <Link
             href="/contacts/new"
-            className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-teal-600 text-white text-sm font-medium hover:bg-teal-700 transition-colors btn-press"
+            className="inline-flex items-center gap-1.5 px-4 py-2 text-sm font-medium rounded-lg bg-teal-600 text-white hover:bg-teal-700 transition-colors shadow-sm"
           >
-            <Plus className="w-4 h-4" />
-            Add Contact
+            <Plus className="w-4 h-4" /> Add Contact
           </Link>
         </div>
 
-        {/* Priority quick-filter chips */}
-        <div className="flex items-center gap-2 mb-3">
-          {[
-            { key: "high", label: "High", icon: "🔥", color: "bg-red-50 text-red-700 border-red-200 hover:bg-red-100" },
-            { key: "medium", label: "Medium", icon: "⚡", color: "bg-amber-50 text-amber-700 border-amber-200 hover:bg-amber-100" },
-            { key: "low", label: "Low", icon: "💤", color: "bg-blue-50 text-blue-700 border-blue-200 hover:bg-blue-100" },
-          ].map(({ key, label, icon, color }) => {
-            const priorityParam = searchParams.get("priority");
-            const isActive = priorityParam === key;
-            return (
-              <button
-                key={key}
-                onClick={() => setParams({ priority: isActive ? undefined : key })}
-                className={`inline-flex items-center gap-1 px-2.5 py-1 text-xs font-medium rounded-full border transition-colors ${
-                  isActive
-                    ? color + " ring-1 ring-offset-1 ring-current"
-                    : "bg-white border-stone-200 text-stone-500 hover:bg-stone-50"
-                }`}
-              >
-                <span className="text-xs">{icon}</span>
-                {label}
-              </button>
-            );
-          })}
-          {["strong", "active", "dormant"].map((tier) => {
-            const isActive = scoreFilter === tier;
-            const config = {
-              strong: { label: "Strong", color: "bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-100" },
-              active: { label: "Warm", color: "bg-amber-50 text-amber-700 border-amber-200 hover:bg-amber-100" },
-              dormant: { label: "Cold", color: "bg-red-50 text-red-700 border-red-200 hover:bg-red-100" },
-            }[tier]!;
-            return (
-              <button
-                key={tier}
-                onClick={() => setParams({ score: isActive ? undefined : tier })}
-                className={`inline-flex items-center gap-1 px-2.5 py-1 text-xs font-medium rounded-full border transition-colors ${
-                  isActive
-                    ? config.color + " ring-1 ring-offset-1 ring-current"
-                    : "bg-white border-stone-200 text-stone-500 hover:bg-stone-50"
-                }`}
-              >
-                <span className="w-1.5 h-1.5 rounded-full bg-current" />
-                {config.label}
-              </button>
-            );
-          })}
-        </div>
-
-        <div className="flex gap-2 mb-4">
-          <div className="relative flex-1">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-stone-400" />
-            <input
-              type="text"
-              placeholder="Search by name, company, or email..."
-              value={searchInput}
-              onChange={(e) => {
-                const value = e.target.value;
-                setSearchInput(value);
-                if (debounceRef.current) clearTimeout(debounceRef.current);
-                debounceRef.current = setTimeout(() => {
-                  setParams({ q: value || undefined });
-                }, 300);
-              }}
-              className="w-full pl-9 pr-4 py-2.5 rounded-lg border border-stone-300 bg-white text-sm focus:outline-none focus:ring-2 focus:ring-teal-400"
-            />
-          </div>
-          <button
-            onClick={() => setParams({ filters: showFilters ? undefined : "1", page: String(page) })}
-            className={`inline-flex items-center gap-1.5 px-3 py-2.5 rounded-lg border text-sm font-medium transition-colors ${
-              showFilters || activeFilterCount > 0
-                ? "bg-teal-50 border-teal-300 text-teal-700"
-                : "bg-white border-stone-300 text-stone-600 hover:bg-stone-50"
-            }`}
-          >
-            <Filter className="w-4 h-4" />
-            Filters
-            {activeFilterCount > 0 && (
-              <span className="ml-0.5 inline-flex items-center justify-center w-5 h-5 text-xs rounded-full bg-teal-600 text-white font-mono-data">
-                {activeFilterCount}
-              </span>
-            )}
-          </button>
-        </div>
-
-        {showFilters && (
-          <div className="mb-4 p-4 bg-white rounded-lg border border-stone-200 grid grid-cols-2 md:grid-cols-4 gap-3">
-            <div>
-              <label htmlFor="filter-tag" className="block text-xs font-medium text-stone-500 mb-1">Tag</label>
-              <select
-                id="filter-tag"
-                value={tagFilter}
-                onChange={(e) => setParams({ tag: e.target.value || undefined })}
-                className="w-full px-2.5 py-2 rounded-md border border-stone-300 bg-white text-sm focus:outline-none focus:ring-2 focus:ring-teal-400"
-              >
-                <option value="">All tags</option>
-                {allTags.map((t) => (
-                  <option key={t} value={t}>{t}</option>
-                ))}
-              </select>
-            </div>
-            <div>
-              <label htmlFor="filter-source" className="block text-xs font-medium text-stone-500 mb-1">Source</label>
-              <select
-                id="filter-source"
-                value={sourceFilter}
-                onChange={(e) => setParams({ source: e.target.value || undefined })}
-                className="w-full px-2.5 py-2 rounded-md border border-stone-300 bg-white text-sm focus:outline-none focus:ring-2 focus:ring-teal-400"
-              >
-                <option value="">All sources</option>
-                {Object.entries(sourceLabels).map(([value, label]) => (
-                  <option key={value} value={value}>{label}</option>
-                ))}
-              </select>
-            </div>
-            <div>
-              <label htmlFor="filter-from" className="block text-xs font-medium text-stone-500 mb-1">From</label>
+        {/* Search + Filter bar */}
+        <div className="bg-white rounded-xl border border-stone-200 p-4 mb-4">
+          <div className="flex gap-3 mb-4">
+            <div className="flex-1 relative">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-stone-400" />
               <input
-                id="filter-from"
-                type="date"
-                value={dateFrom}
-                onChange={(e) => setParams({ date_from: e.target.value || undefined })}
-                className="w-full px-2.5 py-2 rounded-md border border-stone-300 bg-white text-sm focus:outline-none focus:ring-2 focus:ring-teal-400"
+                type="text"
+                placeholder="Search by name, email, company, or notes..."
+                value={searchInput}
+                onChange={(e) => {
+                  const value = e.target.value;
+                  setSearchInput(value);
+                  if (debounceRef.current) clearTimeout(debounceRef.current);
+                  debounceRef.current = setTimeout(() => {
+                    setParams({ q: value || undefined });
+                  }, 300);
+                }}
+                className="w-full pl-10 pr-4 py-2.5 text-sm rounded-lg border border-stone-200 focus:outline-none focus:ring-2 focus:ring-teal-400 placeholder:text-stone-400"
               />
             </div>
-            <div>
-              <label htmlFor="filter-to" className="block text-xs font-medium text-stone-500 mb-1">To</label>
-              <input
-                id="filter-to"
-                type="date"
-                value={dateTo}
-                onChange={(e) => setParams({ date_to: e.target.value || undefined })}
-                className="w-full px-2.5 py-2 rounded-md border border-stone-300 bg-white text-sm focus:outline-none focus:ring-2 focus:ring-teal-400"
-              />
-            </div>
-          </div>
-        )}
-
-        {activeFilterCount > 0 && (
-          <div className="flex flex-wrap items-center gap-2 mb-4">
-            {scoreFilter && scoreTierLabels[scoreFilter] && (
-              <span className="inline-flex items-center gap-1.5 px-3 py-1 text-xs font-medium rounded-full bg-teal-50 text-teal-700 border border-teal-200">
-                Score: {scoreTierLabels[scoreFilter]}
-                <button onClick={() => setParams({ score: undefined })} className="ml-0.5 hover:text-teal-900">
-                  <X className="w-3 h-3" />
-                </button>
-              </span>
-            )}
-            {tagFilter && (
-              <span className="inline-flex items-center gap-1.5 px-3 py-1 text-xs font-medium rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200">
-                Tag: {tagFilter}
-                <button onClick={() => setParams({ tag: undefined })} className="ml-0.5 hover:text-emerald-900">
-                  <X className="w-3 h-3" />
-                </button>
-              </span>
-            )}
-            {sourceFilter && (
-              <span className="inline-flex items-center gap-1.5 px-3 py-1 text-xs font-medium rounded-full bg-violet-50 text-violet-700 border border-violet-200">
-                Source: {sourceLabels[sourceFilter] ?? sourceFilter}
-                <button onClick={() => setParams({ source: undefined })} className="ml-0.5 hover:text-violet-900">
-                  <X className="w-3 h-3" />
-                </button>
-              </span>
-            )}
-            {(dateFrom || dateTo) && (
-              <span className="inline-flex items-center gap-1.5 px-3 py-1 text-xs font-medium rounded-full bg-amber-50 text-amber-700 border border-amber-200">
-                Date: {dateFrom || "..."} — {dateTo || "..."}
-                <button onClick={() => setParams({ date_from: undefined, date_to: undefined })} className="ml-0.5 hover:text-amber-900">
-                  <X className="w-3 h-3" />
-                </button>
-              </span>
-            )}
             <button
-              onClick={() => {
-                router.replace("/contacts", { scroll: false });
-              }}
-              className="text-xs text-stone-500 hover:text-stone-700 underline"
+              onClick={() => setParams({ filters: showFilters ? undefined : "1", page: String(page) })}
+              className={`inline-flex items-center gap-1.5 px-3 py-2 text-sm rounded-lg border transition-colors ${
+                showFilters || activeFilterCount > 0
+                  ? "bg-teal-50 border-teal-200 text-teal-700"
+                  : "border-stone-200 text-stone-600 hover:bg-stone-50"
+              }`}
             >
-              Clear all
+              <SlidersHorizontal className="w-4 h-4" />
+              Filters
+              {activeFilterCount > 0 && (
+                <span className="ml-1 inline-flex items-center justify-center w-5 h-5 rounded-full bg-teal-100 text-teal-700 text-[10px] font-bold">
+                  {activeFilterCount}
+                </span>
+              )}
             </button>
           </div>
+
+          {/* Quick filter chips with group labels */}
+          <div className="flex items-center gap-6">
+            <div className="flex items-center gap-1.5">
+              <span className="text-[10px] font-semibold text-stone-400 uppercase tracking-wider mr-1">Priority</span>
+              {priorityConfig.map(({ key, label, icon, activeColor }) => {
+                const isActive = priorityFilter === key;
+                return (
+                  <button
+                    key={key}
+                    onClick={() => setParams({ priority: isActive ? undefined : key })}
+                    className={`inline-flex items-center gap-1 px-2.5 py-1 text-xs font-medium rounded-full border transition-colors ${
+                      isActive ? activeColor : "bg-white border-stone-200 text-stone-500 hover:bg-stone-50"
+                    }`}
+                  >
+                    {icon} {label}
+                  </button>
+                );
+              })}
+            </div>
+            <div className="w-px h-5 bg-stone-200" />
+            <div className="flex items-center gap-1.5">
+              <span className="text-[10px] font-semibold text-stone-400 uppercase tracking-wider mr-1">Score</span>
+              {scoreConfig.map(({ key, label, dotColor, activeColor }) => {
+                const isActive = scoreFilter === key;
+                return (
+                  <button
+                    key={key}
+                    onClick={() => setParams({ score: isActive ? undefined : key })}
+                    className={`inline-flex items-center gap-1 px-2.5 py-1 text-xs font-medium rounded-full border transition-colors ${
+                      isActive ? activeColor : "bg-white border-stone-200 text-stone-500 hover:bg-stone-50"
+                    }`}
+                  >
+                    <span className={`w-1.5 h-1.5 rounded-full ${dotColor}`} /> {label}
+                  </button>
+                );
+              })}
+            </div>
+            {activeFilterCount > 0 && (
+              <div className="flex items-center gap-2 ml-auto">
+                <div className="w-px h-4 bg-stone-200" />
+                <button
+                  onClick={() => router.replace("/contacts", { scroll: false })}
+                  className="text-xs text-stone-400 hover:text-stone-600 font-medium"
+                >
+                  Clear all
+                </button>
+              </div>
+            )}
+          </div>
+
+          {/* Expanded filter panel */}
+          {showFilters && (
+            <div className="border-t border-stone-200 pt-4 mt-4">
+              <div className="grid grid-cols-3 gap-4">
+                {/* Platform filter */}
+                <div>
+                  <label className="text-[11px] font-semibold text-stone-500 uppercase tracking-wider mb-2 block">Platform</label>
+                  <div className="space-y-2">
+                    {[
+                      { value: "gmail", label: "Gmail", icon: <Mail className="w-3.5 h-3.5 text-red-400" /> },
+                      { value: "telegram", label: "Telegram", icon: <MessageCircle className="w-3.5 h-3.5 text-sky-500" /> },
+                      { value: "twitter", label: "Twitter / X", icon: <Twitter className="w-3.5 h-3.5 text-stone-500" /> },
+                    ].map(({ value, label, icon }) => (
+                      <label key={value} className="flex items-center gap-2 cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={sourceFilter === value}
+                          onChange={() => setParams({ source: sourceFilter === value ? undefined : value })}
+                          className="w-3.5 h-3.5 rounded border-stone-300 text-teal-600"
+                        />
+                        {icon}
+                        <span className="text-xs text-stone-700">{label}</span>
+                      </label>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Tags filter */}
+                <div>
+                  <label className="text-[11px] font-semibold text-stone-500 uppercase tracking-wider mb-2 block">Tags</label>
+                  <select
+                    value={tagFilter}
+                    onChange={(e) => setParams({ tag: e.target.value || undefined })}
+                    className="w-full px-2.5 py-2 rounded-md border border-stone-200 bg-white text-xs focus:outline-none focus:ring-2 focus:ring-teal-400 mb-2"
+                  >
+                    <option value="">All tags</option>
+                    {allTags.map((t) => (
+                      <option key={t} value={t}>{t}</option>
+                    ))}
+                  </select>
+                  {tagFilter && (
+                    <div className="flex flex-wrap gap-1.5">
+                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-medium bg-violet-50 text-violet-700 border border-violet-200">
+                        {tagFilter}
+                        <button onClick={() => setParams({ tag: undefined })}>
+                          <X className="w-2.5 h-2.5" />
+                        </button>
+                      </span>
+                    </div>
+                  )}
+                </div>
+
+                {/* Last Contact — date presets + range */}
+                <div>
+                  <label className="text-[11px] font-semibold text-stone-500 uppercase tracking-wider mb-2 block">Last Contact</label>
+                  <div className="flex flex-wrap gap-1.5 mb-3">
+                    {datePresets.map(({ label, days }) => {
+                      const presetDate = new Date(Date.now() - days * 86400000).toISOString().split("T")[0];
+                      const isActive = dateFrom === presetDate;
+                      return (
+                        <button
+                          key={label}
+                          onClick={() => setParams({
+                            date_from: isActive ? undefined : presetDate,
+                            date_to: isActive ? undefined : new Date().toISOString().split("T")[0],
+                          })}
+                          className={`px-2 py-1 text-[11px] font-medium rounded-md border transition-colors ${
+                            isActive
+                              ? "border-teal-200 bg-teal-50 text-teal-700"
+                              : "border-stone-200 text-stone-500 hover:bg-stone-50"
+                          }`}
+                        >
+                          {label}
+                        </button>
+                      );
+                    })}
+                  </div>
+                  <div className="space-y-2">
+                    <div>
+                      <label className="text-[10px] text-stone-400 mb-0.5 block">From</label>
+                      <input
+                        type="date"
+                        value={dateFrom}
+                        onChange={(e) => setParams({ date_from: e.target.value || undefined })}
+                        className="w-full text-xs border border-stone-200 rounded-lg px-2.5 py-1.5 text-stone-700 focus:outline-none focus:ring-2 focus:ring-teal-400"
+                      />
+                    </div>
+                    <div>
+                      <label className="text-[10px] text-stone-400 mb-0.5 block">To</label>
+                      <input
+                        type="date"
+                        value={dateTo}
+                        onChange={(e) => setParams({ date_to: e.target.value || undefined })}
+                        className="w-full text-xs border border-stone-200 rounded-lg px-2.5 py-1.5 text-stone-700 focus:outline-none focus:ring-2 focus:ring-teal-400"
+                      />
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div className="flex items-center justify-between mt-4 pt-3 border-t border-stone-100">
+                <p className="text-xs text-stone-400">
+                  {meta ? (
+                    <>Showing <strong className="text-stone-600">{meta.total}</strong> contacts matching filters</>
+                  ) : (
+                    "Loading..."
+                  )}
+                </p>
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => router.replace("/contacts", { scroll: false })}
+                    className="text-xs text-stone-500 hover:text-stone-700"
+                  >
+                    Reset all
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* Empty state */}
+        {!isLoading && !isError && contacts.length === 0 && (
+          <div className="bg-white rounded-xl border border-stone-200 p-12 text-center mb-4">
+            <div className="w-14 h-14 rounded-full bg-stone-100 flex items-center justify-center mx-auto mb-4">
+              <SearchX className="w-7 h-7 text-stone-400" />
+            </div>
+            <h3 className="text-base font-display font-bold text-stone-900 mb-1">No contacts found</h3>
+            <p className="text-sm text-stone-500 mb-5 max-w-sm mx-auto">
+              Try adjusting your filters or search terms, or add a new contact.
+            </p>
+            <div className="flex items-center justify-center gap-3">
+              {activeFilterCount > 0 && (
+                <button
+                  onClick={() => router.replace("/contacts", { scroll: false })}
+                  className="inline-flex items-center gap-1.5 px-3 py-2 text-sm font-medium rounded-lg border border-stone-200 text-stone-600 hover:bg-stone-50 transition-colors"
+                >
+                  Clear filters
+                </button>
+              )}
+              <Link
+                href="/contacts/new"
+                className="inline-flex items-center gap-1.5 px-4 py-2 text-sm font-medium rounded-lg bg-teal-600 text-white hover:bg-teal-700 transition-colors shadow-sm"
+              >
+                <Plus className="w-4 h-4" /> Add Contact
+              </Link>
+            </div>
+          </div>
         )}
 
-        {/* Bulk action bar */}
-        {selectedIds.size > 0 && (
-          <BulkActionBar
-            selectedCount={selectedIds.size}
-            allTags={allTags}
-            isPending={bulkUpdate.isPending || mergeMutation.isPending}
-            onAddTag={(tag) =>
-              bulkUpdate.mutate({ contact_ids: selectedArray, add_tags: [tag] })
-            }
-            onRemoveTag={(tag) =>
-              bulkUpdate.mutate({ contact_ids: selectedArray, remove_tags: [tag] })
-            }
-            onSetPriority={(level) =>
-              bulkUpdate.mutate({ contact_ids: selectedArray, priority_level: level })
-            }
-            onMerge={() => {
-              if (selectedArray.length >= 2 && confirm(`Merge ${selectedArray.length} contacts into one? This cannot be undone.`)) {
-                mergeMutation.mutate(selectedArray);
-              }
-            }}
-            onClear={() => setSelectedIds(new Set())}
-          />
-        )}
-
+        {/* Loading skeleton */}
         {isLoading && (
-          <div className="bg-white rounded-lg border border-stone-200 overflow-hidden">
+          <div className="bg-white rounded-xl border border-stone-200 overflow-hidden">
             <div className="bg-stone-50 border-b border-stone-200 h-11" />
             {Array.from({ length: 8 }).map((_, i) => (
               <div key={i} className="flex items-center gap-4 px-4 py-3 border-b border-stone-100">
                 <div className="w-4 h-4 rounded bg-stone-100 animate-pulse" />
-                <div className="w-7 h-7 rounded-full bg-stone-100 animate-pulse" />
+                <div className="w-9 h-9 rounded-full bg-stone-100 animate-pulse" />
                 <div className="flex-1 space-y-1.5">
                   <div className="h-3.5 w-32 bg-stone-100 rounded animate-pulse" />
+                  <div className="h-3 w-40 bg-stone-50 rounded animate-pulse" />
                 </div>
-                <div className="h-3.5 w-24 bg-stone-100 rounded animate-pulse" />
-                <div className="h-5 w-20 bg-stone-100 rounded-full animate-pulse" />
                 <div className="h-3.5 w-20 bg-stone-100 rounded animate-pulse" />
+                <div className="h-5 w-14 bg-stone-100 rounded-full animate-pulse" />
+                <div className="h-5 w-10 bg-stone-100 rounded-full animate-pulse" />
+                <div className="h-3.5 w-10 bg-stone-100 rounded animate-pulse" />
+                <div className="h-3.5 w-8 bg-stone-100 rounded animate-pulse" />
               </div>
             ))}
           </div>
@@ -555,151 +773,152 @@ function ContactsPageContent() {
           </div>
         )}
 
-        {!isLoading && !isError && contacts.length === 0 && (
-          <div className="text-center py-12 text-stone-400">
-            No contacts found.
-          </div>
-        )}
-
+        {/* Table */}
         {contacts.length > 0 && (
-          <div className="bg-white rounded-lg border border-stone-200 overflow-hidden">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="bg-stone-50 border-b border-stone-200">
-                  <th className="w-10 px-4 py-3">
+          <div className="bg-white rounded-xl border border-stone-200 overflow-hidden">
+            {/* Header row */}
+            <div className="grid grid-cols-[40px_1fr_120px_80px_80px_80px_80px] gap-2 px-4 py-3 bg-stone-50 border-b border-stone-200 items-center">
+              <div>
+                <input
+                  type="checkbox"
+                  checked={contacts.length > 0 && selectedIds.size === contacts.length}
+                  onChange={toggleSelectAll}
+                  className="w-3.5 h-3.5 rounded border-stone-300 text-teal-600"
+                  aria-label="Select all"
+                />
+              </div>
+              {sortColumns.map(({ key, label }) => {
+                const isActive = sortParam === key || (key === "name" && sortParam === "created") || (key === "interaction" && sortParam === "interaction");
+                const sortKey = key === "name" ? "created" : key;
+                return (
+                  <div
+                    key={key}
+                    onClick={() => setParams({ sort: sortParam === sortKey ? "score" : sortKey })}
+                    className={`flex items-center gap-1 text-[11px] font-semibold uppercase tracking-wider cursor-pointer select-none transition-colors hover:text-teal-600 ${
+                      isActive ? "text-teal-600" : "text-stone-500"
+                    } ${key === "activity" || key === "interaction" ? "justify-end" : key === "score" || key === "priority" ? "justify-center" : ""}`}
+                  >
+                    {label}
+                    {isActive ? (
+                      <ArrowDown className="w-3 h-3" />
+                    ) : (
+                      <ArrowUpDown className="w-3 h-3 opacity-0 group-hover:opacity-100" />
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+
+            {/* Rows */}
+            {contacts.map((contact) => {
+              const name =
+                contact.full_name ??
+                ([contact.given_name, contact.family_name].filter(Boolean).join(" ") || "Unnamed");
+              const isSelected = selectedIds.has(contact.id);
+              const primaryEmail = contact.emails?.[0];
+
+              return (
+                <div
+                  key={contact.id}
+                  className={`grid grid-cols-[40px_1fr_120px_80px_80px_80px_80px] gap-2 px-4 py-3 border-b border-stone-100 items-center transition-colors ${
+                    isSelected ? "bg-teal-50" : "hover:bg-stone-50/50"
+                  }`}
+                >
+                  <div>
                     <input
                       type="checkbox"
-                      checked={contacts.length > 0 && selectedIds.size === contacts.length}
-                      onChange={toggleSelectAll}
-                      className="w-4 h-4 rounded border-stone-300 text-teal-600 focus:ring-teal-500"
-                      aria-label="Select all contacts"
+                      checked={isSelected}
+                      onChange={() => toggleSelect(contact.id)}
+                      className="w-3.5 h-3.5 rounded border-stone-300 text-teal-600"
+                      aria-label={`Select ${name}`}
                     />
-                  </th>
-                  <th
-                    className="text-left px-4 py-3 font-medium text-stone-600 cursor-pointer select-none hover:text-stone-900"
-                    onClick={() => setParams({ sort: sortParam === "created" ? "score" : "created" })}
-                  >
-                    <span className="inline-flex items-center gap-1">
-                      Name
-                      {sortParam === "created" && <ArrowDown className="w-3 h-3 text-teal-600" />}
-                    </span>
-                  </th>
-                  <th
-                    className="text-left px-4 py-3 font-medium text-stone-600 cursor-pointer select-none hover:text-stone-900"
-                    onClick={() => setParams({ sort: sortParam === "company" ? "score" : "company" })}
-                  >
-                    <span className="inline-flex items-center gap-1">
-                      Company
-                      {sortParam === "company" && <ArrowDown className="w-3 h-3 text-teal-600" />}
-                    </span>
-                  </th>
-                  <th
-                    className="text-left px-4 py-3 font-medium text-stone-600 cursor-pointer select-none hover:text-stone-900"
-                    onClick={() => setParams({ sort: sortParam === "score" ? "created" : "score" })}
-                  >
-                    <span className="inline-flex items-center gap-1">
-                      Score
-                      {sortParam === "score" && <ArrowDown className="w-3 h-3 text-teal-600" />}
-                    </span>
-                  </th>
-                  <th
-                    className="text-right px-4 py-3 font-medium text-stone-600 w-20 cursor-pointer select-none hover:text-stone-900"
-                    onClick={() => setParams({ sort: sortParam === "activity" ? "score" : "activity" })}
-                  >
-                    <span className="inline-flex items-center gap-1">
-                      Activity
-                      {sortParam === "activity" && <ArrowDown className="w-3 h-3 text-teal-600" />}
-                    </span>
-                  </th>
-                  <th
-                    className="text-left px-4 py-3 font-medium text-stone-600 cursor-pointer select-none hover:text-stone-900"
-                    onClick={() => setParams({ sort: sortParam === "interaction" ? "score" : "interaction" })}
-                  >
-                    <span className="inline-flex items-center gap-1">
-                      Last Interaction
-                      {sortParam === "interaction" && <ArrowDown className="w-3 h-3 text-teal-600" />}
-                    </span>
-                  </th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-stone-100">
-                {contacts.map((contact) => {
-                  const name =
-                    contact.full_name ??
-                    [contact.given_name, contact.family_name].filter(Boolean).join(" ") ??
-                    "Unnamed";
-                  const isSelected = selectedIds.has(contact.id);
-                  return (
-                    <tr
-                      key={contact.id}
-                      className={`transition-colors ${isSelected ? "bg-teal-50" : "hover:bg-stone-50"}`}
-                    >
-                      <td className="w-10 px-4 py-3">
-                        <input
-                          type="checkbox"
-                          checked={isSelected}
-                          onChange={() => toggleSelect(contact.id)}
-                          className="w-4 h-4 rounded border-stone-300 text-teal-600 focus:ring-teal-500"
-                          aria-label={`Select ${name}`}
+                  </div>
+
+                  {/* Contact: avatar + name + email + platform icons */}
+                  <div className="flex items-center gap-3 min-w-0">
+                    <ContactAvatar avatarUrl={contact.avatar_url} name={name} size="sm" />
+                    <div className="min-w-0">
+                      <Link
+                        href={`/contacts/${contact.id}`}
+                        className="text-sm font-medium text-stone-900 hover:text-teal-700 truncate block"
+                      >
+                        {name}
+                      </Link>
+                      <div className="flex items-center gap-1.5">
+                        {primaryEmail && (
+                          <p className="text-xs text-stone-400 truncate">{primaryEmail}</p>
+                        )}
+                        <PlatformIcons
+                          emails={contact.emails}
+                          telegram={contact.telegram_username}
+                          twitter={contact.twitter_handle}
                         />
-                      </td>
-                      <td className="px-4 py-3">
-                        <Link
-                          href={`/contacts/${contact.id}`}
-                          className="flex items-center gap-2 text-teal-700 hover:text-teal-900 font-medium"
-                        >
-                          <ContactAvatar
-                            avatarUrl={contact.avatar_url}
-                            name={name}
-                            size="xs"
-                          />
-                          {name}
-                        </Link>
-                      </td>
-                      <td className="px-4 py-3 text-stone-600">
-                        {contact.company || <span className="text-stone-300">&mdash;</span>}
-                      </td>
-                      <td className="px-4 py-3">
-                        <ScoreBadge score={contact.relationship_score} lastInteractionAt={contact.last_interaction_at} />
-                      </td>
-                      <td className="px-4 py-3 text-right font-mono-data text-stone-500">
-                        {(contact as any).interaction_count ?? 0}
-                      </td>
-                      <td className="px-4 py-3 text-stone-500">
-                        {contact.last_interaction_at
-                          ? formatDistanceToNow(new Date(contact.last_interaction_at), {
-                              addSuffix: true,
-                            })
-                          : "Never"}
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Company */}
+                  <div className="text-xs text-stone-600 truncate">
+                    {contact.company || <span className="text-stone-300">&mdash;</span>}
+                  </div>
+
+                  {/* Score */}
+                  <div className="text-center">
+                    <ScoreNumberBadge score={contact.relationship_score} />
+                  </div>
+
+                  {/* Priority */}
+                  <div className="text-center">
+                    <PriorityBadge level={contact.priority_level} />
+                  </div>
+
+                  {/* Activity count */}
+                  <div className="text-right font-mono-data text-xs text-stone-500">
+                    {contact.interaction_count ?? 0}
+                  </div>
+
+                  {/* Last interaction */}
+                  <div className="text-right">
+                    <DaysAgo dateStr={contact.last_interaction_at} />
+                  </div>
+                </div>
+              );
+            })}
           </div>
         )}
 
+        {/* Pagination */}
         {meta && meta.total_pages > 1 && (
-          <div className="flex items-center justify-between mt-4">
-            <button
-              disabled={page <= 1}
-              onClick={() => setParams({ page: String(page - 1) })}
-              className="px-3 py-1.5 text-sm rounded-md border border-stone-300 disabled:opacity-40 hover:bg-stone-100 btn-press"
-            >
-              Previous
-            </button>
-            <span className="text-sm text-stone-500">
-              Page <span className="font-mono-data">{page}</span> of <span className="font-mono-data">{meta.total_pages}</span>
-            </span>
-            <button
-              disabled={page >= meta.total_pages}
-              onClick={() => setParams({ page: String(page + 1) })}
-              className="px-3 py-1.5 text-sm rounded-md border border-stone-300 disabled:opacity-40 hover:bg-stone-100 btn-press"
-            >
-              Next
-            </button>
-          </div>
+          <Pagination
+            page={page}
+            totalPages={meta.total_pages}
+            total={meta.total}
+            pageSize={20}
+            onPageChange={(p) => setParams({ page: String(p) })}
+          />
+        )}
+
+        {/* Bulk action bar — sticky bottom */}
+        {selectedIds.size > 0 && (
+          <BulkActionBar
+            selectedCount={selectedIds.size}
+            allTags={allTags}
+            isPending={isPending}
+            onAddTag={(tag) => bulkUpdate.mutate({ contact_ids: selectedArray, add_tags: [tag] })}
+            onRemoveTag={(tag) => bulkUpdate.mutate({ contact_ids: selectedArray, remove_tags: [tag] })}
+            onArchive={() => bulkUpdate.mutate({ contact_ids: selectedArray, priority_level: "archived" })}
+            onDelete={() => {
+              if (confirm(`Delete ${selectedArray.length} contact${selectedArray.length > 1 ? "s" : ""}? This cannot be undone.`)) {
+                deleteMutation.mutate(selectedArray);
+              }
+            }}
+            onMerge={() => {
+              if (selectedArray.length >= 2 && confirm(`Merge ${selectedArray.length} contacts into one? This cannot be undone.`)) {
+                mergeMutation.mutate(selectedArray);
+              }
+            }}
+            onClear={() => setSelectedIds(new Set())}
+          />
         )}
       </div>
     </div>
