@@ -61,6 +61,9 @@ async def push_linkedin_data(
 
     # --- Profiles ---
     for profile in body.profiles:
+        # Normalize URL for matching (strip trailing slashes)
+        profile_url_normalized = profile.profile_url.rstrip("/") if profile.profile_url else ""
+
         result = await db.execute(
             select(Contact).where(
                 Contact.user_id == current_user.id,
@@ -68,6 +71,19 @@ async def push_linkedin_data(
             )
         )
         contact = result.scalar_one_or_none()
+
+        if not contact and profile_url_normalized:
+            # Try to find by linkedin_url (with and without trailing slash)
+            result = await db.execute(
+                select(Contact).where(
+                    Contact.user_id == current_user.id,
+                    Contact.linkedin_url.in_([
+                        profile_url_normalized,
+                        profile_url_normalized + "/",
+                    ]),
+                )
+            )
+            contact = result.scalar_one_or_none()
 
         if contact:
             # Update non-empty fields
@@ -84,50 +100,26 @@ async def push_linkedin_data(
             if profile.avatar_url:
                 contact.avatar_url = profile.avatar_url
             if profile.profile_url:
-                contact.linkedin_url = profile.profile_url
+                contact.linkedin_url = profile_url_normalized
+            if not contact.linkedin_profile_id:
+                contact.linkedin_profile_id = profile.profile_id
             contacts_updated += 1
         else:
-            # Try to find by linkedin_url as fallback
-            if profile.profile_url:
-                result = await db.execute(
-                    select(Contact).where(
-                        Contact.user_id == current_user.id,
-                        Contact.linkedin_url == profile.profile_url,
-                    )
-                )
-                contact = result.scalar_one_or_none()
-
-            if contact:
-                contact.linkedin_profile_id = profile.profile_id
-                if profile.full_name:
-                    contact.full_name = profile.full_name
-                if profile.headline:
-                    contact.linkedin_headline = profile.headline
-                if profile.company:
-                    contact.company = profile.company
-                if profile.location:
-                    contact.location = profile.location
-                if profile.about:
-                    contact.linkedin_bio = profile.about
-                if profile.avatar_url:
-                    contact.avatar_url = profile.avatar_url
-                contacts_updated += 1
-            else:
-                contact = Contact(
-                    user_id=current_user.id,
-                    full_name=profile.full_name,
-                    linkedin_profile_id=profile.profile_id,
-                    linkedin_url=profile.profile_url,
-                    linkedin_headline=profile.headline,
-                    linkedin_bio=profile.about,
-                    company=profile.company,
-                    location=profile.location,
-                    avatar_url=profile.avatar_url,
-                    source="linkedin-extension",
-                )
-                db.add(contact)
-                await db.flush()
-                contacts_created += 1
+            contact = Contact(
+                user_id=current_user.id,
+                full_name=profile.full_name,
+                linkedin_profile_id=profile.profile_id,
+                linkedin_url=profile_url_normalized,
+                linkedin_headline=profile.headline,
+                linkedin_bio=profile.about,
+                company=profile.company,
+                location=profile.location,
+                avatar_url=profile.avatar_url,
+                source="linkedin-extension",
+            )
+            db.add(contact)
+            await db.flush()
+            contacts_created += 1
 
     # --- Messages ---
     for msg in body.messages:
@@ -144,7 +136,7 @@ async def push_linkedin_data(
             interactions_skipped += 1
             continue
 
-        # Find contact by profile_id
+        # Find contact by profile_id or linkedin_url
         result = await db.execute(
             select(Contact).where(
                 Contact.user_id == current_user.id,
@@ -152,6 +144,19 @@ async def push_linkedin_data(
             )
         )
         contact = result.scalar_one_or_none()
+
+        if not contact:
+            # Try matching by linkedin_url containing the profile_id slug
+            msg_url = f"https://www.linkedin.com/in/{msg.profile_id}"
+            result = await db.execute(
+                select(Contact).where(
+                    Contact.user_id == current_user.id,
+                    Contact.linkedin_url.in_([msg_url, msg_url + "/"]),
+                )
+            )
+            contact = result.scalar_one_or_none()
+            if contact and not contact.linkedin_profile_id:
+                contact.linkedin_profile_id = msg.profile_id
 
         if not contact:
             # Auto-create contact stub

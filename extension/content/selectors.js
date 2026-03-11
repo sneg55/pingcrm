@@ -3,16 +3,16 @@
  * When LinkedIn changes their DOM, only this file needs updating.
  */
 const SELECTORS = {
+  // ── Profile selectors (updated 2026-03 for LinkedIn's SDUI redesign) ──
   profileName: [
-    'h1.text-heading-xlarge',
+    '[componentkey*="Topcard"] h2',                    // 2026 SDUI layout
+    'h1.text-heading-xlarge',                          // legacy (pre-2026)
     '[data-anonymize="person-name"]',
     '.pv-text-details__left-panel h1',
-    'section.pv-top-card h1',
   ],
   headline: [
     '.text-body-medium[data-anonymize="headline"]',
     '.pv-text-details__left-panel .text-body-medium',
-    'section.pv-top-card .text-body-medium',
   ],
   company: [
     '[data-anonymize="company-name"]',
@@ -25,6 +25,7 @@ const SELECTORS = {
     'section.pv-top-card .text-body-small.t-black--light',
   ],
   about: [
+    '[componentkey*="About"] span',                    // 2026 SDUI layout
     '#about ~ .display-flex .inline-show-more-text',
     'section.pv-about-section .pv-about__summary-text',
     '[data-anonymize="person-summary"]',
@@ -36,16 +37,15 @@ const SELECTORS = {
   ],
   // Messaging selectors
   conversationPartnerName: [
-    'h2.msg-entity-lockup__entity-title',
-    '.msg-thread__link-to-profile',
-    '.msg-conversation-card__participant-names',
+    'h2.msg-entity-lockup__entity-title',             // full-page messaging (clean name only)
+    '.msg-overlay-bubble-header__title',              // overlay messenger header
   ],
   conversationPartnerLink: [
     'a.msg-thread__link-to-profile',
     '.msg-entity-lockup__entity-title a',
+    'a[href*="/in/"]',                                // generic fallback
   ],
   messageItem: [
-    '.msg-s-message-list__event',
     '.msg-s-event-listitem',
   ],
   messageSender: [

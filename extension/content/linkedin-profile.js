@@ -14,13 +14,68 @@
     return match ? match[1].toLowerCase() : null;
   }
 
-  function extractProfile() {
-    const profileId = getProfileId();
-    if (!profileId) return null;
+  /**
+   * Extract from LinkedIn's 2026 SDUI topcard layout.
+   * Structure: h2=name, then p tags: [degree, headline, company, location, ...]
+   */
+  function extractFromTopcard(profileId) {
+    const topcard = document.querySelector('[componentkey*="Topcard"]');
+    if (!topcard) return null;
 
+    const h2 = topcard.querySelector('h2');
+    if (!h2) return null;
+    const name = h2.textContent.trim();
+    if (!name) return null;
+
+    // Direct child paragraphs of the topcard region around the name
+    const paragraphs = Array.from(topcard.querySelectorAll('p'))
+      .map(p => p.textContent.trim())
+      .filter(t => t && t !== '·');
+
+    // paragraphs[0] is typically "· 3rd" (degree) — skip entries starting with "·"
+    // headline is the first long paragraph (not degree, not follower count)
+    let headline = null;
+    let company = null;
+    let location = null;
+
+    for (const text of paragraphs) {
+      if (/^·/.test(text) || /followers?$/i.test(text) || text === 'Contact info') continue;
+      if (/Profile enhanced/i.test(text)) continue;
+      // Location pattern: "City, State/Region, Country"
+      if (!location && /,.*,/.test(text) && !/·/.test(text) && text.length < 80) {
+        location = text;
+      } else if (!headline && text.length > 5) {
+        headline = text;
+      } else if (!company && text.length > 2 && text !== headline) {
+        company = text;
+      }
+    }
+
+    // Avatar: second img in topcard (first is cover photo)
+    const imgs = Array.from(topcard.querySelectorAll('img'));
+    const avatarImg = imgs.length > 1 ? imgs[1] : null;
+
+    // About section
+    const aboutEl = querySelector('about');
+
+    return {
+      profile_id: profileId,
+      profile_url: `https://www.linkedin.com/in/${profileId}`,
+      full_name: name,
+      headline: headline || null,
+      company: company || null,
+      location: location || null,
+      about: aboutEl ? aboutEl.textContent.trim() : null,
+      avatar_url: avatarImg ? avatarImg.src : null,
+    };
+  }
+
+  /**
+   * Legacy extraction using CSS selectors (pre-2026 LinkedIn DOM).
+   */
+  function extractFromLegacy(profileId) {
     const nameEl = querySelector('profileName');
     if (!nameEl) return null;
-
     const name = nameEl.textContent.trim();
     if (!name) return null;
 
@@ -42,6 +97,13 @@
     };
   }
 
+  function extractProfile() {
+    const profileId = getProfileId();
+    if (!profileId) return null;
+    // Try new SDUI layout first, fall back to legacy selectors
+    return extractFromTopcard(profileId) || extractFromLegacy(profileId);
+  }
+
   function shouldCapture(profileId) {
     const lastCapture = recentCaptures.get(profileId);
     if (lastCapture && Date.now() - lastCapture < DEBOUNCE_MS) {
@@ -53,9 +115,16 @@
   function captureAndSend() {
     try {
       const profile = extractProfile();
-      if (!profile) return;
-      if (!shouldCapture(profile.profile_id)) return;
+      if (!profile) {
+        console.debug('[PingCRM] Could not extract profile data');
+        return;
+      }
+      if (!shouldCapture(profile.profile_id)) {
+        console.debug('[PingCRM] Skipping (recently captured):', profile.profile_id);
+        return;
+      }
 
+      console.log('[PingCRM] Captured profile:', profile.full_name, profile.profile_id);
       recentCaptures.set(profile.profile_id, Date.now());
       chrome.runtime.sendMessage({
         type: 'PROFILE_CAPTURED',
@@ -68,14 +137,17 @@
 
   // Wait for profile content to load, then capture
   function waitForProfile() {
-    const nameEl = querySelector('profileName');
+    // Check both new SDUI layout and legacy selectors
+    const topcard = document.querySelector('[componentkey*="Topcard"] h2');
+    const nameEl = topcard || querySelector('profileName');
     if (nameEl) {
       captureAndSend();
       return;
     }
 
     const observer = new MutationObserver((_mutations, obs) => {
-      const el = querySelector('profileName');
+      const tc = document.querySelector('[componentkey*="Topcard"] h2');
+      const el = tc || querySelector('profileName');
       if (el) {
         obs.disconnect();
         // Small delay to let other fields render
@@ -101,6 +173,8 @@
   });
   urlObserver.observe(document.body, { childList: true, subtree: true });
 
-  // Initial capture
-  waitForProfile();
+  // Initial capture (only on profile pages)
+  if (window.location.pathname.startsWith('/in/')) {
+    waitForProfile();
+  }
 })();

@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "PingCRM LinkedIn Companion",
-  "version": "0.1.0",
+  "version": "0.3.0",
   "description": "Passively syncs LinkedIn profile and message data to your PingCRM instance",
   "permissions": ["storage", "activeTab"],
   "host_permissions": ["https://www.linkedin.com/*"],
@@ -10,13 +10,8 @@
   },
   "content_scripts": [
     {
-      "matches": ["https://www.linkedin.com/in/*"],
-      "js": ["content/selectors.js", "content/linkedin-profile.js"],
-      "run_at": "document_idle"
-    },
-    {
-      "matches": ["https://www.linkedin.com/messaging/*"],
-      "js": ["content/selectors.js", "content/linkedin-messages.js"],
+      "matches": ["https://www.linkedin.com/*"],
+      "js": ["content/selectors.js", "content/linkedin-profile.js", "content/linkedin-messages.js"],
       "run_at": "document_idle"
     }
   ],
