@@ -8,6 +8,15 @@
 
   const capturedConversations = new Set(); // per browser session
 
+  /** Simple string hash for content-based dedup keys. */
+  function simpleHash(str) {
+    let hash = 0;
+    for (let i = 0; i < str.length; i++) {
+      hash = ((hash << 5) - hash + str.charCodeAt(i)) | 0;
+    }
+    return hash.toString(36);
+  }
+
   /**
    * Get the messaging root — either the overlay conversation bubble (shadow DOM)
    * or the document (full-page messaging).
@@ -105,26 +114,30 @@
       const bodyEl = msgEl.querySelector(
         SELECTORS.messageBody.join(', ')
       );
-      const timeEl = msgEl.querySelector(
-        SELECTORS.messageTimestamp.join(', ')
-      );
 
       if (bodyEl) {
         const content = bodyEl.textContent.trim();
         if (!content) continue;
 
-        // Direction: if sender matches conversation partner → inbound, else outbound
-        const isOutbound = currentSender !== null && currentSender !== partnerName;
+        // Direction: if sender matches partner name → inbound.
+        // If sender is known and different from partner → outbound.
+        // If sender is unknown (null) → default to inbound (safer).
+        let direction = 'inbound';
+        if (currentSender && currentSender !== partnerName) {
+          direction = 'outbound';
+        }
+
+        // Use content hash as stable dedup key (timestamps are unreliable)
+        const contentHash = simpleHash(content.substring(0, 200));
 
         messages.push({
           profile_id: profileId,
           profile_name: partnerName,
-          direction: isOutbound ? 'outbound' : 'inbound',
+          direction,
           content_preview: content.substring(0, 500),
-          timestamp: timeEl
-            ? timeEl.getAttribute('datetime') || new Date().toISOString()
-            : new Date().toISOString(),
+          timestamp: new Date().toISOString(),
           conversation_id: conversationId,
+          content_hash: contentHash,
         });
       }
     }

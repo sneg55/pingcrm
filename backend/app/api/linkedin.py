@@ -40,6 +40,7 @@ class LinkedInMessagePush(BaseModel):
     content_preview: str
     timestamp: str  # ISO 8601
     conversation_id: str
+    content_hash: str | None = None  # stable hash for dedup
 
 
 class LinkedInPushRequest(BaseModel):
@@ -123,7 +124,11 @@ async def push_linkedin_data(
 
     # --- Messages ---
     for msg in body.messages:
-        raw_ref = f"linkedin:{msg.conversation_id}:{msg.timestamp}"
+        # Use content_hash for stable dedup (timestamps are unreliable from extension)
+        if msg.content_hash:
+            raw_ref = f"linkedin:{msg.conversation_id}:{msg.content_hash}"
+        else:
+            raw_ref = f"linkedin:{msg.conversation_id}:{msg.timestamp}"
 
         # Check for duplicate
         existing = await db.execute(

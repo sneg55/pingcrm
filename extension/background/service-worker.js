@@ -144,5 +144,5 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
 });
 
 chrome.runtime.onInstalled.addListener(() => {
-  console.log('[PingCRM] LinkedIn Companion v0.3.0 installed');
+  console.log('[PingCRM] LinkedIn Companion v0.3.1 installed');
 });
