@@ -1201,8 +1201,13 @@ async def send_message(
         try:
             send_result = await send_telegram_message(
                 current_user, username, body.message.strip(),
+                telegram_user_id=contact.telegram_user_id,
                 scheduled_for=body.scheduled_for,
             )
+            # Backfill telegram_user_id to avoid future username lookups
+            resolved_id = send_result.get("resolved_user_id")
+            if resolved_id and not contact.telegram_user_id:
+                contact.telegram_user_id = str(resolved_id)
         except RuntimeError as exc:
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
         except Exception as exc:

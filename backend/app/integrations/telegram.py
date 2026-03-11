@@ -11,9 +11,9 @@ from typing import Any
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from telethon import TelegramClient
-from telethon.errors import SessionPasswordNeededError
+from telethon.errors import FloodWaitError, SessionPasswordNeededError
 from telethon.sessions import StringSession
-from telethon.tl.types import Channel, Chat, User as TelegramUser
+from telethon.tl.types import Channel, Chat, InputPeerUser, User as TelegramUser
 
 from app.core.config import settings
 from app.models.contact import Contact
@@ -110,14 +110,19 @@ async def send_telegram_message(
     username: str,
     message: str,
     *,
+    telegram_user_id: int | str | None = None,
     scheduled_for: object | None = None,
 ) -> dict:
     """Send a Telegram message to *username* using the user's session.
 
+    If *telegram_user_id* is provided, uses it directly to avoid a
+    ResolveUsernameRequest call (which is heavily rate-limited by Telegram).
+
     If *scheduled_for* is a datetime, the message is scheduled for future
     delivery using Telegram's native scheduled-message feature.
 
-    Returns dict with ``message_id``, ``sent`` status, and ``scheduled``.
+    Returns dict with ``message_id``, ``sent`` status, ``scheduled``,
+    and ``resolved_user_id`` (for caller to cache).
     """
     if not user.telegram_session:
         raise RuntimeError("No Telegram session. Please connect your account first.")
@@ -125,7 +130,20 @@ async def send_telegram_message(
     client = _make_client(user.telegram_session)
     await _ensure_connected(client)
     try:
-        entity = await client.get_input_entity(username)
+        # Use cached user ID to avoid rate-limited username resolution
+        resolved_id = None
+        if telegram_user_id:
+            uid = int(telegram_user_id)
+            try:
+                entity = await client.get_input_entity(uid)
+            except (ValueError, TypeError):
+                logger.debug("Cached user_id %s invalid, falling back to username", uid)
+                entity = await client.get_input_entity(username)
+                resolved_id = getattr(entity, "user_id", None)
+        else:
+            entity = await client.get_input_entity(username)
+            resolved_id = getattr(entity, "user_id", None)
+
         kwargs: dict = {}
         if scheduled_for is not None:
             kwargs["schedule"] = scheduled_for
@@ -134,7 +152,18 @@ async def send_telegram_message(
             "sent": True,
             "message_id": result.id,
             "scheduled": scheduled_for is not None,
+            "resolved_user_id": resolved_id,
         }
+    except FloodWaitError as e:
+        wait_hours = e.seconds // 3600
+        wait_minutes = (e.seconds % 3600) // 60
+        if wait_hours > 0:
+            wait_str = f"{wait_hours}h {wait_minutes}m"
+        else:
+            wait_str = f"{wait_minutes}m"
+        raise RuntimeError(
+            f"Telegram rate limit: please wait {wait_str} before sending messages."
+        ) from e
     finally:
         await client.disconnect()
 
