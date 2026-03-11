@@ -59,7 +59,7 @@ const sortColumns = [
   { key: "score", label: "Score" },
   { key: "priority", label: "Priority" },
   { key: "activity", label: "Activity" },
-  { key: "interaction", label: "Last" },
+  { key: "interaction", label: "Last Conversation" },
 ] as const;
 
 // ---------------------------------------------------------------------------
