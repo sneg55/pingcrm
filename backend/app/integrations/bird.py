@@ -81,11 +81,12 @@ def _extract_tweets(data: dict | list | None) -> list[dict[str, Any]]:
 
 
 async def fetch_user_tweets_bird(handle: str, count: int = 5) -> list[dict[str, Any]]:
-    """Fetch a user's recent tweets via ``bird user-tweets``."""
+    """Fetch a user's recent tweets via ``bird search from:user``."""
     handle = handle.lstrip("@").strip()
     if not handle:
         return []
-    data = await _run_bird("user-tweets", f"@{handle}", "-n", str(count))
+    # bird 0.4.0 uses 'search from:user' instead of 'user-tweets'
+    data = await _run_bird("search", f"from:{handle}", "-n", str(count))
     return _extract_tweets(data)
 
 
@@ -109,8 +110,9 @@ async def fetch_user_profile_bird(handle: str) -> dict[str, Any]:
 
     result: dict[str, Any] = {}
 
-    # Primary: bird user-tweets --json-full → extract profile from _raw
-    data = await _run_bird("user-tweets", f"@{handle}", "-n", "1", "--json-full")
+    # Primary: bird search from:user → extract profile from _raw
+    # bird 0.4.0 uses 'search from:user' instead of 'user-tweets'
+    data = await _run_bird("search", f"from:{handle}", "-n", "1")
     tweets = _extract_tweets(data)
     if tweets:
         raw = tweets[0].get("_raw", {})
@@ -148,11 +150,8 @@ async def fetch_user_profile_bird(handle: str) -> dict[str, Any]:
         if metrics:
             result["public_metrics"] = metrics
 
-    # Fallback: bird about → account origin (if no location yet)
-    if "location" not in result:
-        about = await _run_bird("about", f"@{handle}")
-        if isinstance(about, dict) and about.get("accountBasedIn"):
-            result["location"] = about["accountBasedIn"]
+    # Note: bird 0.4.0 doesn't have 'about' command for user profiles
+    # Location must come from the search result's user data
 
     return result
 
@@ -175,6 +174,7 @@ async def fetch_user_replies_bird(handle: str, count: int = 50) -> list[dict[str
     handle = handle.lstrip("@").strip()
     if not handle:
         return []
-    data = await _run_bird("user-tweets", f"@{handle}", "-n", str(count))
+    # bird 0.4.0 uses 'search from:user' instead of 'user-tweets'
+    data = await _run_bird("search", f"from:{handle}", "-n", str(count))
     tweets = _extract_tweets(data)
     return [t for t in tweets if t.get("inReplyToStatusId")]

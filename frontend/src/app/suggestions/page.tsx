@@ -9,6 +9,14 @@ import {
   Clock,
   X,
   ChevronDown,
+  Timer,
+  TimerOff,
+  Cake,
+  Calendar,
+  CalendarClock,
+  CheckCircle2,
+  RefreshCw,
+  Send,
 } from "lucide-react";
 import { useQueryClient } from "@tanstack/react-query";
 import {
@@ -24,23 +32,7 @@ import { cn } from "@/lib/utils";
 
 type Channel = "email" | "telegram" | "twitter";
 
-const channelIcons: Record<Channel, ReactNode> = {
-  email: <Mail className="w-3.5 h-3.5" />,
-  telegram: <MessageCircle className="w-3.5 h-3.5" />,
-  twitter: <Twitter className="w-3.5 h-3.5" />,
-};
-
-const channelColors: Record<Channel, string> = {
-  email: "text-blue-600 bg-blue-50 border-blue-100",
-  telegram: "text-sky-600 bg-sky-50 border-sky-100",
-  twitter: "text-slate-600 bg-slate-50 border-slate-100",
-};
-
-const snoozeOptions = [
-  { label: "2 weeks", days: 14 },
-  { label: "1 month", days: 30 },
-  { label: "3 months", days: 90 },
-];
+/* ── Helpers ── */
 
 function getInitials(name: string | null): string {
   if (!name) return "?";
@@ -52,33 +44,115 @@ function getInitials(name: string | null): string {
     .toUpperCase();
 }
 
-function SuggestionCard({ suggestion }: { suggestion: Suggestion }) {
+function displayName(c: Suggestion["contact"]): string {
+  return (
+    c?.full_name ??
+    ([c?.given_name, c?.family_name].filter(Boolean).join(" ") || "Unknown contact")
+  );
+}
+
+function daysAgo(dateStr: string | null | undefined): number | null {
+  if (!dateStr) return null;
+  const diff = Date.now() - new Date(dateStr).getTime();
+  return Math.floor(diff / (1000 * 60 * 60 * 24));
+}
+
+function daysAgoLabel(days: number | null): string {
+  if (days === null) return "";
+  if (days >= 90) return "90+ days";
+  return `${days} days ago`;
+}
+
+/* ── Relationship strength badge ── */
+function strengthFromScore(score: number | null | undefined): { label: string; colors: string } {
+  if (score == null || score <= 0) return { label: "New", colors: "bg-sky-50 text-sky-600 border-sky-200" };
+  if (score >= 70) return { label: "Strong", colors: "bg-emerald-50 text-emerald-600 border-emerald-200" };
+  if (score >= 30) return { label: "Warm", colors: "bg-amber-50 text-amber-600 border-amber-200" };
+  return { label: "New", colors: "bg-sky-50 text-sky-600 border-sky-200" };
+}
+
+function strengthDotColor(label: string): string {
+  if (label === "Strong") return "bg-emerald-500";
+  if (label === "Warm") return "bg-amber-400";
+  return "bg-sky-400";
+}
+
+/* ── Avatar background color based on initials ── */
+const avatarColors = [
+  "bg-teal-100 text-teal-700",
+  "bg-violet-100 text-violet-700",
+  "bg-amber-100 text-amber-700",
+  "bg-sky-100 text-sky-700",
+  "bg-rose-100 text-rose-700",
+  "bg-stone-200 text-stone-600",
+];
+
+function avatarColor(name: string | null): string {
+  if (!name) return avatarColors[5];
+  let hash = 0;
+  for (let i = 0; i < name.length; i++) hash = name.charCodeAt(i) + ((hash << 5) - hash);
+  return avatarColors[Math.abs(hash) % avatarColors.length];
+}
+
+/* ── Trigger pill config ── */
+interface TriggerConfig {
+  icon: ReactNode;
+  label: string;
+  colors: string;
+}
+
+function triggerConfig(triggerType: string, days: number | null): TriggerConfig {
+  switch (triggerType) {
+    case "birthday":
+      return { icon: <Cake className="w-2.5 h-2.5" />, label: "Birthday coming up", colors: "bg-violet-50 text-violet-500" };
+    case "event_based":
+      return { icon: <Calendar className="w-2.5 h-2.5" />, label: "New event detected", colors: "bg-blue-50 text-blue-500" };
+    case "scheduled":
+      return { icon: <CalendarClock className="w-2.5 h-2.5" />, label: "Scheduled follow-up", colors: "bg-teal-50 text-teal-600" };
+    case "time_based":
+    default: {
+      const d = days ?? 0;
+      if (d >= 90) return { icon: <TimerOff className="w-2.5 h-2.5" />, label: `No interaction in 90+ days`, colors: "bg-red-50 text-red-500" };
+      return { icon: <Timer className="w-2.5 h-2.5" />, label: `No interaction in ${d} days`, colors: "bg-stone-100 text-stone-500" };
+    }
+  }
+}
+
+/* ── Snooze options ── */
+const snoozeOptions = [
+  { label: "2 weeks", days: 14 },
+  { label: "1 month", days: 30 },
+  { label: "3 months", days: 90 },
+];
+
+/* ═══════════════ SUGGESTION CARD ═══════════════ */
+
+function SuggestionCard({
+  suggestion,
+  expanded,
+  onToggle,
+}: {
+  suggestion: Suggestion;
+  expanded: boolean;
+  onToggle: () => void;
+}) {
   const queryClient = useQueryClient();
   const updateSuggestion = useUpdateSuggestion();
   const sendMessage = useSendMessage();
   const [snoozeOpen, setSnoozeOpen] = useState(false);
-  const [showEditor, setShowEditor] = useState(false);
-
-  const c = suggestion.contact;
-  const displayName =
-    c?.full_name ??
-    ([c?.given_name, c?.family_name].filter(Boolean).join(" ") || "Unknown contact");
-  const channel = suggestion.suggested_channel;
-
-  const triggerLabels: Record<string, string> = {
-    time_based: "No interaction in 90+ days",
-    event_based: "New event detected",
-    scheduled: "Scheduled follow-up",
-    birthday: "🎂 Birthday coming up",
-  };
-  const triggerReason = triggerLabels[suggestion.trigger_type] ?? suggestion.trigger_type;
-
   const [sendConfirm, setSendConfirm] = useState<string | null>(null);
   const [sendError, setSendError] = useState<string | null>(null);
 
+  const c = suggestion.contact;
+  const name = displayName(c);
+  const channel = suggestion.suggested_channel;
+  const days = daysAgo(c?.last_interaction_at);
+  const strength = strengthFromScore(null); // SuggestionContact doesn't have relationship_score
+  const trigger = triggerConfig(suggestion.trigger_type, days);
+  const isRevival = suggestion.trigger_type === "time_based" && (days ?? 0) >= 90;
+
   const handleSend = async (message: string, ch: Channel, scheduledFor?: string) => {
     setSendError(null);
-
     if (ch === "telegram" && c?.telegram_username) {
       try {
         await sendMessage.mutateAsync({
@@ -87,12 +161,10 @@ function SuggestionCard({ suggestion }: { suggestion: Suggestion }) {
           channel: ch,
           scheduledFor,
         });
-
         updateSuggestion.mutate({
           id: suggestion.id,
           input: { status: "sent", suggested_message: message, suggested_channel: ch },
         });
-
         setSendConfirm(
           scheduledFor
             ? `Message scheduled for ${new Date(scheduledFor).toLocaleString()}!`
@@ -103,26 +175,21 @@ function SuggestionCard({ suggestion }: { suggestion: Suggestion }) {
         setSendError(err instanceof Error ? err.message : "Failed to send message");
       }
     } else {
-      // Fallback for unsupported channels: copy to clipboard
       void navigator.clipboard.writeText(message).catch(() => {});
       if (ch === "twitter" && c?.twitter_handle) {
         window.open(`https://x.com/${c.twitter_handle.replace(/^@/, "")}`, "_blank");
       }
-
       updateSuggestion.mutate({
         id: suggestion.id,
         input: { status: "sent", suggested_message: message, suggested_channel: ch },
       });
-
       setSendConfirm("Message copied to clipboard");
       setTimeout(() => setSendConfirm(null), 3000);
     }
   };
 
-  const handleSnooze = (days: number) => {
-    const snoozeUntil = new Date(
-      Date.now() + days * 24 * 60 * 60 * 1000
-    ).toISOString();
+  const handleSnooze = (snoozeDays: number) => {
+    const snoozeUntil = new Date(Date.now() + snoozeDays * 24 * 60 * 60 * 1000).toISOString();
     updateSuggestion.mutate({
       id: suggestion.id,
       input: { status: "snoozed", snooze_until: snoozeUntil },
@@ -131,247 +198,278 @@ function SuggestionCard({ suggestion }: { suggestion: Suggestion }) {
   };
 
   const handleDismiss = () => {
-    updateSuggestion.mutate({
-      id: suggestion.id,
-      input: { status: "dismissed" },
-    });
+    updateSuggestion.mutate({ id: suggestion.id, input: { status: "dismissed" } });
   };
 
+  /* ── Send button label varies by channel ── */
+  const sendLabel =
+    channel === "email" ? "Open Email" : channel === "twitter" ? "Send DM" : "Send";
+  const sendIcon =
+    channel === "email" ? <Mail className="w-3.5 h-3.5" /> : channel === "twitter" ? <Send className="w-3.5 h-3.5" /> : <Send className="w-3.5 h-3.5" />;
+
   return (
-    <div className="bg-white rounded-xl border border-gray-200 p-5 shadow-sm space-y-4">
-      {sendConfirm && (
-        <div className="text-xs text-green-700 bg-green-50 border border-green-200 rounded-md px-3 py-2">
-          {sendConfirm}
-        </div>
+    <div
+      className={cn(
+        "bg-white rounded-xl border border-stone-200 p-4 transition-all duration-200",
+        expanded
+          ? "border-teal-200 shadow-[0_2px_16px_rgba(13,148,136,0.08)]"
+          : "cursor-pointer hover:shadow-[0_2px_12px_rgba(0,0,0,0.06)] hover:border-stone-300"
       )}
-      {sendError && (
-        <div className="text-xs text-red-700 bg-red-50 border border-red-200 rounded-md px-3 py-2">
-          {sendError}
+      onClick={() => { if (!expanded) onToggle(); }}
+    >
+      <div className="flex items-start gap-3">
+        {/* Avatar */}
+        <div className={cn("w-10 h-10 rounded-full flex items-center justify-center text-sm font-semibold shrink-0", avatarColor(name))}>
+          {getInitials(name)}
         </div>
-      )}
-      {/* Contact header */}
-      <div className="flex items-start justify-between gap-3">
-        <div className="flex items-center gap-3 min-w-0">
-          <div className="w-10 h-10 rounded-full bg-indigo-100 flex items-center justify-center text-indigo-700 font-semibold text-sm flex-shrink-0">
-            {getInitials(displayName)}
-          </div>
-          <div className="min-w-0">
-            <Link
-              href={`/contacts/${suggestion.contact_id}`}
-              className="font-semibold text-blue-600 hover:text-blue-800 hover:underline truncate block"
-            >
-              {displayName}
-            </Link>
-            <p className="text-xs text-gray-500 truncate mt-0.5">
-              {triggerReason}
-            </p>
-          </div>
-        </div>
-        <span
-          className={cn(
-            "inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium border flex-shrink-0",
-            channelColors[channel]
-          )}
-        >
-          {channelIcons[channel]}
-          {channel}
-        </span>
-      </div>
 
-      {/* Draft preview or editor */}
-      {showEditor ? (
-        <MessageEditor
-          suggestionId={suggestion.id}
-          initialMessage={suggestion.suggested_message}
-          initialChannel={channel}
-          onSend={handleSend}
-          onRegenerate={() => {
-            void queryClient.invalidateQueries({ queryKey: ["suggestions"] });
-          }}
-        />
-      ) : (
-        <div
-          className="text-sm text-gray-700 bg-gray-50 rounded-md p-3 border border-gray-100 cursor-pointer hover:border-blue-200 transition-colors"
-          onClick={() => setShowEditor(true)}
-          title="Click to edit"
-        >
-          {suggestion.suggested_message}
-        </div>
-      )}
-
-      {/* Action buttons */}
-      {!showEditor && (
-        <div className="flex items-center gap-2">
-          <button
-            onClick={() => setShowEditor(true)}
-            className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium rounded-md bg-green-600 text-white hover:bg-green-700 disabled:opacity-50 transition-colors"
-            disabled={updateSuggestion.isPending || sendMessage.isPending}
-          >
-            {sendMessage.isPending ? "Sending..." : "Send"}
-          </button>
-
-          {/* Snooze with dropdown */}
-          <div className="relative">
-            <div className="inline-flex rounded-md border border-yellow-300 overflow-hidden">
-              <button
-                onClick={() => handleSnooze(14)}
-                className="px-3 py-1.5 text-sm text-yellow-700 bg-yellow-50 hover:bg-yellow-100 transition-colors"
-                disabled={updateSuggestion.isPending}
+        <div className="flex-1 min-w-0">
+          {/* Header row */}
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2 flex-wrap">
+              <Link
+                href={`/contacts/${suggestion.contact_id}`}
+                className="text-sm font-medium text-stone-900 hover:text-teal-700"
+                onClick={(e) => e.stopPropagation()}
               >
-                Snooze
-              </button>
-              <button
-                onClick={() => setSnoozeOpen((v) => !v)}
-                className="px-2 py-1.5 text-yellow-700 bg-yellow-50 hover:bg-yellow-100 border-l border-yellow-300 transition-colors"
-                aria-label="Snooze options"
-              >
-                <ChevronDown className="w-3.5 h-3.5" />
-              </button>
+                {name}
+              </Link>
+              {/* Strength badge */}
+              <span className={cn("inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium border", strength.colors)}>
+                <span className={cn("w-1.5 h-1.5 rounded-full", strengthDotColor(strength.label))} />
+                {strength.label}
+              </span>
+              {/* Revival badge */}
+              {isRevival && (
+                <span className="px-1.5 py-0.5 rounded text-[10px] font-medium bg-stone-100 text-stone-500 border border-stone-200">
+                  Revival
+                </span>
+              )}
             </div>
-            {snoozeOpen && (
-              <div className="absolute left-0 top-full mt-1 w-36 bg-white rounded-lg border border-gray-200 shadow-md py-1 z-10">
-                {snoozeOptions.map((opt) => (
-                  <button
-                    key={opt.days}
-                    onClick={() => handleSnooze(opt.days)}
-                    className="w-full text-left px-3 py-1.5 text-sm text-gray-700 hover:bg-gray-50 flex items-center gap-2"
-                  >
-                    <Clock className="w-3.5 h-3.5 text-gray-400" />
-                    {opt.label}
-                  </button>
-                ))}
-              </div>
-            )}
+            <span className="text-[11px] text-stone-400 shrink-0">
+              {suggestion.trigger_type === "birthday"
+                ? "🎂 Birthday soon"
+                : daysAgoLabel(days)}
+            </span>
           </div>
 
-          <button
-            onClick={handleDismiss}
-            disabled={updateSuggestion.isPending}
-            className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-md text-gray-500 border border-gray-200 hover:bg-gray-50 disabled:opacity-50 transition-colors"
-          >
-            <X className="w-3.5 h-3.5" />
-            Dismiss
-          </button>
+          {/* Trigger pill */}
+          <div className="flex items-center gap-1.5 mt-1.5">
+            <span className={cn("inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[10px] font-medium", trigger.colors)}>
+              {trigger.icon} {trigger.label}
+            </span>
+          </div>
+
+          {/* Message preview */}
+          <p className="text-xs text-stone-500 mt-1.5 line-clamp-2">
+            {suggestion.suggested_message}
+          </p>
+
+          {/* ── EXPANDED: Composer ── */}
+          {expanded && (
+            <div className="mt-4 pt-4 border-t border-stone-100" onClick={(e) => e.stopPropagation()}>
+              {sendConfirm && (
+                <div className="flex items-center gap-2 text-xs text-emerald-700 bg-emerald-50 border border-emerald-200 rounded-md px-3 py-2 mb-3">
+                  <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                  {sendConfirm}
+                </div>
+              )}
+              {sendError && (
+                <div className="text-xs text-red-700 bg-red-50 border border-red-200 rounded-md px-3 py-2 mb-3">
+                  {sendError}
+                </div>
+              )}
+
+              <MessageEditor
+                suggestionId={suggestion.id}
+                contactId={suggestion.contact_id}
+                initialMessage={suggestion.suggested_message}
+                initialChannel={channel}
+                onSend={handleSend}
+                onRegenerate={() => {
+                  void queryClient.invalidateQueries({ queryKey: ["suggestions"] });
+                }}
+              />
+
+              {/* Extra actions row */}
+              <div className="flex items-center justify-between mt-3">
+                <div className="flex items-center gap-2">
+                  {/* Snooze */}
+                  <div className="relative inline-block">
+                    <button
+                      onClick={() => setSnoozeOpen((v) => !v)}
+                      className="inline-flex items-center gap-1 px-2.5 py-1.5 text-xs rounded-md text-amber-600 border border-amber-200 bg-amber-50 hover:bg-amber-100 transition-colors"
+                    >
+                      <Clock className="w-3 h-3" /> Snooze <ChevronDown className="w-2.5 h-2.5" />
+                    </button>
+                    {snoozeOpen && (
+                      <div className="absolute left-0 bottom-full mb-1 w-36 bg-white rounded-lg border border-stone-200 shadow-lg py-1 z-50">
+                        {snoozeOptions.map((opt) => (
+                          <button
+                            key={opt.days}
+                            onClick={() => handleSnooze(opt.days)}
+                            className="w-full flex items-center gap-2 px-3 py-1.5 text-xs text-stone-700 hover:bg-stone-50"
+                          >
+                            <Clock className="w-3 h-3 text-stone-400" />
+                            {opt.label}
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                  {/* Dismiss */}
+                  <button
+                    onClick={handleDismiss}
+                    disabled={updateSuggestion.isPending}
+                    className="inline-flex items-center gap-1 px-2.5 py-1.5 text-xs rounded-md text-stone-400 border border-stone-200 hover:bg-stone-50 transition-colors"
+                  >
+                    <X className="w-3 h-3" /> Dismiss
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
         </div>
-      )}
+      </div>
     </div>
   );
 }
 
+/* ═══════════════ PAGE ═══════════════ */
+
 export default function SuggestionsPage() {
   const { data, isLoading } = useSuggestions();
   const generateSuggestions = useGenerateSuggestions();
+  const [expandedId, setExpandedId] = useState<string | null>(null);
+  const [toastDismissed, setToastDismissed] = useState(false);
 
-  const allSuggestions = data?.data ?? [];
-  const pendingSuggestions = allSuggestions.filter(
-    (s) => (s as Suggestion).status === "pending"
-  );
+  const allSuggestions = (data?.data ?? []) as Suggestion[];
+  const pendingSuggestions = allSuggestions.filter((s) => s.status === "pending");
 
-  const genResult = generateSuggestions.data?.data;
   const genMeta = generateSuggestions.data?.meta;
-  const genCount = (genMeta as Record<string, number> | undefined)?.generated ?? genResult?.length ?? 0;
+  const genResult = generateSuggestions.data?.data;
+  const genCount =
+    (genMeta as Record<string, number> | undefined)?.generated ?? (genResult as unknown[])?.length ?? 0;
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      <div className="max-w-3xl mx-auto px-4 py-8">
+    <div className="min-h-screen bg-stone-50">
+      {/* Success toast */}
+      {generateSuggestions.isSuccess && !toastDismissed && (
+        <div className="max-w-6xl mx-auto px-4 pt-4">
+          <div className="flex items-center gap-3 px-4 py-3 bg-emerald-50 border border-emerald-200 rounded-xl text-sm text-emerald-800">
+            <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+            <span>
+              Generation complete —{" "}
+              <strong>
+                {genCount > 0
+                  ? `${genCount} new suggestion${genCount !== 1 ? "s" : ""}`
+                  : "no new suggestions"}
+              </strong>{" "}
+              generated
+            </span>
+            <button onClick={() => setToastDismissed(true)} className="ml-auto text-emerald-500 hover:text-emerald-700">
+              <X className="w-4 h-4" />
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Generation error */}
+      {generateSuggestions.isError && (
+        <div className="max-w-6xl mx-auto px-4 pt-4">
+          <div className="flex items-center gap-3 px-4 py-3 bg-red-50 border border-red-200 rounded-xl text-sm text-red-800">
+            Failed to generate suggestions. Please try again.
+          </div>
+        </div>
+      )}
+
+      <main className="max-w-6xl mx-auto px-4 py-8">
         {/* Header */}
-        <div className="flex items-center justify-between mb-8">
+        <div className="flex items-start justify-between mb-6">
           <div>
-            <h1 className="text-2xl font-bold text-gray-900">
-              Weekly Digest
+            <h1 className="text-2xl font-bold text-stone-900 flex items-center gap-2.5">
+              Suggestions Digest
+              {pendingSuggestions.length > 0 && (
+                <span className="inline-flex items-center justify-center w-6 h-6 rounded-full bg-teal-100 text-teal-700 text-xs font-bold font-mono">
+                  {pendingSuggestions.length}
+                </span>
+              )}
             </h1>
-            <p className="text-sm text-gray-500 mt-1">
-              AI-suggested follow-ups for your network
-            </p>
+            <p className="text-sm text-stone-500 mt-1">AI-suggested follow-ups for your network</p>
           </div>
           <button
-            onClick={() => generateSuggestions.mutate()}
+            onClick={() => { setToastDismissed(false); generateSuggestions.mutate(); }}
             disabled={generateSuggestions.isPending}
-            className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-lg bg-indigo-600 text-white hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+            className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-teal-600 text-white text-sm font-medium hover:bg-teal-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors shadow-sm shrink-0"
           >
-            <Sparkles className={`w-4 h-4 ${generateSuggestions.isPending ? "animate-spin" : ""}`} />
-            {generateSuggestions.isPending
-              ? "Generating..."
-              : "Generate new suggestions"}
+            <Sparkles className={cn("w-4 h-4", generateSuggestions.isPending && "animate-spin")} />
+            {generateSuggestions.isPending ? "Generating..." : "Generate new suggestions"}
           </button>
         </div>
 
         {/* Generation progress */}
         {generateSuggestions.isPending && (
-          <div className="mb-6 p-4 rounded-lg bg-indigo-50 border border-indigo-200">
-            <div className="flex items-center gap-3 mb-2">
-              <div className="w-5 h-5 border-2 border-indigo-600 border-t-transparent rounded-full animate-spin" />
-              <p className="text-sm font-medium text-indigo-800">Generating follow-up suggestions...</p>
+          <div className="bg-white rounded-xl border border-stone-200 p-6 mb-6">
+            <div className="flex items-center gap-3 mb-3">
+              <div className="w-8 h-8 rounded-full bg-teal-50 flex items-center justify-center">
+                <Sparkles className="w-4 h-4 text-teal-600 animate-pulse" />
+              </div>
+              <div>
+                <p className="text-sm font-medium text-stone-900">Generating follow-up suggestions...</p>
+                <p className="text-xs text-stone-400 mt-0.5">Analyzing recent interactions, relationship scores, and upcoming events</p>
+              </div>
             </div>
-            <p className="text-xs text-indigo-600 ml-8">
-              Analyzing your contacts, interaction history, and relationship scores. This may take a moment.
-            </p>
-            <div className="mt-3 ml-8 h-1.5 rounded-full bg-indigo-100 overflow-hidden">
-              <div
-                className="h-full rounded-full bg-indigo-500"
-                style={{
-                  width: "40%",
-                  animation: "indeterminate 1.5s ease-in-out infinite",
-                }}
-              />
+            <div className="h-1.5 bg-stone-100 rounded-full overflow-hidden">
+              <div className="h-full rounded-full bg-teal-500 w-1/4" style={{ animation: "suggestionsIndeterminate 1.5s ease-in-out infinite" }} />
               <style>{`
-                @keyframes indeterminate {
-                  0% { margin-left: 0%; width: 30%; }
-                  50% { margin-left: 30%; width: 40%; }
-                  100% { margin-left: 70%; width: 30%; }
+                @keyframes suggestionsIndeterminate {
+                  0% { transform: translateX(-100%); }
+                  100% { transform: translateX(400%); }
                 }
               `}</style>
             </div>
           </div>
         )}
 
-        {/* Generation error */}
-        {generateSuggestions.isError && (
-          <div className="mb-4 p-3 rounded-lg bg-red-50 border border-red-200 text-sm text-red-700">
-            Failed to generate suggestions. Please try again.
-          </div>
-        )}
-
-        {/* Generation success */}
-        {generateSuggestions.isSuccess && (
-          <div className="mb-4 p-4 rounded-lg bg-green-50 border border-green-200">
-            <p className="text-sm font-medium text-green-800">
-              Generation complete
-            </p>
-            <p className="text-sm text-green-700 mt-1">
-              {genCount > 0
-                ? `${genCount} new suggestion${genCount !== 1 ? "s" : ""} generated.`
-                : "No new suggestions — your network is in good shape!"}
-            </p>
-          </div>
-        )}
-
         {/* Content */}
         {isLoading ? (
-          <div className="space-y-4">
+          <div className="space-y-3">
             {[1, 2, 3].map((n) => (
-              <div
-                key={n}
-                className="h-44 rounded-xl bg-white border border-gray-200 animate-pulse"
-              />
+              <div key={n} className="h-28 rounded-xl bg-white border border-stone-200 animate-pulse" />
             ))}
           </div>
         ) : pendingSuggestions.length === 0 ? (
-          <div className="text-center py-20 text-gray-400">
-            <Sparkles className="w-10 h-10 mx-auto mb-3 opacity-30" />
-            <p className="text-sm">No pending suggestions</p>
-            <p className="text-xs mt-1">
-              Generate new suggestions to get started.
+          /* Empty state */
+          <div className="bg-white rounded-2xl border border-stone-200 p-14 text-center mt-6">
+            <div className="w-16 h-16 rounded-full bg-teal-50 flex items-center justify-center mx-auto mb-4">
+              <Sparkles className="w-8 h-8 text-teal-400" />
+            </div>
+            <h2 className="text-lg font-bold text-stone-900 mb-2">No pending suggestions</h2>
+            <p className="text-sm text-stone-500 mb-6">
+              Generate new suggestions to get started, or check back later — Ping runs analysis daily.
             </p>
+            <button
+              onClick={() => { setToastDismissed(false); generateSuggestions.mutate(); }}
+              disabled={generateSuggestions.isPending}
+              className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-lg bg-teal-600 text-white hover:bg-teal-700 disabled:opacity-50 transition-colors shadow-sm"
+            >
+              <Sparkles className="w-4 h-4" /> Generate new suggestions
+            </button>
           </div>
         ) : (
-          <div className="space-y-4">
-            {(pendingSuggestions as Suggestion[]).map((suggestion) => (
-              <SuggestionCard key={suggestion.id} suggestion={suggestion} />
+          /* Suggestion cards */
+          <div className="space-y-3">
+            {pendingSuggestions.map((suggestion) => (
+              <SuggestionCard
+                key={suggestion.id}
+                suggestion={suggestion}
+                expanded={expandedId === suggestion.id}
+                onToggle={() => setExpandedId(expandedId === suggestion.id ? null : suggestion.id)}
+              />
             ))}
           </div>
         )}
-      </div>
+      </main>
     </div>
   );
 }
