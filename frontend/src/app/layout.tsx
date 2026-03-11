@@ -22,6 +22,9 @@ const jetbrainsMono = JetBrains_Mono({
 export const metadata: Metadata = {
   title: "Ping CRM",
   description: "Your AI-powered networking assistant",
+  icons: {
+    icon: "/favicon.svg",
+  },
 };
 
 export default function RootLayout({
