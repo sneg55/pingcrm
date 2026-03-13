@@ -99,6 +99,10 @@ async def import_csv(
             )
             db.add(contact)
             await db.flush()
+
+            from app.services.organization_service import auto_create_organization
+            await auto_create_organization(contact, user_id, db)
+
             created.append({"id": str(contact.id), "full_name": contact.full_name})
         except Exception as exc:
             errors.append(f"Row {i + 1}: {exc!s}")
@@ -179,6 +183,10 @@ async def import_linkedin_connections(
             )
             db.add(contact)
             await db.flush()
+
+            from app.services.organization_service import auto_create_organization
+            await auto_create_organization(contact, user_id, db)
+
             created += 1
         except Exception as exc:
             errors.append(f"Row {i + 1}: {exc!s}")

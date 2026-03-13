@@ -603,6 +603,11 @@ async def create_contact(
     contact = Contact(**contact_in.model_dump(), user_id=current_user.id)
     db.add(contact)
     await db.flush()
+
+    # Auto-assign to organization by company name
+    from app.services.organization_service import auto_create_organization
+    await auto_create_organization(contact, current_user.id, db)
+
     await db.refresh(contact)
     return envelope(ContactResponse.model_validate(contact).model_dump())
 
@@ -696,8 +701,17 @@ async def update_contact(
     if not contact:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Contact not found")
 
-    for field, value in contact_in.model_dump(exclude_unset=True).items():
+    update_data = contact_in.model_dump(exclude_unset=True)
+    company_changed = "company" in update_data and update_data["company"] != contact.company
+
+    for field, value in update_data.items():
         setattr(contact, field, value)
+
+    # Re-assign organization if company name changed
+    if company_changed:
+        contact.organization_id = None  # clear old assignment
+        from app.services.organization_service import auto_create_organization
+        await auto_create_organization(contact, current_user.id, db)
 
     # When archiving, dismiss any pending follow-up suggestions
     if contact.priority_level == "archived":
