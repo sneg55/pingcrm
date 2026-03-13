@@ -519,6 +519,16 @@ def _compute_adaptive_score(ca: Contact, cb: Contact) -> float:
             weight = BASE_WEIGHTS[key] / active_weight_sum
             total += weight * scores[key]
 
+    # Guard: company + email_domain are correlated (colleagues share both).
+    # If names clearly differ, cap the score to prevent false positives.
+    if has_name and name_score < 0.5 and company_score == 1.0 and email_score == 1.0:
+        total = min(total, 0.35)  # Below the 0.40 display threshold
+
+    # Guard: company match alone (without name similarity) should not surface
+    # as a duplicate — two different people at the same company are not dupes.
+    if has_name and name_score < 0.5 and company_score == 1.0 and email_score == 0.0:
+        total = min(total, 0.35)
+
     # Penalty: short names (< 6 chars) are likely first-name-only collisions
     # ("Alex", "David") — reduce confidence when name is the dominant signal.
     # Use the longest available name (including email-derived) for the length check.
