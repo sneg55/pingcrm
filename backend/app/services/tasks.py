@@ -298,21 +298,20 @@ def sync_telegram_notify(sub_results: list, user_id: str) -> dict:
 
 
 def sync_telegram_for_user(user_id: str) -> None:
-    """Orchestrate Telegram sync as parallel sub-tasks with a summary notification.
+    """Orchestrate Telegram sync as sequential sub-tasks with a summary notification.
 
-    This is NOT a Celery task itself — it dispatches a chord of 3 independent
-    sub-tasks (chats, groups, bios) that run in parallel, followed by a
-    callback that sends the summary notification.
+    This is NOT a Celery task itself — it dispatches a chain of 3 tasks
+    (chats → groups → bios) that run sequentially to avoid overwhelming
+    Telegram's API rate limits, followed by a callback that sends the
+    summary notification.
     """
-    from celery import chord
+    from celery import chain
 
-    chord(
-        [
-            sync_telegram_chats_for_user.s(user_id),
-            sync_telegram_groups_for_user.s(user_id),
-            sync_telegram_bios_for_user.s(user_id),
-        ],
-        sync_telegram_notify.s(user_id),
+    chain(
+        sync_telegram_chats_for_user.s(user_id),
+        sync_telegram_groups_for_user.si(user_id),
+        sync_telegram_bios_for_user.si(user_id),
+        sync_telegram_notify.si([], user_id),
     ).apply_async()
 
 

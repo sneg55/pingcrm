@@ -1372,6 +1372,17 @@ async def send_message(
             if resolved_id and not contact.telegram_user_id:
                 contact.telegram_user_id = str(resolved_id)
         except RuntimeError as exc:
+            # Create a system notification so the rate limit is visible in /notifications
+            if "rate limit" in str(exc).lower():
+                from app.models.notification import Notification
+                db.add(Notification(
+                    user_id=current_user.id,
+                    notification_type="system",
+                    title="Telegram rate limit",
+                    body=str(exc),
+                    link="/settings",
+                ))
+                await db.flush()
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
         except Exception as exc:
             logger.exception("Failed to send Telegram message to %s", username)

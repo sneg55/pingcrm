@@ -1,8 +1,10 @@
 """Telegram MTProto integration using Telethon."""
 from __future__ import annotations
 
+import asyncio
 import logging
 import os
+import random
 import uuid
 from datetime import UTC, datetime
 from pathlib import Path
@@ -487,6 +489,9 @@ async def sync_telegram_chats(user: User, db: AsyncSession) -> int:
                 ):
                     contact.last_interaction_at = occurred_at
 
+            # Throttle between dialogs to avoid Telegram rate limits
+            await asyncio.sleep(random.uniform(0.5, 1.0))
+
         # Download avatars after all dialogs are processed
         for av_entity, av_contact in avatar_queue:
             try:
@@ -592,7 +597,11 @@ async def sync_telegram_group_members(user: User, db: AsyncSession) -> dict[str,
                     "Cannot fetch participants for group '%s' (id=%s), skipping.",
                     group_title, entity.id,
                 )
+                await asyncio.sleep(random.uniform(0.5, 1.0))
                 continue
+
+            # Throttle between groups to avoid Telegram rate limits
+            await asyncio.sleep(random.uniform(0.5, 1.0))
 
             for member in participants:
                 if not isinstance(member, TelegramUser):
@@ -725,11 +734,13 @@ async def fetch_common_groups(
     await _ensure_connected(client)
 
     try:
-        # Resolve target — prefer username, fall back to numeric user ID
-        if telegram_username:
+        # Resolve target — prefer cached numeric ID to avoid rate-limited ResolveUsernameRequest
+        if telegram_user_id:
+            target = await client.get_input_entity(int(telegram_user_id))
+        elif telegram_username:
             target = await client.get_input_entity(telegram_username)
         else:
-            target = await client.get_input_entity(int(telegram_user_id))
+            return []
         result = await client(GetCommonChatsRequest(
             user_id=target,
             max_id=0,
@@ -792,12 +803,20 @@ async def sync_telegram_bios(user: User, db: AsyncSession) -> dict[str, int]:
                 continue
 
             try:
-                input_user = await client.get_input_entity(username)
+                # Use cached numeric ID to avoid rate-limited ResolveUsernameRequest
+                if contact.telegram_user_id:
+                    input_user = await client.get_input_entity(int(contact.telegram_user_id))
+                else:
+                    input_user = await client.get_input_entity(username)
                 full = await client(GetFullUserRequest(input_user))
                 current_bio = getattr(full.full_user, "about", None) or ""
             except Exception:
                 logger.debug("sync_telegram_bios: failed to fetch bio for @%s", username)
+                await asyncio.sleep(random.uniform(0.5, 1.0))
                 continue
+
+            # Throttle between Telegram API calls to avoid rate limits
+            await asyncio.sleep(random.uniform(0.5, 1.0))
 
             # Download avatar if missing
             if not contact.avatar_url:
