@@ -3,6 +3,8 @@
 import { useState } from "react";
 import {
   Bell,
+  Copy,
+  Check,
   Mail,
   Sparkles,
   Activity,
@@ -98,6 +100,27 @@ function ctaLabel(type: string): string {
 
 /* ═══════════════ NOTIFICATION ROW ═══════════════ */
 
+function CopyButton({ text: copyText }: { text: string }) {
+  const [copied, setCopied] = useState(false);
+  const handleCopy = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    void navigator.clipboard.writeText(copyText).then(() => {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    });
+  };
+  return (
+    <button
+      onClick={handleCopy}
+      title="Copy error message"
+      className="inline-flex items-center gap-1 px-1.5 py-0.5 text-xs text-stone-400 hover:text-stone-600 transition-colors"
+    >
+      {copied ? <Check className="w-3 h-3 text-green-500" /> : <Copy className="w-3 h-3" />}
+      {copied ? "Copied" : "Copy"}
+    </button>
+  );
+}
+
 function NotificationRow({
   notification,
   expanded,
@@ -112,6 +135,7 @@ function NotificationRow({
   const { Icon, bg, text } = getStyle(notification.notification_type);
   const { summary, details } = parseBody(notification.body);
   const isRead = notification.read;
+  const isSystem = notification.notification_type === "system" || notification.notification_type === "sync";
 
   const handleClick = () => {
     if (!isRead) markRead.mutate(notification.id);
@@ -144,9 +168,12 @@ function NotificationRow({
             {notification.title}
           </p>
           {summary && (
-            <p className={cn("text-sm text-stone-500 mt-0.5 leading-snug", isRead && "opacity-60")}>
-              {summary}
-            </p>
+            <div className="flex items-start gap-1.5 mt-0.5">
+              <p className={cn("text-sm text-stone-500 leading-snug flex-1", isRead && "opacity-60")}>
+                {summary}
+              </p>
+              {isSystem && <CopyButton text={notification.body ?? notification.title} />}
+            </div>
           )}
         </div>
 
@@ -165,7 +192,10 @@ function NotificationRow({
       {expanded && details && (
         <div className="px-5 pb-4 ml-[52px]">
           <div className="bg-stone-50 rounded-lg p-3 border border-stone-100">
-            <pre className="text-xs font-mono text-stone-600 whitespace-pre-wrap">{details}</pre>
+            <div className="flex items-start justify-between gap-2">
+              <pre className="text-xs font-mono text-stone-600 whitespace-pre-wrap flex-1">{details}</pre>
+              {isSystem && <CopyButton text={details} />}
+            </div>
           </div>
           {notification.link && (
             <button
