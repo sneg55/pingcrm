@@ -799,6 +799,65 @@ function AddNoteInput({ onSave }: { onSave: (content: string) => void }) {
   );
 }
 
+/* ── Quick Composer (always visible, collapsed by default) ── */
+
+function QuickComposer({ contact, contactId }: { contact: Contact; contactId: string }) {
+  const [expanded, setExpanded] = useState(false);
+  const [sent, setSent] = useState<string | null>(null);
+  const sendMessage = useSendMessage();
+  const queryClient = useQueryClient();
+
+  const handleSend = async (message: string, channel: string, scheduledFor?: string) => {
+    try {
+      await sendMessage.mutateAsync({ contactId, message, channel, scheduledFor });
+      setSent(`Message ${scheduledFor ? "scheduled" : "sent"} via ${channel}`);
+      setExpanded(false);
+      void queryClient.invalidateQueries({ queryKey: ["interactions", contactId] });
+      void queryClient.invalidateQueries({ queryKey: ["contacts", contactId] });
+      setTimeout(() => setSent(null), 4000);
+    } catch {
+      // error handled by MessageEditor
+    }
+  };
+
+  return (
+    <div className="bg-white rounded-xl border border-stone-200 overflow-hidden">
+      <button
+        onClick={() => setExpanded(!expanded)}
+        className="w-full flex items-center gap-3 px-4 py-3 text-left hover:bg-stone-50 transition-colors"
+      >
+        <Send className="w-4 h-4 text-teal-500 shrink-0" />
+        <span className="text-sm text-stone-500 flex-1">
+          {sent ? (
+            <span className="text-green-600 font-medium">{sent}</span>
+          ) : (
+            "Write a message..."
+          )}
+        </span>
+        <div className="flex items-center gap-1.5">
+          {contact.emails?.length ? <Mail className="w-3.5 h-3.5 text-blue-400" /> : null}
+          {contact.telegram_username ? <MessageCircle className="w-3.5 h-3.5 text-sky-400" /> : null}
+          {contact.twitter_handle ? <Twitter className="w-3.5 h-3.5 text-slate-400" /> : null}
+          <ChevronDown className={`w-4 h-4 text-stone-400 transition-transform ${expanded ? "rotate-180" : ""}`} />
+        </div>
+      </button>
+      {expanded && (
+        <div className="px-4 pb-4 border-t border-stone-100 pt-3">
+          <MessageEditor
+            contactId={contactId}
+            disabledChannels={{
+              ...(!contact.emails?.length ? { email: "No email" } : {}),
+              ...(!contact.telegram_username ? { telegram: "No Telegram" } : {}),
+              ...(!contact.twitter_handle ? { twitter: "No Twitter" } : {}),
+            }}
+            onSend={handleSend}
+          />
+        </div>
+      )}
+    </div>
+  );
+}
+
 /* ── Timeline ── */
 
 const TIMELINE_PAGE_SIZE = 50;
@@ -1348,6 +1407,9 @@ export default function ContactDetailPage() {
 
             {/* Add note input */}
             <AddNoteInput onSave={(content) => addNoteMutation.mutate(content)} />
+
+            {/* Quick composer — always visible, collapsed */}
+            <QuickComposer contact={contact} contactId={id} />
 
             {/* Timeline */}
             <ChatTimeline
