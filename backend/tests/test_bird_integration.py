@@ -16,9 +16,7 @@ from app.integrations.bird import (
     _extract_tweets,
     _run_bird,
     check_health,
-    fetch_mentions_bird,
     fetch_user_profile_bird,
-    fetch_user_replies_bird,
     fetch_user_tweets_bird,
     is_available,
 )
@@ -383,54 +381,3 @@ async def test_fetch_user_profile_missing_raw(monkeypatch):
     assert isinstance(profile, dict)
 
 
-# ---------------------------------------------------------------------------
-# fetch_mentions_bird
-# ---------------------------------------------------------------------------
-
-
-@pytest.mark.asyncio
-async def test_fetch_mentions_empty_handle():
-    result = await fetch_mentions_bird("")
-    assert result == []
-
-
-@pytest.mark.asyncio
-async def test_fetch_mentions_success(monkeypatch):
-    mentions = [{"id": "10", "text": "@me hi"}]
-
-    async def _fake_run(*args, **kwargs):
-        return mentions
-
-    with patch.object(bird_mod, "_run_bird", new=_fake_run):
-        result = await fetch_mentions_bird("me")
-
-    assert result == mentions
-
-
-# ---------------------------------------------------------------------------
-# fetch_user_replies_bird
-# ---------------------------------------------------------------------------
-
-
-@pytest.mark.asyncio
-async def test_fetch_user_replies_filters_non_replies(monkeypatch):
-    """Only tweets with inReplyToStatusId are returned."""
-    tweets = [
-        {"id": "1", "text": "reply", "inReplyToStatusId": "0"},
-        {"id": "2", "text": "original post"},  # no inReplyToStatusId
-    ]
-
-    async def _fake_run(*args, **kwargs):
-        return tweets
-
-    with patch.object(bird_mod, "_run_bird", new=_fake_run):
-        result = await fetch_user_replies_bird("me")
-
-    assert len(result) == 1
-    assert result[0]["id"] == "1"
-
-
-@pytest.mark.asyncio
-async def test_fetch_user_replies_empty_handle():
-    result = await fetch_user_replies_bird("")
-    assert result == []

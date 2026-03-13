@@ -4,15 +4,13 @@ from __future__ import annotations
 import asyncio
 import base64
 import hashlib
-import hmac
 import logging
 import os
-import time
+import secrets
 import uuid
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
-from urllib.parse import quote
 
 import httpx
 from sqlalchemy import select
@@ -40,96 +38,6 @@ def _parse_twitter_ts(ts: str | None) -> datetime:
         return datetime.fromisoformat(ts.replace("Z", "+00:00"))
     except (ValueError, AttributeError):
         return datetime.now(UTC)
-
-
-# ---------------------------------------------------------------------------
-# OAuth 1.0a helpers
-# ---------------------------------------------------------------------------
-
-
-def _percent_encode(value: str) -> str:
-    return quote(str(value), safe="")
-
-
-def _build_oauth_header(
-    method: str,
-    url: str,
-    api_key: str,
-    api_secret: str,
-    access_token: str,
-    access_token_secret: str,
-    extra_params: dict[str, str] | None = None,
-) -> str:
-    """Build an OAuth 1.0a Authorization header string."""
-    nonce = base64.b64encode(uuid.uuid4().bytes).decode("ascii").rstrip("=")
-    timestamp = str(int(time.time()))
-
-    oauth_params: dict[str, str] = {
-        "oauth_consumer_key": api_key,
-        "oauth_nonce": nonce,
-        "oauth_signature_method": "HMAC-SHA1",
-        "oauth_timestamp": timestamp,
-        "oauth_token": access_token,
-        "oauth_version": "1.0",
-    }
-
-    all_params = {**oauth_params, **(extra_params or {})}
-    sorted_params = sorted(all_params.items())
-    param_string = "&".join(
-        f"{_percent_encode(k)}={_percent_encode(v)}" for k, v in sorted_params
-    )
-
-    base_string = "&".join([
-        _percent_encode(method.upper()),
-        _percent_encode(url),
-        _percent_encode(param_string),
-    ])
-
-    signing_key = f"{_percent_encode(api_secret)}&{_percent_encode(access_token_secret)}"
-    signature = base64.b64encode(
-        hmac.new(signing_key.encode("ascii"), base_string.encode("ascii"), hashlib.sha1).digest()
-    ).decode("ascii")
-
-    oauth_params["oauth_signature"] = signature
-    header_parts = ", ".join(
-        f'{_percent_encode(k)}="{_percent_encode(v)}"'
-        for k, v in sorted(oauth_params.items())
-    )
-    return f"OAuth {header_parts}"
-
-
-# ---------------------------------------------------------------------------
-# Client factory
-# ---------------------------------------------------------------------------
-
-
-def build_twitter_client(
-    api_key: str,
-    api_secret: str,
-    access_token: str,
-    access_token_secret: str = "",
-) -> httpx.AsyncClient:
-    """Return an httpx.AsyncClient pre-configured with Twitter OAuth 1.0a credentials.
-
-    The client stores the credentials as custom headers so callers can retrieve
-    them when constructing per-request OAuth signatures.  Bearer token (app-only)
-    auth is also supported by setting a ``Authorization: Bearer …`` header directly.
-    """
-    # For app-only auth (read-only endpoints) we can use Bearer token derived
-    # from api_key + api_secret.
-    client = httpx.AsyncClient(
-        base_url=_TWITTER_API_BASE,
-        headers={"User-Agent": "PingCRM/1.0"},
-        timeout=30.0,
-    )
-    # Store credentials on client for later use.
-    client._pingcrm_oauth = {  # type: ignore[attr-defined]
-        "api_key": api_key,
-        "api_secret": api_secret,
-        "access_token": access_token,
-        "access_token_secret": access_token_secret,
-    }
-    return client
 
 
 
@@ -248,82 +156,16 @@ async def poll_contacts_activity(
     return activity_records
 
 
-async def sync_twitter_bios(user: User, db: AsyncSession) -> dict[str, int]:
-    """Fetch and store Twitter bios for all contacts with a twitter_handle.
-
-    Creates notifications for bio changes. Returns counts.
-    """
-    from app.models.notification import Notification
-
-    result = await db.execute(
-        select(Contact).where(
-            Contact.user_id == user.id,
-            Contact.twitter_handle.isnot(None),
-        )
-    )
-    contacts: list[Contact] = list(result.scalars().all())
-
-    updated = 0
-    bio_changes = 0
-
-    for contact in contacts:
-        handle = (contact.twitter_handle or "").lstrip("@").strip()
-        if not handle:
-            continue
-
-        from app.integrations.bird import fetch_user_profile_bird
-        profile = await fetch_user_profile_bird(handle)
-        current_bio = profile.get("description", "")
-
-        # Update location from Twitter profile
-        twitter_location = profile.get("location", "")
-        if twitter_location and not contact.location:
-            contact.location = twitter_location
-
-        if not current_bio:
-            continue
-
-        stored_bio = contact.twitter_bio or ""
-
-        if current_bio != stored_bio:
-            had_previous = bool(stored_bio)
-            contact.twitter_bio = current_bio
-            updated += 1
-
-            if had_previous:
-                bio_changes += 1
-                display_name = contact.full_name or handle
-                notif = Notification(
-                    user_id=user.id,
-                    notification_type="bio_change",
-                    title=f"@{handle} updated their Twitter bio",
-                    body=f"{display_name} changed their bio to: {current_bio[:200]}",
-                    link=f"/contacts/{contact.id}",
-                )
-                db.add(notif)
-
-    if updated:
-        await db.flush()
-
-    logger.info(
-        "sync_twitter_bios for user %s: %d updated, %d bio changes.",
-        user.id, updated, bio_changes,
-    )
-    return {"bios_updated": updated, "bio_changes": bio_changes}
-
 
 # ---------------------------------------------------------------------------
 # OAuth 2.0 PKCE helpers
 # ---------------------------------------------------------------------------
 
-import hashlib as _hashlib
-import secrets as _secrets
-
 
 def generate_pkce_pair() -> tuple[str, str]:
     """Return (code_verifier, code_challenge) for OAuth 2.0 PKCE."""
-    verifier = _secrets.token_urlsafe(64)[:128]
-    digest = _hashlib.sha256(verifier.encode("ascii")).digest()
+    verifier = secrets.token_urlsafe(64)[:128]
+    digest = hashlib.sha256(verifier.encode("ascii")).digest()
     challenge = base64.urlsafe_b64encode(digest).rstrip(b"=").decode("ascii")
     return verifier, challenge
 
@@ -682,6 +524,17 @@ async def sync_twitter_dms(
     skipped_duplicate = 0
     _pending_create: dict[str, list[dict]] = {}  # twitter_id -> events
 
+    # Batch dedup: collect all ref IDs and query once
+    all_ref_ids = [f"twitter_dm:{event.get('id', '')}" for event in dm_events]
+    existing_refs: set[str] = set()
+    if all_ref_ids:
+        dedup_result = await db.execute(
+            select(Interaction.raw_reference_id).where(
+                Interaction.raw_reference_id.in_(all_ref_ids)
+            )
+        )
+        existing_refs = {row[0] for row in dedup_result.all()}
+
     for event in dm_events:
         event_id = event.get("id", "")
         sender_id = event.get("sender_id", "")
@@ -711,18 +564,16 @@ async def sync_twitter_dms(
         if not participant_id or participant_id == user.twitter_user_id:
             continue
 
-        # Check if interaction already exists
-        existing = await db.execute(
-            select(Interaction).where(Interaction.raw_reference_id == f"twitter_dm:{event_id}")
-        )
-        existing_interaction = existing.scalar_one_or_none()
-        if existing_interaction:
+        ref_id = f"twitter_dm:{event_id}"
+        if ref_id in existing_refs:
             skipped_duplicate += 1
             # Still reconcile last_interaction_at for duplicates
             contact = id_to_contact.get(participant_id)
-            if contact and existing_interaction.occurred_at:
-                if contact.last_interaction_at is None or contact.last_interaction_at < existing_interaction.occurred_at:
-                    contact.last_interaction_at = existing_interaction.occurred_at
+            if contact:
+                # Fetch occurred_at from the event itself (no extra DB query needed)
+                occurred_at = _parse_twitter_ts(event.get("created_at"))
+                if contact.last_interaction_at is None or contact.last_interaction_at < occurred_at:
+                    contact.last_interaction_at = occurred_at
             continue
 
         # Match participant to a specific contact by Twitter user ID
@@ -740,7 +591,7 @@ async def sync_twitter_dms(
             platform="twitter",
             direction=direction,
             content_preview=text[:500] if text else "",
-            raw_reference_id=f"twitter_dm:{event_id}",
+            raw_reference_id=ref_id,
             occurred_at=_parse_twitter_ts(event.get("created_at")),
         )
         db.add(interaction)
@@ -776,10 +627,7 @@ async def sync_twitter_dms(
             # Now create interactions for this contact's events
             for ev in events:
                 ev_id = ev.get("id", "")
-                existing = await db.execute(
-                    select(Interaction).where(Interaction.raw_reference_id == f"twitter_dm:{ev_id}")
-                )
-                if existing.scalar_one_or_none():
+                if f"twitter_dm:{ev_id}" in existing_refs:
                     continue
                 sender_id = ev.get("sender_id", "")
                 direction = "outbound" if sender_id == user.twitter_user_id else "inbound"
@@ -852,6 +700,17 @@ async def sync_twitter_contact_dms(
     if not dm_events:
         return {"new_interactions": 0}
 
+    # Batch dedup: collect all ref IDs and query once
+    all_ref_ids = [f"twitter_dm:{event.get('id', '')}" for event in dm_events]
+    existing_refs: set[str] = set()
+    if all_ref_ids:
+        dedup_result = await db.execute(
+            select(Interaction.raw_reference_id).where(
+                Interaction.raw_reference_id.in_(all_ref_ids)
+            )
+        )
+        existing_refs = {row[0] for row in dedup_result.all()}
+
     new_count = 0
     for event in dm_events:
         event_id = event.get("id", "")
@@ -881,11 +740,8 @@ async def sync_twitter_contact_dms(
         if participant_id != contact_twitter_id:
             continue
 
-        # Dedup
-        existing = await db.execute(
-            select(Interaction).where(Interaction.raw_reference_id == f"twitter_dm:{event_id}")
-        )
-        if existing.scalar_one_or_none():
+        # Dedup via batch set lookup
+        if f"twitter_dm:{event_id}" in existing_refs:
             continue
 
         interaction = Interaction(
@@ -980,6 +836,17 @@ async def sync_twitter_mentions(
     id_to_contact = _id_map if _id_map is not None else await _build_twitter_id_to_contact_map(user, db, headers)
     new_count = 0
 
+    # Batch dedup: collect all ref IDs and query once
+    all_ref_ids = [f"twitter_mention:{mention.get('id', '')}" for mention in mentions]
+    existing_refs: set[str] = set()
+    if all_ref_ids:
+        dedup_result = await db.execute(
+            select(Interaction.raw_reference_id).where(
+                Interaction.raw_reference_id.in_(all_ref_ids)
+            )
+        )
+        existing_refs = {row[0] for row in dedup_result.all()}
+
     for mention in mentions:
         tweet_id = mention.get("id", "")
         author_id = mention.get("author_id", "")
@@ -988,11 +855,7 @@ async def sync_twitter_mentions(
         if author_id == user.twitter_user_id:
             continue  # Skip self-mentions
 
-        # Check for existing
-        existing = await db.execute(
-            select(Interaction).where(Interaction.raw_reference_id == f"twitter_mention:{tweet_id}")
-        )
-        if existing.scalar_one_or_none():
+        if f"twitter_mention:{tweet_id}" in existing_refs:
             continue
 
         # Match author to a specific contact by Twitter user ID
@@ -1010,7 +873,8 @@ async def sync_twitter_mentions(
             occurred_at=_parse_twitter_ts(mention.get("created_at")),
         )
         db.add(interaction)
-        contact.last_interaction_at = interaction.occurred_at
+        if contact.last_interaction_at is None or contact.last_interaction_at < interaction.occurred_at:
+            contact.last_interaction_at = interaction.occurred_at
         new_count += 1
 
     await db.flush()
@@ -1091,6 +955,17 @@ async def sync_twitter_replies(
     id_to_contact = _id_map if _id_map is not None else await _build_twitter_id_to_contact_map(user, db, headers)
     new_count = 0
 
+    # Batch dedup: collect all ref IDs and query once
+    all_ref_ids = [f"twitter_reply:{reply.get('id', '')}" for reply in replies]
+    existing_refs: set[str] = set()
+    if all_ref_ids:
+        dedup_result = await db.execute(
+            select(Interaction.raw_reference_id).where(
+                Interaction.raw_reference_id.in_(all_ref_ids)
+            )
+        )
+        existing_refs = {row[0] for row in dedup_result.all()}
+
     for reply in replies:
         tweet_id = reply.get("id", "")
         reply_to_user_id = reply.get("in_reply_to_user_id", "")
@@ -1105,11 +980,7 @@ async def sync_twitter_replies(
         if not contact:
             continue
 
-        # Dedup check
-        existing = await db.execute(
-            select(Interaction).where(Interaction.raw_reference_id == f"twitter_reply:{tweet_id}")
-        )
-        if existing.scalar_one_or_none():
+        if f"twitter_reply:{tweet_id}" in existing_refs:
             continue
 
         interaction = Interaction(
@@ -1122,7 +993,8 @@ async def sync_twitter_replies(
             occurred_at=_parse_twitter_ts(reply.get("created_at")),
         )
         db.add(interaction)
-        contact.last_interaction_at = interaction.occurred_at
+        if contact.last_interaction_at is None or contact.last_interaction_at < interaction.occurred_at:
+            contact.last_interaction_at = interaction.occurred_at
         new_count += 1
 
     await db.flush()

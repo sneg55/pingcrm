@@ -242,6 +242,8 @@ def sync_telegram_chats_batch_task(self, user_id: str, entity_ids: list[int]) ->
         return _run(_sync(uid))
     except Exception as exc:
         logger.exception("sync_telegram_chats_batch failed for %s (batch of %d), retrying.", user_id, len(entity_ids))
+        if self.request.retries >= self.max_retries:
+            notify_sync_failure.delay(user_id, "telegram", str(exc))
         raise self.retry(exc=exc, countdown=60) from exc
 
 
@@ -347,12 +349,22 @@ def sync_telegram_notify(sub_results: list, user_id: str) -> dict:
             ))
             await db.commit()
 
+    async def _mark_synced(uid: uuid.UUID) -> None:
+        from datetime import datetime, timezone
+        async with task_session() as db:
+            result = await db.execute(select(User).where(User.id == uid))
+            user = result.scalar_one_or_none()
+            if user:
+                user.telegram_last_synced_at = datetime.now(timezone.utc)
+                await db.commit()
+
     try:
         uid = uuid.UUID(user_id)
     except ValueError:
         return {"status": "invalid_user_id"}
 
     _run(_notify(uid))
+    _run(_mark_synced(uid))
     return {"status": "ok"}
 
 
@@ -367,6 +379,13 @@ def sync_telegram_for_user(user_id: str) -> None:
     from app.core.config import settings
     if not settings.TELEGRAM_API_ID or not settings.TELEGRAM_API_HASH:
         logger.warning("sync_telegram_for_user: skipping user %s — TELEGRAM_API_ID/HASH not configured.", user_id)
+        return
+
+    import redis as _redis
+    _r = _redis.from_url(settings.REDIS_URL)
+    lock_key = f"tg_sync_lock:{user_id}"
+    if not _r.set(lock_key, "1", nx=True, ex=21600):  # 6 hour TTL
+        logger.info("sync_telegram_for_user: skipping user %s — sync already in progress", user_id)
         return
 
     from celery import chain

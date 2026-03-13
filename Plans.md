@@ -105,6 +105,37 @@
 
 ---
 
+## Phase 12: Twitter & Telegram Sync Hardening (from Code Review)
+
+作成日: 2026-03-13
+
+### 12.1 Telegram Critical Fixes (High)
+
+| # | Task | DoD | Depends | Status |
+|---|------|-----|---------|--------|
+| 1 | Add FloodWaitError handling in all Telegram sync paths | `FloodWaitError` caught in `sync_telegram_chats`, `sync_telegram_chats_batch`, `sync_telegram_contact_messages`, `sync_telegram_group_members`, `sync_telegram_bios` — waits `e.seconds + 5` then retries | — | `cc:TODO` |
+| 2 | Set `telegram_last_synced_at` at end of first-sync batch chain | `sync_telegram_notify` (final chain task) sets `user.telegram_last_synced_at = now()` | — | `cc:TODO` |
+| 3 | Add Redis lock to prevent concurrent first-sync dispatch | `sync_telegram_for_user` acquires `tg_sync_lock:{user_id}` with 6h TTL, skips if locked | — | `cc:TODO` |
+| 4 | Normalize message ID to numeric Telegram user ID in all paths | `sync_telegram_contact_messages` uses resolved numeric ID (not username) for `raw_reference_id` | — | `cc:TODO` |
+
+### 12.2 Twitter Critical Fixes (High)
+
+| # | Task | DoD | Depends | Status |
+|---|------|-----|---------|--------|
+| 5 | Batch dedup queries in Twitter sync loops | All 5 sync functions (`sync_twitter_dms`, `sync_twitter_contact_dms`, `sync_twitter_mentions`, `sync_twitter_replies`) use single `WHERE raw_reference_id IN (...)` query instead of per-event SELECT | — | `cc:TODO` |
+| 6 | Guard `last_interaction_at` in mentions and replies | `sync_twitter_mentions` and `sync_twitter_replies` use same `if older` guard as DM path | 5 | `cc:TODO` |
+| 7 | Delete dead Twitter code | Remove: `_build_oauth_header`, `build_twitter_client` (OAuth 1.0a), `sync_twitter_bios` (unused), `fetch_mentions_bird`, `fetch_user_replies_bird` (dead bird helpers), duplicate `hashlib` import | — | `cc:TODO` |
+
+### 12.3 Telegram Reliability Fixes (Medium)
+
+| # | Task | DoD | Depends | Status |
+|---|------|-----|---------|--------|
+| 8 | Fix `connect_telegram` missing disconnect on error | `connect_telegram` wrapped in `try/finally: await client.disconnect()` | — | `cc:TODO` |
+| 9 | Fix `sync_telegram_bios` to include contacts with only `telegram_user_id` | Query uses `OR(telegram_username IS NOT NULL, telegram_user_id IS NOT NULL)` | — | `cc:TODO` |
+| 10 | Add `notify_sync_failure` to batch task max retries | `sync_telegram_chats_batch_task` calls `notify_sync_failure.delay()` on final retry failure | — | `cc:TODO` |
+
+---
+
 ## Backlog: Feature Exploration (from GitHub Issues)
 
 | Issue | Title | Priority |

@@ -187,16 +187,19 @@ async def connect_telegram(user: User, phone: str, db: AsyncSession) -> str:
     """
     client = _make_client(user.telegram_session)
     await _ensure_connected(client)
+    try:
+        result = await client.send_code_request(phone)
+        phone_code_hash: str = result.phone_code_hash
 
-    result = await client.send_code_request(phone)
-    phone_code_hash: str = result.phone_code_hash
+        # Persist interim session so the verify step can reuse it.
+        user.telegram_session = client.session.save()
+        await db.flush()
 
-    # Persist interim session so the verify step can reuse it.
-    user.telegram_session = client.session.save()
-    await db.flush()
-
-    await client.disconnect()
-    return phone_code_hash
+        await client.disconnect()
+        return phone_code_hash
+    except Exception:
+        await client.disconnect()
+        raise
 
 
 async def verify_telegram(
@@ -511,33 +514,38 @@ async def sync_telegram_chats(user: User, db: AsyncSession, *, max_dialogs: int 
                 avatar_queue.append((entity, contact))
 
             # Iterate recent messages for this dialog
-            async for message in client.iter_messages(entity, limit=MAX_MESSAGES):
-                if message.message is None:
-                    continue  # skip service messages
+            try:
+                async for message in client.iter_messages(entity, limit=MAX_MESSAGES):
+                    if message.message is None:
+                        continue  # skip service messages
 
-                direction = "outbound" if message.sender_id == my_id else "inbound"
-                message_id = f"{entity.id}:{message.id}"
-                occurred_at = message.date.replace(tzinfo=UTC) if message.date.tzinfo is None else message.date
+                    direction = "outbound" if message.sender_id == my_id else "inbound"
+                    message_id = f"{entity.id}:{message.id}"
+                    occurred_at = message.date.replace(tzinfo=UTC) if message.date.tzinfo is None else message.date
 
-                _interaction, is_new = await _upsert_interaction(
-                    contact=contact,
-                    user_id=user.id,
-                    message_id=message_id,
-                    direction=direction,
-                    content_preview=message.message,
-                    occurred_at=occurred_at,
-                    db=db,
-                )
-                if is_new:
-                    new_count += 1
-                    affected_contact_ids.add(str(contact.id))
+                    _interaction, is_new = await _upsert_interaction(
+                        contact=contact,
+                        user_id=user.id,
+                        message_id=message_id,
+                        direction=direction,
+                        content_preview=message.message,
+                        occurred_at=occurred_at,
+                        db=db,
+                    )
+                    if is_new:
+                        new_count += 1
+                        affected_contact_ids.add(str(contact.id))
 
-                # Keep last_interaction_at up-to-date
-                if (
-                    contact.last_interaction_at is None
-                    or contact.last_interaction_at < occurred_at
-                ):
-                    contact.last_interaction_at = occurred_at
+                    # Keep last_interaction_at up-to-date
+                    if (
+                        contact.last_interaction_at is None
+                        or contact.last_interaction_at < occurred_at
+                    ):
+                        contact.last_interaction_at = occurred_at
+            except FloodWaitError as e:
+                logger.warning("FloodWaitError in sync_telegram_chats: waiting %d seconds", e.seconds)
+                await asyncio.sleep(e.seconds + 5)
+                continue
 
             # Throttle between dialogs to avoid Telegram rate limits
             await asyncio.sleep(random.uniform(0.5, 1.0))
@@ -649,28 +657,33 @@ async def sync_telegram_chats_batch(
             if not contact.avatar_url:
                 avatar_queue.append((entity, contact))
 
-            async for message in client.iter_messages(entity, limit=MAX_MESSAGES):
-                if message.message is None:
-                    continue
-                direction = "outbound" if message.sender_id == my_id else "inbound"
-                message_id = f"{eid}:{message.id}"
-                occurred_at = message.date.replace(tzinfo=UTC) if message.date.tzinfo is None else message.date
+            try:
+                async for message in client.iter_messages(entity, limit=MAX_MESSAGES):
+                    if message.message is None:
+                        continue
+                    direction = "outbound" if message.sender_id == my_id else "inbound"
+                    message_id = f"{eid}:{message.id}"
+                    occurred_at = message.date.replace(tzinfo=UTC) if message.date.tzinfo is None else message.date
 
-                _interaction, is_new = await _upsert_interaction(
-                    contact=contact,
-                    user_id=user.id,
-                    message_id=message_id,
-                    direction=direction,
-                    content_preview=message.message,
-                    occurred_at=occurred_at,
-                    db=db,
-                )
-                if is_new:
-                    new_count += 1
-                    affected_contact_ids.add(str(contact.id))
+                    _interaction, is_new = await _upsert_interaction(
+                        contact=contact,
+                        user_id=user.id,
+                        message_id=message_id,
+                        direction=direction,
+                        content_preview=message.message,
+                        occurred_at=occurred_at,
+                        db=db,
+                    )
+                    if is_new:
+                        new_count += 1
+                        affected_contact_ids.add(str(contact.id))
 
-                if contact.last_interaction_at is None or contact.last_interaction_at < occurred_at:
-                    contact.last_interaction_at = occurred_at
+                    if contact.last_interaction_at is None or contact.last_interaction_at < occurred_at:
+                        contact.last_interaction_at = occurred_at
+            except FloodWaitError as e:
+                logger.warning("FloodWaitError in sync_telegram_chats_batch: waiting %d seconds", e.seconds)
+                await asyncio.sleep(e.seconds + 5)
+                continue
 
             await asyncio.sleep(random.uniform(0.5, 1.0))
 
@@ -732,35 +745,42 @@ async def sync_telegram_contact_messages(
             entity = await client.get_input_entity(int(tg_user_id))
         else:
             entity = await client.get_input_entity(tg_username)
-            # Backfill telegram_user_id from resolved entity
-            resolved_id = getattr(entity, "user_id", None)
-            if resolved_id:
-                contact.telegram_user_id = str(resolved_id)
+
+        # Extract numeric ID from resolved entity and normalise entity_id
+        resolved_id = getattr(entity, "id", None) or getattr(entity, "user_id", None)
+        entity_id = tg_user_id or (str(resolved_id) if resolved_id else tg_username)
+
+        # Backfill telegram_user_id if it was missing
+        if not contact.telegram_user_id and resolved_id:
+            contact.telegram_user_id = str(resolved_id)
 
         new_count = 0
-        async for message in client.iter_messages(entity, limit=MAX_MESSAGES):
-            if message.message is None:
-                continue
+        try:
+            async for message in client.iter_messages(entity, limit=MAX_MESSAGES):
+                if message.message is None:
+                    continue
 
-            direction = "outbound" if message.sender_id == my_id else "inbound"
-            entity_id = tg_user_id or str(getattr(entity, "user_id", tg_username))
-            message_id = f"{entity_id}:{message.id}"
-            occurred_at = message.date.replace(tzinfo=UTC) if message.date.tzinfo is None else message.date
+                direction = "outbound" if message.sender_id == my_id else "inbound"
+                message_id = f"{entity_id}:{message.id}"
+                occurred_at = message.date.replace(tzinfo=UTC) if message.date.tzinfo is None else message.date
 
-            _interaction, is_new = await _upsert_interaction(
-                contact=contact,
-                user_id=user.id,
-                message_id=message_id,
-                direction=direction,
-                content_preview=message.message,
-                occurred_at=occurred_at,
-                db=db,
-            )
-            if is_new:
-                new_count += 1
+                _interaction, is_new = await _upsert_interaction(
+                    contact=contact,
+                    user_id=user.id,
+                    message_id=message_id,
+                    direction=direction,
+                    content_preview=message.message,
+                    occurred_at=occurred_at,
+                    db=db,
+                )
+                if is_new:
+                    new_count += 1
 
-            if contact.last_interaction_at is None or contact.last_interaction_at < occurred_at:
-                contact.last_interaction_at = occurred_at
+                if contact.last_interaction_at is None or contact.last_interaction_at < occurred_at:
+                    contact.last_interaction_at = occurred_at
+        except FloodWaitError as e:
+            logger.warning("FloodWaitError in sync_telegram_contact_messages: waiting %d seconds", e.seconds)
+            await asyncio.sleep(e.seconds + 5)
 
         await db.flush()
     finally:
@@ -843,6 +863,17 @@ async def sync_telegram_group_members(user: User, db: AsyncSession) -> dict[str,
 
             try:
                 participants = await client.get_participants(entity, limit=MAX_MEMBERS_PER_GROUP)
+            except FloodWaitError as e:
+                logger.warning("FloodWaitError in sync_telegram_group_members: waiting %d seconds", e.seconds)
+                await asyncio.sleep(e.seconds + 5)
+                try:
+                    participants = await client.get_participants(entity, limit=MAX_MEMBERS_PER_GROUP)
+                except Exception:
+                    logger.debug(
+                        "Cannot fetch participants for group '%s' (id=%s) after FloodWait, skipping.",
+                        group_title, entity.id,
+                    )
+                    continue
             except Exception:
                 logger.debug(
                     "Cannot fetch participants for group '%s' (id=%s), skipping.",
@@ -1025,6 +1056,7 @@ async def sync_telegram_bios(user: User, db: AsyncSession) -> dict[str, int]:
     Creates notifications for bio changes. Returns counts.
     """
     from app.models.notification import Notification
+    from sqlalchemy import or_
     from telethon.tl.functions.users import GetFullUserRequest
 
     if not user.telegram_session:
@@ -1036,7 +1068,10 @@ async def sync_telegram_bios(user: User, db: AsyncSession) -> dict[str, int]:
     result = await db.execute(
         select(Contact).where(
             Contact.user_id == user.id,
-            Contact.telegram_username.isnot(None),
+            or_(
+                Contact.telegram_username.isnot(None),
+                Contact.telegram_user_id.isnot(None),
+            ),
         ).order_by(
             # Prioritize contacts missing avatars
             Contact.avatar_url.isnot(None).asc(),
@@ -1050,7 +1085,8 @@ async def sync_telegram_bios(user: User, db: AsyncSession) -> dict[str, int]:
     try:
         for contact in contacts:
             username = (contact.telegram_username or "").lstrip("@").strip()
-            if not username:
+            # Need at least a username or a numeric ID to look up the contact
+            if not username and not contact.telegram_user_id:
                 continue
 
             try:
@@ -1061,6 +1097,10 @@ async def sync_telegram_bios(user: User, db: AsyncSession) -> dict[str, int]:
                     input_user = await client.get_input_entity(username)
                 full = await client(GetFullUserRequest(input_user))
                 current_bio = getattr(full.full_user, "about", None) or ""
+            except FloodWaitError as e:
+                logger.warning("FloodWaitError in sync_telegram_bios: waiting %d seconds", e.seconds)
+                await asyncio.sleep(e.seconds + 5)
+                continue
             except Exception:
                 logger.debug("sync_telegram_bios: failed to fetch bio for @%s", username)
                 await asyncio.sleep(random.uniform(0.5, 1.0))

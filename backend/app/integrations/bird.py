@@ -222,24 +222,3 @@ async def fetch_user_profile_bird(handle: str) -> dict[str, Any]:
     return result
 
 
-async def fetch_mentions_bird(handle: str, count: int = 50) -> list[dict[str, Any]]:
-    """Fetch mentions of a user via ``bird mentions``."""
-    handle = handle.lstrip("@").strip()
-    if not handle:
-        return []
-    data = await _run_bird("mentions", "--user", f"@{handle}", "-n", str(count))
-    return _extract_tweets(data)
-
-
-async def fetch_user_replies_bird(handle: str, count: int = 50) -> list[dict[str, Any]]:
-    """Fetch a user's tweets and filter to replies only.
-
-    bird returns ``inReplyToStatusId`` for replies. We use that as a proxy
-    for ``in_reply_to_user_id`` since bird includes the parent tweet info.
-    """
-    handle = handle.lstrip("@").strip()
-    if not handle:
-        return []
-    data = await _run_bird("user-tweets", f"@{handle}", "-n", str(count))
-    tweets = _extract_tweets(data)
-    return [t for t in tweets if t.get("inReplyToStatusId")]
