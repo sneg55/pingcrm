@@ -1,6 +1,7 @@
 """Twitter / X API v2 integration for Ping CRM."""
 from __future__ import annotations
 
+import asyncio
 import base64
 import hashlib
 import hmac
@@ -131,181 +132,6 @@ def build_twitter_client(
     return client
 
 
-async def _bearer_token(api_key: str, api_secret: str) -> str:
-    """Fetch a Bearer token using app-only OAuth 2.0."""
-    credentials = base64.b64encode(
-        f"{_percent_encode(api_key)}:{_percent_encode(api_secret)}".encode()
-    ).decode()
-    async with httpx.AsyncClient() as client:
-        response = await client.post(
-            "https://api.twitter.com/oauth2/token",
-            headers={
-                "Authorization": f"Basic {credentials}",
-                "Content-Type": "application/x-www-form-urlencoded",
-            },
-            content="grant_type=client_credentials",
-        )
-        response.raise_for_status()
-        return response.json()["access_token"]
-
-
-# ---------------------------------------------------------------------------
-# API calls
-# ---------------------------------------------------------------------------
-
-
-async def fetch_user_tweets(
-    twitter_handle: str,
-    since_id: str | None = None,
-    max_results: int = 10,
-) -> list[dict[str, Any]]:
-    """Fetch recent tweets for *twitter_handle* using the X API v2.
-
-    Args:
-        twitter_handle: The Twitter username (without '@').
-        since_id: If provided, only return tweets newer than this ID.
-        max_results: Maximum number of tweets to return (5–100).
-
-    Returns:
-        A list of tweet dicts with at least ``id`` and ``text`` keys.
-    """
-    if not settings.TWITTER_API_KEY or not settings.TWITTER_API_SECRET:
-        logger.warning("fetch_user_tweets: TWITTER_API_KEY / TWITTER_API_SECRET not configured.")
-        return []
-
-    try:
-        token = await _bearer_token(settings.TWITTER_API_KEY, settings.TWITTER_API_SECRET)
-    except Exception:
-        logger.exception("fetch_user_tweets: failed to obtain bearer token.")
-        return []
-
-    params: dict[str, str] = {
-        "max_results": str(max(5, min(max_results, 100))),
-        "tweet.fields": "created_at,text,entities",
-    }
-    if since_id:
-        params["since_id"] = since_id
-
-    try:
-        async with httpx.AsyncClient(timeout=30.0) as client:
-            # Step 1: resolve handle → user id.
-            user_resp = await client.get(
-                f"{_TWITTER_API_BASE}/users/by/username/{twitter_handle}",
-                headers={"Authorization": f"Bearer {token}"},
-            )
-            user_resp.raise_for_status()
-            user_data = user_resp.json().get("data", {})
-            user_id = user_data.get("id")
-            if not user_id:
-                logger.warning("fetch_user_tweets: user not found for handle @%s.", twitter_handle)
-                return []
-
-            # Step 2: fetch tweets.
-            tweets_resp = await client.get(
-                f"{_TWITTER_API_BASE}/users/{user_id}/tweets",
-                headers={"Authorization": f"Bearer {token}"},
-                params=params,
-            )
-            tweets_resp.raise_for_status()
-            return tweets_resp.json().get("data", [])
-
-    except httpx.HTTPStatusError as exc:
-        logger.warning(
-            "fetch_user_tweets: HTTP %s for @%s — %s",
-            exc.response.status_code,
-            twitter_handle,
-            exc.response.text,
-        )
-        return []
-    except Exception:
-        logger.exception("fetch_user_tweets: unexpected error for @%s.", twitter_handle)
-        return []
-
-
-async def fetch_user_tweets_oauth(
-    twitter_handle: str,
-    headers: dict[str, str],
-    max_results: int = 5,
-) -> list[dict[str, Any]]:
-    """Fetch recent tweets using user OAuth headers (not app-only bearer).
-
-    This avoids consuming app-level API credits and uses the authenticated
-    user's own rate-limit budget instead.
-    """
-    twitter_handle = twitter_handle.lstrip("@").strip()
-    if not twitter_handle:
-        return []
-
-    params: dict[str, str] = {
-        "max_results": str(max(5, min(max_results, 100))),
-        "tweet.fields": "created_at,text",
-    }
-
-    try:
-        async with httpx.AsyncClient(timeout=15.0) as client:
-            user_resp = await client.get(
-                f"{_TWITTER_API_BASE}/users/by/username/{twitter_handle}",
-                headers=headers,
-            )
-            user_resp.raise_for_status()
-            user_id = user_resp.json().get("data", {}).get("id")
-            if not user_id:
-                return []
-
-            tweets_resp = await client.get(
-                f"{_TWITTER_API_BASE}/users/{user_id}/tweets",
-                headers=headers,
-                params=params,
-            )
-            tweets_resp.raise_for_status()
-            return tweets_resp.json().get("data", [])
-    except httpx.HTTPStatusError as exc:
-        logger.warning(
-            "fetch_user_tweets_oauth: HTTP %s for @%s",
-            exc.response.status_code, twitter_handle,
-        )
-        return []
-    except Exception:
-        logger.exception("fetch_user_tweets_oauth: unexpected error for @%s.", twitter_handle)
-        return []
-
-
-async def fetch_user_profile(twitter_handle: str) -> dict[str, Any]:
-    """Fetch Twitter profile for *twitter_handle* including bio (description).
-
-    Returns:
-        A dict with profile fields, or an empty dict on failure.
-    """
-    if not settings.TWITTER_API_KEY or not settings.TWITTER_API_SECRET:
-        logger.warning("fetch_user_profile: Twitter credentials not configured.")
-        return {}
-
-    try:
-        token = await _bearer_token(settings.TWITTER_API_KEY, settings.TWITTER_API_SECRET)
-    except Exception:
-        logger.exception("fetch_user_profile: failed to obtain bearer token.")
-        return {}
-
-    try:
-        async with httpx.AsyncClient(timeout=30.0) as client:
-            resp = await client.get(
-                f"{_TWITTER_API_BASE}/users/by/username/{twitter_handle}",
-                headers={"Authorization": f"Bearer {token}"},
-                params={"user.fields": "description,public_metrics,entities,url,profile_image_url"},
-            )
-            resp.raise_for_status()
-            return resp.json().get("data", {})
-    except httpx.HTTPStatusError as exc:
-        logger.warning(
-            "fetch_user_profile: HTTP %s for @%s — %s",
-            exc.response.status_code,
-            twitter_handle,
-            exc.response.text,
-        )
-        return {}
-    except Exception:
-        logger.exception("fetch_user_profile: unexpected error for @%s.", twitter_handle)
-        return {}
 
 
 async def download_twitter_avatar(
@@ -718,18 +544,23 @@ async def _cached_resolve_handles(
         else:
             uncached.append(handle)
 
-    # Primary: resolve via bird CLI (one at a time, no API credits needed)
+    # Primary: resolve via bird CLI (concurrent batches, no API credits needed)
     from app.integrations.bird import is_available as bird_available, resolve_user_id_bird
 
     still_unresolved: list[str] = []
     if bird_available():
-        for handle in uncached:
-            twitter_id = await resolve_user_id_bird(handle)
-            if twitter_id:
-                result[handle.lower()] = twitter_id
-                await redis.set(f"tw:h2id:{handle.lower()}", twitter_id, ex=_HANDLE_CACHE_TTL)
-            else:
-                still_unresolved.append(handle)
+        _BIRD_CONCURRENCY = 5
+        for i in range(0, len(uncached), _BIRD_CONCURRENCY):
+            chunk = uncached[i : i + _BIRD_CONCURRENCY]
+            resolved = await asyncio.gather(
+                *(resolve_user_id_bird(h) for h in chunk)
+            )
+            for handle, twitter_id in zip(chunk, resolved):
+                if twitter_id:
+                    result[handle.lower()] = twitter_id
+                    await redis.set(f"tw:h2id:{handle.lower()}", twitter_id, ex=_HANDLE_CACHE_TTL)
+                else:
+                    still_unresolved.append(handle)
     else:
         still_unresolved = uncached
 
