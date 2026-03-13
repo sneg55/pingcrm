@@ -57,5 +57,10 @@ celery_app.conf.update(
             "task": "app.services.tasks.reactivate_snoozed_suggestions",
             "schedule": crontab(minute=0),
         },
+        # Refresh organization stats materialized view every hour
+        "refresh-org-stats-hourly": {
+            "task": "app.services.tasks.refresh_org_stats",
+            "schedule": crontab(minute=30),
+        },
     },
 )

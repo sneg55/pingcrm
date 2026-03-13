@@ -1131,6 +1131,27 @@ def reactivate_snoozed_suggestions() -> dict:
 
 
 # ---------------------------------------------------------------------------
+# Organization stats refresh
+# ---------------------------------------------------------------------------
+
+
+@shared_task(name="app.services.tasks.refresh_org_stats")
+def refresh_org_stats() -> dict:
+    """Hourly task: refresh the organization_stats_mv materialized view."""
+    async def _refresh() -> None:
+        async with task_session() as db:
+            await db.execute(
+                sa_text("REFRESH MATERIALIZED VIEW CONCURRENTLY organization_stats_mv")
+            )
+            await db.commit()
+
+    from sqlalchemy import text as sa_text
+    _run(_refresh())
+    logger.info("refresh_org_stats: materialized view refreshed.")
+    return {"status": "ok"}
+
+
+# ---------------------------------------------------------------------------
 # Auto-tagging task
 # ---------------------------------------------------------------------------
 
