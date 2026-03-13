@@ -73,22 +73,22 @@ describe("MessageEditor", () => {
     expect(sendBtn).toBeDisabled();
   });
 
-  it("shows 'Open Email' when email channel is selected", () => {
+  it("shows 'Send Email' when email channel is selected", () => {
     render(<MessageEditor initialMessage="Hi" initialChannel="email" />);
-    expect(screen.getByText("Open Email")).toBeInTheDocument();
+    expect(screen.getByText("Send Email")).toBeInTheDocument();
     expect(screen.queryByText("Send")).not.toBeInTheDocument();
   });
 
-  it("shows 'Open Twitter' when twitter channel is selected", () => {
+  it("shows 'Send DM' when twitter channel is selected", () => {
     render(<MessageEditor initialMessage="Hi" initialChannel="twitter" />);
-    expect(screen.getByText("Open Twitter")).toBeInTheDocument();
+    expect(screen.getByText("Send DM")).toBeInTheDocument();
     expect(screen.queryByText("Send")).not.toBeInTheDocument();
   });
 
   it("shows 'Send' when telegram channel is selected", () => {
     render(<MessageEditor initialMessage="Hi" initialChannel="telegram" />);
     expect(screen.getByText("Send")).toBeInTheDocument();
-    expect(screen.queryByText("Open Email")).not.toBeInTheDocument();
+    expect(screen.queryByText("Send Email")).not.toBeInTheDocument();
   });
 
   it("shows character count", () => {

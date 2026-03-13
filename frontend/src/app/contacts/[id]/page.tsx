@@ -825,6 +825,18 @@ function MessageComposerCard({ contact, contactId }: { contact: Contact; contact
   const [sent, setSent] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [showSnooze, setShowSnooze] = useState(false);
+  const snoozeRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!showSnooze) return;
+    const handler = (e: MouseEvent) => {
+      if (snoozeRef.current && !snoozeRef.current.contains(e.target as Node)) {
+        setShowSnooze(false);
+      }
+    };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, [showSnooze]);
 
   const hasSuggestion = Boolean(suggestion);
 
@@ -910,29 +922,17 @@ function MessageComposerCard({ contact, contactId }: { contact: Contact; contact
           {sent ? (
             <span className="text-sm text-green-600 font-medium">{sent}</span>
           ) : hasSuggestion ? (
-            <>
-              <div className="flex items-center gap-2">
-                <span className="text-sm font-medium text-stone-900">Follow-up suggested</span>
-                <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-amber-50 text-amber-600 border border-amber-200">
-                  <Sparkles className="w-3 h-3" />
-                </span>
-              </div>
-              {!expanded && (
-                <p className="text-xs text-stone-500 mt-0.5 line-clamp-1">
-                  {suggestion!.suggested_message?.slice(0, 100) || "A follow-up is recommended..."}...
-                </p>
+            <span className="text-sm text-stone-700 line-clamp-1">
+              <span className="font-medium text-stone-900">Follow-up suggested</span>
+              {!expanded && suggestion?.suggested_message && (
+                <span className="text-stone-400"> — {suggestion.suggested_message.slice(0, 60)}...</span>
               )}
-            </>
+            </span>
           ) : (
             <span className="text-sm text-stone-500">Write a message...</span>
           )}
         </div>
-        <div className="flex items-center gap-1.5 shrink-0 mt-0.5">
-          {contact.emails?.length ? <Mail className="w-3.5 h-3.5 text-blue-400" /> : null}
-          {contact.telegram_username ? <MessageCircle className="w-3.5 h-3.5 text-sky-400" /> : null}
-          {contact.twitter_handle ? <Twitter className="w-3.5 h-3.5 text-slate-400" /> : null}
-          <ChevronDown className={`w-4 h-4 text-stone-400 transition-transform ${expanded ? "rotate-180" : ""}`} />
-        </div>
+        <ChevronDown className={`w-4 h-4 text-stone-400 shrink-0 mt-0.5 transition-transform ${expanded ? "rotate-180" : ""}`} />
       </button>
 
       {/* Expanded editor */}
@@ -951,10 +951,11 @@ function MessageComposerCard({ contact, contactId }: { contact: Contact; contact
             initialChannel={suggestion?.suggested_channel}
             disabledChannels={disabledChannels}
             onSend={handleSend}
+            autoFocus
           />
           {hasSuggestion && (
             <div className="flex items-center gap-2 mt-3">
-              <div className="relative">
+              <div className="relative" ref={snoozeRef}>
                 <button
                   onClick={() => setShowSnooze(!showSnooze)}
                   className="inline-flex items-center gap-1 px-2.5 py-1.5 text-xs rounded-md text-amber-600 border border-amber-200 bg-amber-50 hover:bg-amber-100 transition-colors"

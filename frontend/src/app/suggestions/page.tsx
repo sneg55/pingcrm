@@ -203,7 +203,7 @@ function SuggestionCard({
 
   /* ── Send button label varies by channel ── */
   const sendLabel =
-    channel === "email" ? "Open Email" : channel === "twitter" ? "Send DM" : "Send";
+    channel === "email" ? "Send Email" : channel === "twitter" ? "Send DM" : "Send";
   const sendIcon =
     channel === "email" ? <Mail className="w-3.5 h-3.5" /> : channel === "twitter" ? <Send className="w-3.5 h-3.5" /> : <Send className="w-3.5 h-3.5" />;
 

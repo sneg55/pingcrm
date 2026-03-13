@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, type ReactNode } from "react";
+import { useState, useRef, useEffect, type ReactNode } from "react";
 import { Mail, MessageCircle, Twitter, RefreshCw, Send, Clock } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { client } from "@/lib/api-client";
@@ -44,6 +44,7 @@ interface MessageEditorProps {
   onRegenerate?: (message: string, channel: Channel) => void;
   className?: string;
   disabledChannels?: Partial<Record<Channel, string>>;
+  autoFocus?: boolean;
 }
 
 export function MessageEditor({
@@ -55,7 +56,9 @@ export function MessageEditor({
   onRegenerate,
   className,
   disabledChannels = {},
+  autoFocus = false,
 }: MessageEditorProps) {
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
   const [message, setMessage] = useState(initialMessage);
   const availableChannels = (Object.keys(channelConfig) as Channel[]).filter(
     (ch) => !disabledChannels[ch]
@@ -74,6 +77,11 @@ export function MessageEditor({
   const config = channelConfig[channel] ?? channelConfig.email;
   const charCount = message.length;
   const isOverLimit = charCount > config.maxChars;
+  const charPercent = Math.min((charCount / config.maxChars) * 100, 100);
+
+  useEffect(() => {
+    if (autoFocus) textareaRef.current?.focus();
+  }, [autoFocus]);
 
   const handleRegenerate = async () => {
     setIsRegenerating(true);
@@ -154,6 +162,7 @@ export function MessageEditor({
       {/* Textarea */}
       <div className="relative">
         <textarea
+          ref={textareaRef}
           value={message}
           onChange={(e) => setMessage(e.target.value)}
           rows={4}
@@ -172,6 +181,18 @@ export function MessageEditor({
           {charCount}/{config.maxChars}
         </span>
       </div>
+      {/* Character limit progress bar */}
+      {charCount > 0 && (
+        <div className="h-1 w-full bg-gray-100 rounded-full overflow-hidden -mt-2">
+          <div
+            className={cn(
+              "h-full transition-all duration-150 rounded-full",
+              isOverLimit ? "bg-red-500" : charPercent > 80 ? "bg-amber-400" : "bg-teal-400"
+            )}
+            style={{ width: `${Math.min(charPercent, 100)}%` }}
+          />
+        </div>
+      )}
 
       {/* Schedule (Telegram only) */}
       {channel === "telegram" && (
@@ -235,9 +256,9 @@ export function MessageEditor({
               <><Send className="w-4 h-4" /> Send</>
             )
           ) : channel === "email" ? (
-            <><Mail className="w-4 h-4" /> Open Email</>
+            <><Mail className="w-4 h-4" /> Send Email</>
           ) : (
-            <><Twitter className="w-4 h-4" /> Open Twitter</>
+            <><Twitter className="w-4 h-4" /> Send DM</>
           )}
         </button>
       </div>
