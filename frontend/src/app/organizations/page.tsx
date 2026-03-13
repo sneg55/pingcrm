@@ -2,15 +2,17 @@
 
 export const dynamic = "force-dynamic";
 
-import { Suspense, useState, useCallback, useRef, memo } from "react";
+import { Suspense, useState, useCallback, useRef, useMemo, memo } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import { useQuery, useQueryClient, useMutation } from "@tanstack/react-query";
-import { Search, Building2, CheckSquare, GitMerge, Trash2, BarChart3, MessageSquare, Clock, Users } from "lucide-react";
+import { Search, Building2, CheckSquare, GitMerge, Trash2, BarChart3, MessageSquare, Clock, Users, ArrowDown, ArrowUpDown } from "lucide-react";
 import Link from "next/link";
 import { client } from "@/lib/api-client";
 import { formatDistanceToNow } from "date-fns";
 
 const EMPTY_SET = new Set<string>();
+
+type SortKey = "name" | "contacts" | "score" | "interactions" | "activity";
 
 interface Organization {
   id: string;
@@ -193,6 +195,7 @@ function OrganizationsPageContent() {
 
   const [selectedOrgIds, setSelectedOrgIds] = useState<Set<string>>(EMPTY_SET);
   const [showMergeModal, setShowMergeModal] = useState(false);
+  const [sortKey, setSortKey] = useState<SortKey>("name");
 
   const setParams = useCallback(
     (updates: Record<string, string | undefined>) => {
@@ -221,6 +224,22 @@ function OrganizationsPageContent() {
 
   const organizations = data?.data ?? [];
   const meta = data?.meta;
+
+  const sortedOrganizations = useMemo(() => {
+    const sorted = [...organizations];
+    switch (sortKey) {
+      case "name": sorted.sort((a, b) => a.name.localeCompare(b.name)); break;
+      case "contacts": sorted.sort((a, b) => b.contact_count - a.contact_count); break;
+      case "score": sorted.sort((a, b) => b.avg_relationship_score - a.avg_relationship_score); break;
+      case "interactions": sorted.sort((a, b) => b.total_interactions - a.total_interactions); break;
+      case "activity": sorted.sort((a, b) => {
+        const aT = a.last_interaction_at ? new Date(a.last_interaction_at).getTime() : 0;
+        const bT = b.last_interaction_at ? new Date(b.last_interaction_at).getTime() : 0;
+        return bT - aT;
+      }); break;
+    }
+    return sorted;
+  }, [organizations, sortKey]);
 
   const mergeOrgs = useMutation({
     mutationFn: async (body: { source_ids: string[]; target_id: string }) => {
@@ -371,22 +390,33 @@ function OrganizationsPageContent() {
                       aria-label="Select all organizations"
                     />
                   </th>
-                  <th className="px-4 py-3 font-medium">Organization</th>
-                  <th className="px-4 py-3 font-medium text-center" title="Contacts">
-                    <Users className="w-3.5 h-3.5 inline" />
-                  </th>
-                  <th className="px-4 py-3 font-medium text-center" title="Avg Score">
-                    <BarChart3 className="w-3.5 h-3.5 inline" />
-                  </th>
-                  <th className="px-4 py-3 font-medium text-center" title="Interactions">
-                    <MessageSquare className="w-3.5 h-3.5 inline" />
-                  </th>
-                  <th className="px-4 py-3 font-medium text-right">Last Activity</th>
+                  {([
+                    { key: "name" as SortKey, label: "Organization", align: "text-left", icon: null },
+                    { key: "contacts" as SortKey, label: "Contacts", align: "text-center", icon: Users },
+                    { key: "score" as SortKey, label: "Avg Score", align: "text-center", icon: BarChart3 },
+                    { key: "interactions" as SortKey, label: "Interactions", align: "text-center", icon: MessageSquare },
+                    { key: "activity" as SortKey, label: "Last Activity", align: "text-right", icon: null },
+                  ]).map((col) => (
+                    <th
+                      key={col.key}
+                      className={`px-4 py-3 font-medium ${col.align} cursor-pointer select-none hover:text-blue-600 transition-colors group`}
+                      onClick={() => setSortKey(col.key)}
+                    >
+                      <span className="inline-flex items-center gap-1">
+                        {col.icon ? <col.icon className="w-3.5 h-3.5" /> : col.label}
+                        {sortKey === col.key ? (
+                          <ArrowDown className="w-3 h-3" />
+                        ) : (
+                          <ArrowUpDown className="w-3 h-3 opacity-0 group-hover:opacity-100 transition-opacity" />
+                        )}
+                      </span>
+                    </th>
+                  ))}
                   <th className="w-10 px-4 py-3" />
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-50">
-                {organizations.map((org) => {
+                {sortedOrganizations.map((org) => {
                   const isSelected = selectedOrgIds.has(org.id);
                   return (
                     <tr key={org.id} className={`hover:bg-gray-50 transition-colors ${isSelected ? "bg-blue-50/50" : ""}`}>

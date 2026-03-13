@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useRef, useEffect } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
@@ -10,11 +10,9 @@ import {
   Linkedin,
   MapPin,
   Pencil,
-  Save,
   Trash2,
   Twitter,
   Users,
-  X,
   BarChart3,
   MessageSquare,
   Clock,
@@ -76,14 +74,183 @@ function StatCard({ icon: Icon, label, value }: { icon: typeof Users; label: str
   );
 }
 
+/* ── Inline editable field (org version) ── */
+
+function OrgInlineField({
+  icon: Icon,
+  label,
+  value,
+  onSave,
+  href,
+}: {
+  icon: typeof Globe;
+  label: string;
+  value: string | null;
+  onSave: (v: string) => void;
+  href?: string;
+}) {
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState(value ?? "");
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if (editing) inputRef.current?.focus();
+  }, [editing]);
+
+  const save = () => {
+    if (draft !== (value ?? "")) onSave(draft);
+    setEditing(false);
+  };
+
+  const cancel = () => {
+    setDraft(value ?? "");
+    setEditing(false);
+  };
+
+  return (
+    <div className="group/field flex items-center gap-2 text-sm py-1">
+      <Icon className="h-4 w-4 shrink-0 text-zinc-400" />
+      <span className="text-zinc-500 dark:text-zinc-400 shrink-0">{label}:</span>
+      {editing ? (
+        <div className="flex items-center gap-1.5 flex-1 min-w-0">
+          <input
+            ref={inputRef}
+            value={draft}
+            onChange={(e) => setDraft(e.target.value)}
+            onKeyDown={(e) => { if (e.key === "Enter") save(); if (e.key === "Escape") cancel(); }}
+            onBlur={save}
+            className="flex-1 min-w-0 text-sm rounded border border-zinc-300 px-2 py-0.5 focus:outline-none focus:ring-2 focus:ring-teal-400 focus:border-teal-400 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-100"
+          />
+        </div>
+      ) : (
+        <div className="flex items-center gap-1.5 min-w-0 flex-1">
+          {value ? (
+            href ? (
+              <a href={href} target="_blank" rel="noopener noreferrer" className="text-teal-600 hover:underline truncate">
+                {value}
+              </a>
+            ) : (
+              <span className="text-zinc-900 dark:text-zinc-100 truncate">{value}</span>
+            )
+          ) : (
+            <span className="italic text-zinc-400">—</span>
+          )}
+          <button
+            onClick={() => { setDraft(value ?? ""); setEditing(true); }}
+            className="p-0.5 rounded text-zinc-300 hover:text-zinc-500 opacity-0 group-hover/field:opacity-100 transition-opacity shrink-0"
+          >
+            <Pencil className="w-3 h-3" />
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
+
+/* ── Inline editable notes ── */
+
+function OrgNotesField({ value, onSave }: { value: string | null; onSave: (v: string) => void }) {
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState(value ?? "");
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
+
+  useEffect(() => {
+    if (editing) textareaRef.current?.focus();
+  }, [editing]);
+
+  const save = () => {
+    if (draft !== (value ?? "")) onSave(draft);
+    setEditing(false);
+  };
+
+  const cancel = () => {
+    setDraft(value ?? "");
+    setEditing(false);
+  };
+
+  return (
+    <div className="group/field mt-4">
+      <label className="mb-1 block text-xs font-medium text-zinc-500 dark:text-zinc-400">Notes</label>
+      {editing ? (
+        <div className="space-y-2">
+          <textarea
+            ref={textareaRef}
+            className="w-full rounded border border-zinc-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-teal-400 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-100"
+            rows={3}
+            value={draft}
+            onChange={(e) => setDraft(e.target.value)}
+            onKeyDown={(e) => { if (e.key === "Escape") cancel(); }}
+          />
+          <div className="flex items-center gap-2 justify-end">
+            <button onClick={cancel} className="px-2.5 py-1 text-xs font-medium rounded-md text-zinc-600 hover:bg-zinc-100 border border-zinc-200">Cancel</button>
+            <button onClick={save} className="px-2.5 py-1 text-xs font-medium rounded-md bg-teal-600 text-white hover:bg-teal-700">Save</button>
+          </div>
+        </div>
+      ) : (
+        <div className="flex items-start gap-1.5">
+          <p className="text-sm text-zinc-600 dark:text-zinc-400 flex-1">
+            {value || <span className="italic text-zinc-400">No notes</span>}
+          </p>
+          <button
+            onClick={() => { setDraft(value ?? ""); setEditing(true); }}
+            className="p-0.5 rounded text-zinc-300 hover:text-zinc-500 opacity-0 group-hover/field:opacity-100 transition-opacity shrink-0 mt-0.5"
+          >
+            <Pencil className="w-3 h-3" />
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
+
+/* ── Inline editable org name ── */
+
+function OrgNameField({ value, onSave }: { value: string; onSave: (v: string) => void }) {
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState(value);
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if (editing) inputRef.current?.focus();
+  }, [editing]);
+
+  const save = () => {
+    if (draft.trim() && draft !== value) onSave(draft.trim());
+    setEditing(false);
+  };
+
+  return (
+    <div className="group/field flex items-center gap-2">
+      {editing ? (
+        <input
+          ref={inputRef}
+          className="rounded border border-zinc-300 px-2 py-1 text-2xl font-bold focus:outline-none focus:ring-2 focus:ring-teal-400 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-100"
+          value={draft}
+          onChange={(e) => setDraft(e.target.value)}
+          onKeyDown={(e) => { if (e.key === "Enter") save(); if (e.key === "Escape") { setDraft(value); setEditing(false); } }}
+          onBlur={save}
+        />
+      ) : (
+        <>
+          <h1 className="text-2xl font-bold text-zinc-900 dark:text-zinc-100">{value}</h1>
+          <button
+            onClick={() => { setDraft(value); setEditing(true); }}
+            className="p-1 rounded text-zinc-300 hover:text-zinc-500 opacity-0 group-hover/field:opacity-100 transition-opacity"
+          >
+            <Pencil className="w-4 h-4" />
+          </button>
+        </>
+      )}
+    </div>
+  );
+}
+
 /* ── Main Page ── */
 
 export default function OrganizationDetailPage() {
   const { id } = useParams<{ id: string }>();
   const router = useRouter();
   const queryClient = useQueryClient();
-  const [editing, setEditing] = useState(false);
-  const [editData, setEditData] = useState<Partial<OrganizationData>>({});
   const [sortBy, setSortBy] = useState<"score" | "name" | "recent">("score");
 
   const { data, isLoading, error } = useQuery({
@@ -108,7 +275,6 @@ export default function OrganizationDetailPage() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["organization", id] });
       queryClient.invalidateQueries({ queryKey: ["organizations"] });
-      setEditing(false);
     },
   });
 
@@ -153,23 +319,8 @@ export default function OrganizationDetailPage() {
   }
 
   const org = data;
-
-  const handleSave = () => {
-    updateMutation.mutate(editData);
-  };
-
-  const handleStartEdit = () => {
-    setEditData({
-      name: org.name,
-      domain: org.domain,
-      industry: org.industry,
-      location: org.location,
-      website: org.website,
-      linkedin_url: org.linkedin_url,
-      twitter_handle: org.twitter_handle,
-      notes: org.notes,
-    });
-    setEditing(true);
+  const saveField = (field: string, value: string) => {
+    updateMutation.mutate({ [field]: value } as Partial<OrganizationData>);
   };
 
   return (
@@ -186,55 +337,19 @@ export default function OrganizationDetailPage() {
           <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-teal-100 dark:bg-teal-900">
             <Building2 className="h-5 w-5 text-teal-600 dark:text-teal-400" />
           </div>
-          {editing ? (
-            <input
-              className="rounded border border-zinc-300 px-2 py-1 text-2xl font-bold dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-100"
-              value={editData.name ?? ""}
-              onChange={(e) => setEditData({ ...editData, name: e.target.value })}
-            />
-          ) : (
-            <h1 className="text-2xl font-bold text-zinc-900 dark:text-zinc-100">{org.name}</h1>
-          )}
+          <OrgNameField value={org.name} onSave={(v) => saveField("name", v)} />
         </div>
 
-        <div className="flex items-center gap-2">
-          {editing ? (
-            <>
-              <button
-                onClick={() => setEditing(false)}
-                className="rounded-md px-3 py-1.5 text-sm text-zinc-500 hover:bg-zinc-100 dark:hover:bg-zinc-800"
-              >
-                <X className="mr-1 inline h-4 w-4" /> Cancel
-              </button>
-              <button
-                onClick={handleSave}
-                disabled={updateMutation.isPending}
-                className="rounded-md bg-teal-600 px-3 py-1.5 text-sm text-white hover:bg-teal-700 disabled:opacity-50"
-              >
-                <Save className="mr-1 inline h-4 w-4" /> Save
-              </button>
-            </>
-          ) : (
-            <>
-              <button
-                onClick={handleStartEdit}
-                className="rounded-md px-3 py-1.5 text-sm text-zinc-600 hover:bg-zinc-100 dark:text-zinc-400 dark:hover:bg-zinc-800"
-              >
-                <Pencil className="mr-1 inline h-4 w-4" /> Edit
-              </button>
-              <button
-                onClick={() => {
-                  if (confirm("Delete this organization? Contacts will be unlinked but not deleted.")) {
-                    deleteMutation.mutate();
-                  }
-                }}
-                className="rounded-md px-3 py-1.5 text-sm text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20"
-              >
-                <Trash2 className="mr-1 inline h-4 w-4" /> Delete
-              </button>
-            </>
-          )}
-        </div>
+        <button
+          onClick={() => {
+            if (confirm("Delete this organization? Contacts will be unlinked but not deleted.")) {
+              deleteMutation.mutate();
+            }
+          }}
+          className="rounded-md px-3 py-1.5 text-sm text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20"
+        >
+          <Trash2 className="mr-1 inline h-4 w-4" /> Delete
+        </button>
       </div>
 
       {/* Stats Row */}
@@ -249,59 +364,21 @@ export default function OrganizationDetailPage() {
         />
       </div>
 
-      {/* Info Panel */}
+      {/* Info Panel — inline editable */}
       <div className="mb-6 rounded-lg border border-zinc-200 bg-white p-5 dark:border-zinc-800 dark:bg-zinc-900">
         <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-zinc-500 dark:text-zinc-400">
           Details
         </h2>
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-          {editing ? (
-            <>
-              <Field label="Domain" value={editData.domain} onChange={(v) => setEditData({ ...editData, domain: v })} />
-              <Field label="Industry" value={editData.industry} onChange={(v) => setEditData({ ...editData, industry: v })} />
-              <Field label="Location" value={editData.location} onChange={(v) => setEditData({ ...editData, location: v })} />
-              <Field label="Website" value={editData.website} onChange={(v) => setEditData({ ...editData, website: v })} />
-              <Field label="LinkedIn" value={editData.linkedin_url} onChange={(v) => setEditData({ ...editData, linkedin_url: v })} />
-              <Field label="Twitter" value={editData.twitter_handle} onChange={(v) => setEditData({ ...editData, twitter_handle: v })} />
-            </>
-          ) : (
-            <>
-              <InfoRow icon={Globe} label="Domain" value={org.domain} />
-              <InfoRow icon={Building2} label="Industry" value={org.industry} />
-              <InfoRow icon={MapPin} label="Location" value={org.location} />
-              <InfoRow
-                icon={Globe}
-                label="Website"
-                value={org.website}
-                href={safeHref(org.website)}
-              />
-              <InfoRow
-                icon={Linkedin}
-                label="LinkedIn"
-                value={org.linkedin_url}
-                href={safeHref(org.linkedin_url)}
-              />
-              <InfoRow icon={Twitter} label="Twitter" value={org.twitter_handle} />
-            </>
-          )}
+        <div className="grid grid-cols-1 gap-1 sm:grid-cols-2">
+          <OrgInlineField icon={Globe} label="Domain" value={org.domain} onSave={(v) => saveField("domain", v)} />
+          <OrgInlineField icon={Building2} label="Industry" value={org.industry} onSave={(v) => saveField("industry", v)} />
+          <OrgInlineField icon={MapPin} label="Location" value={org.location} onSave={(v) => saveField("location", v)} />
+          <OrgInlineField icon={Globe} label="Website" value={org.website} onSave={(v) => saveField("website", v)} href={safeHref(org.website)} />
+          <OrgInlineField icon={Linkedin} label="LinkedIn" value={org.linkedin_url} onSave={(v) => saveField("linkedin_url", v)} href={safeHref(org.linkedin_url)} />
+          <OrgInlineField icon={Twitter} label="Twitter" value={org.twitter_handle} onSave={(v) => saveField("twitter_handle", v)} />
         </div>
 
-        {/* Notes */}
-        <div className="mt-4">
-          <label className="mb-1 block text-xs font-medium text-zinc-500 dark:text-zinc-400">Notes</label>
-          {editing ? (
-            <textarea
-              className="w-full rounded border border-zinc-300 px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-100"
-              rows={3}
-              value={editData.notes ?? ""}
-              onChange={(e) => setEditData({ ...editData, notes: e.target.value })}
-            />
-          ) : (
-            <p className="text-sm text-zinc-600 dark:text-zinc-400">
-              {org.notes || <span className="italic text-zinc-400">No notes</span>}
-            </p>
-          )}
-        </div>
+        <OrgNotesField value={org.notes} onSave={(v) => saveField("notes", v)} />
       </div>
 
       {/* Contacts Table */}
@@ -376,59 +453,6 @@ export default function OrganizationDetailPage() {
           </table>
         )}
       </div>
-    </div>
-  );
-}
-
-/* ── Helper Components ── */
-
-function InfoRow({
-  icon: Icon,
-  label,
-  value,
-  href,
-}: {
-  icon: typeof Globe;
-  label: string;
-  value: string | null;
-  href?: string;
-}) {
-  return (
-    <div className="flex items-center gap-2 text-sm">
-      <Icon className="h-4 w-4 shrink-0 text-zinc-400" />
-      <span className="text-zinc-500 dark:text-zinc-400">{label}:</span>
-      {value ? (
-        href ? (
-          <a href={href} target="_blank" rel="noopener noreferrer" className="text-teal-600 hover:underline">
-            {value}
-          </a>
-        ) : (
-          <span className="text-zinc-900 dark:text-zinc-100">{value}</span>
-        )
-      ) : (
-        <span className="italic text-zinc-400">-</span>
-      )}
-    </div>
-  );
-}
-
-function Field({
-  label,
-  value,
-  onChange,
-}: {
-  label: string;
-  value: string | null | undefined;
-  onChange: (v: string) => void;
-}) {
-  return (
-    <div>
-      <label className="mb-1 block text-xs font-medium text-zinc-500">{label}</label>
-      <input
-        className="w-full rounded border border-zinc-300 px-2 py-1.5 text-sm dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-100"
-        value={value ?? ""}
-        onChange={(e) => onChange(e.target.value)}
-      />
     </div>
   );
 }
