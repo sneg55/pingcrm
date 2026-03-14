@@ -820,6 +820,10 @@ def sync_twitter_dms_for_user(self, user_id: str) -> dict:
             if user is None:
                 return {"status": "user_not_found"}
 
+            # Skip DM sync if user has no Twitter OAuth token (Bird CLI handles tweets/profiles separately)
+            if not user.twitter_access_token:
+                return {"status": "skipped", "reason": "no_twitter_token", "new_interactions": 0}
+
             headers = await _user_bearer_headers(user, db)
             id_map = await _build_twitter_id_to_contact_map(user, db, headers) if headers else None
 
