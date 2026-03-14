@@ -58,6 +58,11 @@
     // About section
     const aboutEl = querySelector('about');
 
+    let avatarUrl = avatarImg ? avatarImg.src : null;
+    if (avatarUrl) {
+      avatarUrl = avatarUrl.replace(/_100_100/, '_400_400').replace(/_200_200/, '_400_400');
+    }
+
     return {
       profile_id: profileId,
       profile_url: `https://www.linkedin.com/in/${profileId}`,
@@ -66,7 +71,7 @@
       company: company || null,
       location: location || null,
       about: aboutEl ? aboutEl.textContent.trim() : null,
-      avatar_url: avatarImg ? avatarImg.src : null,
+      avatar_url: avatarUrl,
     };
   }
 
@@ -85,6 +90,11 @@
     const aboutEl = querySelector('about');
     const avatarEl = querySelector('avatarUrl');
 
+    let avatarUrl = avatarEl ? avatarEl.src : null;
+    if (avatarUrl) {
+      avatarUrl = avatarUrl.replace(/_100_100/, '_400_400').replace(/_200_200/, '_400_400');
+    }
+
     return {
       profile_id: profileId,
       profile_url: `https://www.linkedin.com/in/${profileId}`,
@@ -93,7 +103,7 @@
       company: companyEl ? companyEl.textContent.trim() : null,
       location: locationEl ? locationEl.textContent.trim() : null,
       about: aboutEl ? aboutEl.textContent.trim() : null,
-      avatar_url: avatarEl ? avatarEl.src : null,
+      avatar_url: avatarUrl,
     };
   }
 

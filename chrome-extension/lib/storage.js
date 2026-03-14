@@ -11,8 +11,8 @@ const Storage = {
   },
 
   async getConfig() {
-    const { apiUrl, token, autoSync, lastSync, profileCount, messageCount } =
-      await this.get(['apiUrl', 'token', 'autoSync', 'lastSync', 'profileCount', 'messageCount']);
+    const { apiUrl, token, autoSync, lastSync, profileCount, messageCount, lastSyncError, userEmail } =
+      await this.get(['apiUrl', 'token', 'autoSync', 'lastSync', 'profileCount', 'messageCount', 'lastSyncError', 'userEmail']);
     return {
       apiUrl: apiUrl || '',
       token: token || '',
@@ -20,6 +20,8 @@ const Storage = {
       lastSync: lastSync || null,
       profileCount: profileCount || 0,
       messageCount: messageCount || 0,
+      lastSyncError: lastSyncError || null,
+      userEmail: userEmail || null,
     };
   },
 

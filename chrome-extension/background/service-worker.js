@@ -16,8 +16,8 @@ const Storage = {
     return chrome.storage.local.set(data);
   },
   async getConfig() {
-    const { apiUrl, token, autoSync, lastSync, profileCount, messageCount } =
-      await this.get(['apiUrl', 'token', 'autoSync', 'lastSync', 'profileCount', 'messageCount']);
+    const { apiUrl, token, autoSync, lastSync, profileCount, messageCount, lastSyncError } =
+      await this.get(['apiUrl', 'token', 'autoSync', 'lastSync', 'profileCount', 'messageCount', 'lastSyncError']);
     return {
       apiUrl: apiUrl || '',
       token: token || '',
@@ -25,6 +25,7 @@ const Storage = {
       lastSync: lastSync || null,
       profileCount: profileCount || 0,
       messageCount: messageCount || 0,
+      lastSyncError: lastSyncError || null,
     };
   },
   async saveConfig({ apiUrl, token }) {
@@ -85,16 +86,20 @@ function scheduleBatch() {
   batchTimer = setTimeout(flushBatch, BATCH_DELAY_MS);
 }
 
-async function flushBatch() {
+async function flushBatch(sendResponse) {
   batchTimer = null;
   const profiles = pendingProfiles.splice(0);
   const messages = pendingMessages.splice(0);
 
-  if (profiles.length === 0 && messages.length === 0) return;
+  if (profiles.length === 0 && messages.length === 0) {
+    if (sendResponse) sendResponse({ ok: true, profiles: 0, messages: 0 });
+    return;
+  }
 
   const configured = await Storage.isConfigured();
   if (!configured) {
     setBadge('!', '#F44336');
+    if (sendResponse) sendResponse({ ok: false, error: 'Not configured' });
     return;
   }
 
@@ -102,15 +107,20 @@ async function flushBatch() {
     const result = await Api.push(profiles, messages);
     const data = result.data || {};
 
-    await Storage.recordSync({
-      profilesSynced: (data.contacts_created || 0) + (data.contacts_updated || 0),
-      messagesSynced: data.interactions_created || 0,
-    });
+    const profilesSynced = (data.contacts_created || 0) + (data.contacts_updated || 0);
+    const messagesSynced = data.interactions_created || 0;
+
+    await Storage.recordSync({ profilesSynced, messagesSynced });
+    await Storage.set({ lastSyncError: null });
 
     setBadge('OK', '#4CAF50');
     setTimeout(() => setBadge('', ''), 3000);
+
+    if (sendResponse) sendResponse({ ok: true, profiles: profilesSynced, messages: messagesSynced });
   } catch (e) {
     console.error('[PingCRM] Push failed:', e.message);
+    await Storage.set({ lastSyncError: e.message });
+
     if (e.message === 'AUTH_EXPIRED') {
       setBadge('!', '#F44336');
     } else {
@@ -119,6 +129,8 @@ async function flushBatch() {
       pendingMessages.unshift(...messages);
       setTimeout(scheduleBatch, 30000);
     }
+
+    if (sendResponse) sendResponse({ ok: false, error: e.message });
   }
 }
 
@@ -135,10 +147,19 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
     pendingProfiles.push(message.data);
     scheduleBatch();
     sendResponse({ ok: true });
+    return false;
   } else if (message.type === 'MESSAGES_CAPTURED') {
     pendingMessages.push(...(Array.isArray(message.data) ? message.data : [message.data]));
     scheduleBatch();
     sendResponse({ ok: true });
+    return false;
+  } else if (message.type === 'SYNC_NOW') {
+    if (batchTimer) {
+      clearTimeout(batchTimer);
+      batchTimer = null;
+    }
+    flushBatch(sendResponse);
+    return true; // async sendResponse
   }
   return false;
 });

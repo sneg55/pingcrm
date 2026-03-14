@@ -35,6 +35,7 @@
         <span class="status-dot" id="status-dot"></span>
         <span id="status-text">Connected</span>
       </div>
+      <p id="user-email" class="user-email hidden"></p>
 
       <div class="stats">
         <div class="stat">
@@ -49,11 +50,17 @@
 
       <p class="last-sync" id="last-sync">Never synced</p>
 
+      <div id="sync-error" class="error-text hidden">
+        <span id="sync-error-msg"></span>
+        <button id="retry-btn" class="btn btn-secondary btn-small">Retry</button>
+      </div>
+
       <div class="toggle-row">
         <label for="auto-sync">Auto-sync</label>
         <input type="checkbox" id="auto-sync" checked>
       </div>
 
+      <button id="sync-now-btn" class="btn btn-primary">Sync Now</button>
       <button id="disconnect-btn" class="btn btn-secondary">Disconnect</button>
     </div>
   </div>

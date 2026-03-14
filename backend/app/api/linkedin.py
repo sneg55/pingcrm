@@ -12,6 +12,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.auth import get_current_user
 from app.core.database import get_db
+from app.integrations.linkedin import download_linkedin_avatar
 from app.models.contact import Contact
 from app.models.interaction import Interaction
 from app.models.user import User
@@ -20,6 +21,11 @@ from app.schemas.responses import Envelope, LinkedInPushResult
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/v1/linkedin", tags=["linkedin"])
+
+
+def _has_local_avatar(avatar_url: str | None) -> bool:
+    """Return True when avatar_url already points to a locally stored file."""
+    return bool(avatar_url and avatar_url.startswith("/static/avatars/"))
 
 
 class LinkedInProfilePush(BaseModel):
@@ -98,12 +104,20 @@ async def push_linkedin_data(
                 contact.location = profile.location
             if profile.about:
                 contact.linkedin_bio = profile.about
-            if profile.avatar_url:
-                contact.avatar_url = profile.avatar_url
             if profile.profile_url:
                 contact.linkedin_url = profile_url_normalized
             if not contact.linkedin_profile_id:
                 contact.linkedin_profile_id = profile.profile_id
+            # Download avatar only when the contact does not already have a local copy
+            if profile.avatar_url and not _has_local_avatar(contact.avatar_url):
+                local_path = await download_linkedin_avatar(
+                    profile.avatar_url, str(contact.id)
+                )
+                if local_path:
+                    contact.avatar_url = local_path
+                elif not contact.avatar_url:
+                    # Fall back to the remote URL only when there is nothing stored yet
+                    contact.avatar_url = profile.avatar_url
             contacts_updated += 1
         else:
             contact = Contact(
@@ -115,12 +129,17 @@ async def push_linkedin_data(
                 linkedin_bio=profile.about,
                 company=profile.company,
                 location=profile.location,
-                avatar_url=profile.avatar_url,
                 source="linkedin-extension",
             )
             db.add(contact)
             await db.flush()
             contacts_created += 1
+            # Download avatar for the newly created contact
+            if profile.avatar_url:
+                local_path = await download_linkedin_avatar(
+                    profile.avatar_url, str(contact.id)
+                )
+                contact.avatar_url = local_path or profile.avatar_url
 
     # --- Messages ---
     for msg in body.messages:
