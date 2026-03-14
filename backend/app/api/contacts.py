@@ -713,6 +713,21 @@ async def update_contact(
     update_data = contact_in.model_dump(exclude_unset=True)
     company_changed = "company" in update_data and update_data["company"] != contact.company
 
+    # Validate organization_id belongs to current user (prevent cross-tenant linkage)
+    if "organization_id" in update_data and update_data["organization_id"] is not None:
+        from app.models.organization import Organization
+        org_check = await db.execute(
+            select(Organization.id).where(
+                Organization.id == update_data["organization_id"],
+                Organization.user_id == current_user.id,
+            )
+        )
+        if not org_check.scalar_one_or_none():
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Organization does not belong to this user",
+            )
+
     for field, value in update_data.items():
         setattr(contact, field, value)
 
