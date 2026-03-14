@@ -1,8 +1,8 @@
 import uuid
 from datetime import datetime
 
-from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy import select
+from fastapi import APIRouter, Depends, HTTPException, Query, status
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.auth import get_current_user
@@ -23,6 +23,8 @@ def envelope(data: object, error: str | None = None, meta: dict | None = None) -
 @router.get("/{contact_id}/interactions", response_model=Envelope[list[InteractionResponse]])
 async def list_interactions(
     contact_id: uuid.UUID,
+    limit: int = Query(default=50, ge=1, le=200),
+    offset: int = Query(default=0, ge=0),
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ) -> Envelope[list[InteractionResponse]]:
@@ -32,13 +34,23 @@ async def list_interactions(
     if not contact_result.scalar_one_or_none():
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Contact not found")
 
+    count_result = await db.execute(
+        select(func.count()).select_from(Interaction).where(Interaction.contact_id == contact_id)
+    )
+    total = count_result.scalar_one()
+
     result = await db.execute(
         select(Interaction)
         .where(Interaction.contact_id == contact_id)
         .order_by(Interaction.occurred_at.desc())
+        .limit(limit)
+        .offset(offset)
     )
     interactions = result.scalars().all()
-    return envelope([InteractionResponse.model_validate(i).model_dump() for i in interactions])
+    return envelope(
+        [InteractionResponse.model_validate(i).model_dump() for i in interactions],
+        meta={"total": total, "limit": limit, "offset": offset},
+    )
 
 
 @router.post("/{contact_id}/interactions", response_model=Envelope[InteractionResponse], status_code=status.HTTP_201_CREATED)

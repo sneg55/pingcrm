@@ -49,14 +49,7 @@ class EncryptedString(TypeDecorator):
     def process_bind_param(self, value: str | None, dialect) -> str | None:  # noqa: ANN001
         if value is None:
             return None
-        try:
-            return encrypt_value(value)
-        except RuntimeError:
-            import logging
-            logging.getLogger(__name__).warning(
-                "EncryptedString: ENCRYPTION_KEY not set — storing value unencrypted"
-            )
-            return value
+        return encrypt_value(value)
 
     def process_result_value(self, value: str | None, dialect) -> str | None:  # noqa: ANN001
         if value is None:

@@ -7,6 +7,7 @@ import hashlib
 import logging
 import os
 import secrets
+import urllib.parse
 import uuid
 from datetime import UTC, datetime
 from pathlib import Path
@@ -28,6 +29,8 @@ AVATARS_DIR = Path(os.environ.get(
 ))
 
 _TWITTER_API_BASE = "https://api.twitter.com/2"
+
+ALLOWED_AVATAR_DOMAINS = {"pbs.twimg.com", "abs.twimg.com", "si0.twimg.com"}
 
 
 def _parse_twitter_ts(ts: str | None) -> datetime:
@@ -51,6 +54,14 @@ async def download_twitter_avatar(
     for a sharper image.  Returns the local URL path, or ``None`` on failure.
     """
     url = profile_image_url.replace("_normal.", "_200x200.")
+    parsed = urllib.parse.urlparse(url)
+    if parsed.hostname not in ALLOWED_AVATAR_DOMAINS:
+        logger.warning(
+            "download_twitter_avatar: rejected URL with disallowed domain %r for contact %s",
+            parsed.hostname,
+            contact_id,
+        )
+        return None
     try:
         AVATARS_DIR.mkdir(parents=True, exist_ok=True)
         filename = f"{contact_id}.jpg"
@@ -100,13 +111,18 @@ async def poll_contacts_activity(
 
     bird.last_error = None  # reset before batch
 
-    for contact in contacts:
+    _POLL_CONCURRENCY = 5
+    semaphore = asyncio.Semaphore(_POLL_CONCURRENCY)
+
+    async def _poll_contact(contact: Contact) -> dict | None:
         handle = (contact.twitter_handle or "").lstrip("@").strip()
         if not handle:
-            continue
+            return None
 
-        tweets = await fetch_user_tweets_bird(handle)
-        profile = await fetch_user_profile_bird(handle)
+        async with semaphore:
+            tweets = await fetch_user_tweets_bird(handle)
+            profile = await fetch_user_profile_bird(handle)
+
         current_bio = profile.get("description", "")
 
         # Update location from Twitter profile
@@ -155,14 +171,17 @@ async def poll_contacts_activity(
             contact.twitter_bio = current_bio
             await db.flush()
 
-        activity_records.append({
+        return {
             "contact_id": str(contact.id),
             "twitter_handle": handle,
             "tweets": tweets,
             "current_bio": current_bio,
             "previous_bio": stored_bio,
             "bio_changed": bio_changed,
-        })
+        }
+
+    results = await asyncio.gather(*(_poll_contact(c) for c in contacts))
+    activity_records = [r for r in results if r is not None]
 
     return activity_records
 

@@ -78,7 +78,8 @@ jobs:
         uses: appleboy/scp-action@v0.1.7
         with:
           host: ${{ secrets.SERVER_HOST }}
-          username: root
+          # NOTE: a 'deploy' user with Docker access must be set up on the server
+          username: deploy
           key: ${{ secrets.SSH_PRIVATE_KEY }}
           source: "docker-compose.prod.yml"
           target: "/opt/pingcrm/"
@@ -88,7 +89,8 @@ jobs:
         uses: appleboy/ssh-action@v1.0.3
         with:
           host: ${{ secrets.SERVER_HOST }}
-          username: root
+          # NOTE: a 'deploy' user with Docker access must be set up on the server
+          username: deploy
           key: ${{ secrets.SSH_PRIVATE_KEY }}
           envs: GITHUB_TOKEN,GITHUB_ACTOR,BIRD_AUTH_TOKEN,BIRD_CT0
           script: |

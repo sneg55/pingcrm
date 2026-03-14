@@ -1103,10 +1103,6 @@ function ChatTimeline({
                       <Linkify text={item.content_preview} className="text-amber-700 hover:text-amber-900" />
                     </p>
                   )}
-                  <div className="flex items-center gap-1 opacity-0 group-hover/note:opacity-100 transition-opacity shrink-0 ml-2">
-                    <button className="p-1 rounded text-stone-400 hover:text-stone-600 hover:bg-stone-100"><Pencil className="w-3 h-3" /></button>
-                    <button className="p-1 rounded text-stone-400 hover:text-red-500 hover:bg-red-50"><Trash2 className="w-3 h-3" /></button>
-                  </div>
                 </div>
                 <div className="flex items-center gap-1.5 mt-1">
                   {platformIconMap.manual}
@@ -1262,6 +1258,8 @@ export default function ContactDetailPage() {
     enabled: Boolean(id),
     staleTime: Infinity,
     retry: false,
+    refetchOnMount: false,
+    refetchOnWindowFocus: false,
   });
 
   // Background email sync
@@ -1280,6 +1278,8 @@ export default function ContactDetailPage() {
     enabled: Boolean(id) && Boolean(contactEmails?.length),
     staleTime: Infinity,
     retry: false,
+    refetchOnMount: false,
+    refetchOnWindowFocus: false,
   });
 
   // Background avatar refresh
@@ -1293,6 +1293,8 @@ export default function ContactDetailPage() {
     enabled: Boolean(id),
     staleTime: Infinity,
     retry: false,
+    refetchOnMount: false,
+    refetchOnWindowFocus: false,
   });
 
   const handleRefreshDetails = async () => {
@@ -1336,15 +1338,13 @@ export default function ContactDetailPage() {
     setIsAutoTagging(true);
     setToast(null);
     try {
-      const res = await fetch(`/api/v1/contacts/${id}/auto-tag`, {
-        method: "POST",
-        headers: { Authorization: `Bearer ${localStorage.getItem("access_token")}`, "Content-Type": "application/json" },
+      const { data: json, error } = await client.POST("/api/v1/contacts/{contact_id}/auto-tag", {
+        params: { path: { contact_id: id } },
       });
-      const json = await res.json();
-      if (!res.ok) {
-        setToast({ type: "error", text: json.detail || "Auto-tagging failed" });
+      if (error) {
+        setToast({ type: "error", text: (error as any)?.detail || "Auto-tagging failed" });
       } else {
-        const tagsAdded = json.data?.tags_added ?? [];
+        const tagsAdded = (json as any)?.data?.tags_added ?? [];
         setToast({ type: "success", text: tagsAdded.length > 0 ? `Added: ${tagsAdded.join(", ")}` : "No new tags" });
         void queryClient.invalidateQueries({ queryKey: ["contacts", id] });
         void queryClient.invalidateQueries({ queryKey: ["tags"] });

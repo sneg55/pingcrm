@@ -357,7 +357,7 @@ async def get_organization(
     # Fetch contacts (capped to avoid unbounded response size)
     contacts_result = await db.execute(
         select(Contact)
-        .where(Contact.organization_id == org.id, Contact.priority_level != "archived")
+        .where(Contact.organization_id == org.id, Contact.user_id == current_user.id, Contact.priority_level != "archived")
         .order_by(Contact.relationship_score.desc())
         .limit(200)
     )
@@ -440,7 +440,7 @@ async def update_organization(
     if "name" in update_data:
         await db.execute(
             update(Contact)
-            .where(Contact.organization_id == org.id)
+            .where(Contact.organization_id == org.id, Contact.user_id == current_user.id)
             .values(company=org.name)
         )
 

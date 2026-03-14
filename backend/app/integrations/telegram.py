@@ -561,6 +561,13 @@ async def sync_telegram_chats(user: User, db: AsyncSession, *, max_dialogs: int 
                     dialogs_skipped += 1
                     continue  # No new messages, skip this dialog entirely
 
+            # Pre-load existing raw_reference_ids for this contact to avoid per-message SELECTs
+            existing_result = await db.execute(
+                select(Interaction.raw_reference_id)
+                .where(Interaction.contact_id == contact.id, Interaction.raw_reference_id.isnot(None))
+            )
+            existing_refs: set[str] = set(existing_result.scalars().all())
+
             # Iterate recent messages for this dialog
             try:
                 async for message in client.iter_messages(entity, limit=MAX_MESSAGES):
@@ -569,6 +576,10 @@ async def sync_telegram_chats(user: User, db: AsyncSession, *, max_dialogs: int 
 
                     direction = "outbound" if message.sender_id == my_id else "inbound"
                     message_id = f"{entity.id}:{message.id}"
+
+                    if message_id in existing_refs:
+                        continue  # already stored, skip DB write
+
                     occurred_at = message.date.replace(tzinfo=UTC) if message.date.tzinfo is None else message.date
 
                     _interaction, is_new = await _upsert_interaction(
@@ -593,8 +604,7 @@ async def sync_telegram_chats(user: User, db: AsyncSession, *, max_dialogs: int 
             except FloodWaitError as e:
                 await _set_rate_gate(str(user.id), e.seconds)
                 logger.warning("FloodWaitError in sync_telegram_chats: waiting %d seconds", e.seconds)
-                await asyncio.sleep(e.seconds + 5)
-                continue
+                raise
 
             # Throttle between dialogs to avoid Telegram rate limits
             await asyncio.sleep(random.uniform(0.5, 1.0))
@@ -729,12 +739,23 @@ async def sync_telegram_chats_batch(
             except Exception:
                 pass  # On error, fall through to full sync
 
+            # Pre-load existing raw_reference_ids for this contact to avoid per-message SELECTs
+            existing_result = await db.execute(
+                select(Interaction.raw_reference_id)
+                .where(Interaction.contact_id == contact.id, Interaction.raw_reference_id.isnot(None))
+            )
+            existing_refs: set[str] = set(existing_result.scalars().all())
+
             try:
                 async for message in client.iter_messages(entity, limit=MAX_MESSAGES):
                     if message.message is None:
                         continue
                     direction = "outbound" if message.sender_id == my_id else "inbound"
                     message_id = f"{eid}:{message.id}"
+
+                    if message_id in existing_refs:
+                        continue  # already stored, skip DB write
+
                     occurred_at = message.date.replace(tzinfo=UTC) if message.date.tzinfo is None else message.date
 
                     _interaction, is_new = await _upsert_interaction(
@@ -755,8 +776,7 @@ async def sync_telegram_chats_batch(
             except FloodWaitError as e:
                 await _set_rate_gate(str(user.id), e.seconds)
                 logger.warning("FloodWaitError in sync_telegram_chats_batch: waiting %d seconds", e.seconds)
-                await asyncio.sleep(e.seconds + 5)
-                continue
+                raise
 
             await asyncio.sleep(random.uniform(0.5, 1.0))
 

@@ -902,6 +902,8 @@ async def import_contacts_csv(
     from app.services.contact_import import import_csv
 
     content = await file.read()
+    if len(content) > 10 * 1024 * 1024:
+        raise HTTPException(status_code=413, detail="File too large (max 10MB)")
     result = await import_csv(content, current_user.id, db)
     return envelope(result)
 
@@ -919,6 +921,8 @@ async def import_linkedin_csv(
     from app.services.contact_import import import_linkedin_connections
 
     content = await file.read()
+    if len(content) > 10 * 1024 * 1024:
+        raise HTTPException(status_code=413, detail="File too large (max 10MB)")
     result = await import_linkedin_connections(content, current_user.id, db)
     return envelope(result)
 
@@ -936,6 +940,8 @@ async def import_linkedin_messages(
     from app.services.contact_import import import_linkedin_messages as _import_messages
 
     content = await file.read()
+    if len(content) > 10 * 1024 * 1024:
+        raise HTTPException(status_code=413, detail="File too large (max 10MB)")
     user_name = (current_user.full_name or current_user.email or "").lower()
     result = await _import_messages(content, current_user.id, user_name, db)
     return envelope(result)

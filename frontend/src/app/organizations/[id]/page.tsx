@@ -95,6 +95,10 @@ function OrgInlineField({
   const inputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
+    if (!editing) setDraft(value ?? "");
+  }, [value, editing]);
+
+  useEffect(() => {
     if (editing) inputRef.current?.focus();
   }, [editing]);
 
@@ -156,6 +160,10 @@ function OrgNotesField({ value, onSave }: { value: string | null; onSave: (v: st
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   useEffect(() => {
+    if (!editing) setDraft(value ?? "");
+  }, [value, editing]);
+
+  useEffect(() => {
     if (editing) textareaRef.current?.focus();
   }, [editing]);
 
@@ -212,6 +220,10 @@ function OrgNameField({ value, onSave }: { value: string; onSave: (v: string) =>
   const inputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
+    if (!editing) setDraft(value);
+  }, [value, editing]);
+
+  useEffect(() => {
     if (editing) inputRef.current?.focus();
   }, [editing]);
 
@@ -253,6 +265,7 @@ export default function OrganizationDetailPage() {
   const router = useRouter();
   const queryClient = useQueryClient();
   const [sortBy, setSortBy] = useState<"score" | "name" | "recent">("score");
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
 
   const { data, isLoading, error } = useQuery({
     queryKey: ["organization", id],
@@ -330,6 +343,7 @@ export default function OrganizationDetailPage() {
       <div className="mb-6 flex items-center justify-between">
         <div className="flex items-center gap-3">
           <button
+            aria-label="Back to organizations"
             onClick={() => router.push("/organizations")}
             className="rounded-md p-1 text-zinc-400 hover:bg-zinc-100 hover:text-zinc-600 dark:hover:bg-zinc-800"
           >
@@ -342,11 +356,8 @@ export default function OrganizationDetailPage() {
         </div>
 
         <button
-          onClick={() => {
-            if (confirm("Delete this organization? Contacts will be unlinked but not deleted.")) {
-              deleteMutation.mutate();
-            }
-          }}
+          aria-label="Delete organization"
+          onClick={() => setShowDeleteModal(true)}
           className="rounded-md px-3 py-1.5 text-sm text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20"
         >
           <Trash2 className="mr-1 inline h-4 w-4" /> Delete
@@ -374,11 +385,43 @@ export default function OrganizationDetailPage() {
           <OrgInlineField icon={Globe} label="Website" value={org.website ?? org.domain} onSave={(v) => saveField("website", v)} href={safeHref(org.website ?? org.domain)} />
           <OrgInlineField icon={MapPin} label="Location" value={org.location} onSave={(v) => saveField("location", v)} />
           <OrgInlineField icon={Linkedin} label="LinkedIn" value={org.linkedin_url} onSave={(v) => saveField("linkedin_url", v)} href={safeHref(org.linkedin_url)} />
-          <OrgInlineField icon={Twitter} label="Twitter" value={org.twitter_handle} onSave={(v) => saveField("twitter_handle", v)} href={org.twitter_handle ? safeHref(org.twitter_handle.startsWith("http") ? org.twitter_handle : `https://x.com/${org.twitter_handle.replace(/^@/, "")}`) : undefined} />
+          <OrgInlineField icon={Twitter} label="Twitter" value={org.twitter_handle} onSave={(v) => saveField("twitter_handle", v)} href={org.twitter_handle ? (org.twitter_handle.startsWith("http") ? org.twitter_handle : `https://x.com/${org.twitter_handle.replace(/^@/, "")}`) : undefined} />
         </div>
 
         <OrgNotesField value={org.notes} onSave={(v) => saveField("notes", v)} />
       </div>
+
+      {/* Delete Confirmation Modal */}
+      {showDeleteModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
+          <div className="w-full max-w-sm rounded-xl border border-zinc-200 bg-white p-6 shadow-xl dark:border-zinc-700 dark:bg-zinc-900">
+            <h3 className="mb-2 text-base font-semibold text-zinc-900 dark:text-zinc-100">
+              Delete organization?
+            </h3>
+            <p className="mb-5 text-sm text-zinc-500 dark:text-zinc-400">
+              Contacts will be unlinked but not deleted. This action cannot be undone.
+            </p>
+            <div className="flex justify-end gap-2">
+              <button
+                onClick={() => setShowDeleteModal(false)}
+                className="rounded-md border border-zinc-200 px-3 py-1.5 text-sm font-medium text-zinc-600 hover:bg-zinc-100 dark:border-zinc-700 dark:text-zinc-300 dark:hover:bg-zinc-800"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => {
+                  setShowDeleteModal(false);
+                  deleteMutation.mutate();
+                }}
+                disabled={deleteMutation.isPending}
+                className="rounded-md bg-red-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-red-700 disabled:opacity-50"
+              >
+                {deleteMutation.isPending ? "Deleting…" : "Delete"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Contacts Table */}
       <div className="rounded-lg border border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-900">
@@ -410,10 +453,10 @@ export default function OrganizationDetailPage() {
           <table className="w-full">
             <thead>
               <tr className="border-b border-zinc-100 text-left text-xs text-zinc-500 dark:border-zinc-800">
-                <th className="px-5 py-2 font-medium">Name</th>
-                <th className="px-5 py-2 font-medium">Title</th>
-                <th className="px-5 py-2 font-medium text-center">Score</th>
-                <th className="px-5 py-2 font-medium text-right">Last Interaction</th>
+                <th scope="col" className="px-5 py-2 font-medium">Name</th>
+                <th scope="col" className="px-5 py-2 font-medium">Title</th>
+                <th scope="col" className="px-5 py-2 font-medium text-center">Score</th>
+                <th scope="col" className="px-5 py-2 font-medium text-right">Last Interaction</th>
               </tr>
             </thead>
             <tbody>

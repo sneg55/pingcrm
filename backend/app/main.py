@@ -28,7 +28,11 @@ logger = logging.getLogger(__name__)
 
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
-    if not settings.SECRET_KEY or settings.SECRET_KEY == "change-me-in-production":
+    if (
+        not settings.SECRET_KEY
+        or settings.SECRET_KEY == "change-me-in-production"
+        or len(settings.SECRET_KEY) < 32
+    ):
         raise RuntimeError(
             "SECRET_KEY is not set or uses the insecure default. "
             "Set a strong random value in your .env file."

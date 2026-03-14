@@ -598,18 +598,24 @@ def update_relationship_scores() -> dict:
         errors = 0
 
         async with task_session() as db:
-            result = await db.execute(select(Contact.id))
-            contact_ids = result.scalars().all()
+            user_result = await db.execute(select(User.id))
+            user_ids = user_result.scalars().all()
 
-            for contact_id in contact_ids:
-                try:
-                    await calculate_score(contact_id, db)
-                    updated += 1
-                except Exception:
-                    logger.exception(
-                        "update_relationship_scores: failed for contact %s.", contact_id
-                    )
-                    errors += 1
+            for user_id in user_ids:
+                contact_result = await db.execute(
+                    select(Contact.id).where(Contact.user_id == user_id)
+                )
+                contact_ids = contact_result.scalars().all()
+
+                for contact_id in contact_ids:
+                    try:
+                        await calculate_score(contact_id, db)
+                        updated += 1
+                    except Exception:
+                        logger.exception(
+                            "update_relationship_scores: failed for contact %s.", contact_id
+                        )
+                        errors += 1
 
             await db.commit()
 
@@ -629,7 +635,7 @@ def update_relationship_scores() -> dict:
 # ---------------------------------------------------------------------------
 
 
-@shared_task(name="app.services.tasks.poll_twitter_activity", bind=True, max_retries=3)
+@shared_task(name="app.services.tasks.poll_twitter_activity", bind=True, max_retries=3, soft_time_limit=900, time_limit=1200)
 def poll_twitter_activity(self, user_id: str) -> dict:
     """Poll Twitter activity for all contacts of a single user.
 
@@ -732,7 +738,7 @@ def poll_twitter_activity(self, user_id: str) -> dict:
         raise self.retry(exc=exc, countdown=120) from exc
 
 
-@shared_task(name="app.services.tasks.sync_twitter_dms_for_user", bind=True, max_retries=3)
+@shared_task(name="app.services.tasks.sync_twitter_dms_for_user", bind=True, max_retries=3, soft_time_limit=900, time_limit=1200)
 def sync_twitter_dms_for_user(self, user_id: str) -> dict:
     """Twitter sync: DMs + mentions + replies + scores + notification."""
     async def _sync(uid: uuid.UUID) -> dict:
