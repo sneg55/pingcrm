@@ -1327,6 +1327,16 @@ async def sync_contact_emails(
 
     new_count = await _sync_emails(current_user, contact, db)
 
+    if new_count > 0:
+        from app.models.follow_up import FollowUpSuggestion
+        from sqlalchemy import update as sa_update
+        await db.execute(
+            sa_update(FollowUpSuggestion)
+            .where(FollowUpSuggestion.contact_id == contact_id, FollowUpSuggestion.status == "pending")
+            .values(status="dismissed")
+        )
+        await db.commit()
+
     await r.setex(cache_key, _EMAIL_SYNC_TTL, "1")
     return envelope({"new_interactions": new_count})
 
@@ -1368,6 +1378,17 @@ async def sync_contact_telegram(
 
     changes = await sync_telegram_contact_messages(current_user, contact, db)
 
+    # Auto-dismiss pending suggestions if new interactions were synced
+    if changes.get("new_interactions", 0) > 0:
+        from app.models.follow_up import FollowUpSuggestion
+        from sqlalchemy import update as sa_update
+        await db.execute(
+            sa_update(FollowUpSuggestion)
+            .where(FollowUpSuggestion.contact_id == contact_id, FollowUpSuggestion.status == "pending")
+            .values(status="dismissed")
+        )
+        await db.commit()
+
     await r.setex(cache_key, _TELEGRAM_SYNC_TTL, "1")
     return envelope(changes)
 
@@ -1408,6 +1429,16 @@ async def sync_contact_twitter(
     from app.integrations.twitter import sync_twitter_contact_dms
 
     changes = await sync_twitter_contact_dms(current_user, contact, db)
+
+    if changes.get("new_interactions", 0) > 0:
+        from app.models.follow_up import FollowUpSuggestion
+        from sqlalchemy import update as sa_update
+        await db.execute(
+            sa_update(FollowUpSuggestion)
+            .where(FollowUpSuggestion.contact_id == contact_id, FollowUpSuggestion.status == "pending")
+            .values(status="dismissed")
+        )
+        await db.commit()
 
     await r.setex(cache_key, _TWITTER_SYNC_TTL, "1")
     return envelope(changes)

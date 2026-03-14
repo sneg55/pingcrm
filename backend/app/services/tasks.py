@@ -25,6 +25,26 @@ def _run(coro):
         loop.close()
 
 
+async def dismiss_suggestions_for_contacts(contact_ids: list[uuid.UUID]) -> int:
+    """Dismiss pending follow-up suggestions for contacts that just received new interactions."""
+    if not contact_ids:
+        return 0
+    from sqlalchemy import update
+    from app.models.follow_up import FollowUpSuggestion
+
+    async with task_session() as db:
+        result = await db.execute(
+            update(FollowUpSuggestion)
+            .where(
+                FollowUpSuggestion.contact_id.in_(contact_ids),
+                FollowUpSuggestion.status == "pending",
+            )
+            .values(status="dismissed")
+        )
+        await db.commit()
+        return result.rowcount  # type: ignore[return-value]
+
+
 @shared_task(name="app.services.tasks.notify_sync_failure")
 def notify_sync_failure(user_id: str, platform: str, error: str) -> None:
     """Create a notification when a background sync exhausts retries."""
@@ -170,11 +190,15 @@ def sync_telegram_chats_for_user(self, user_id: str, max_dialogs: int = 100) -> 
                 "new_interactions": chat_result, "new_contacts": 0, "affected_contact_ids": [],
             }
 
-            for cid in chat_info.get("affected_contact_ids", []):
+            affected = [uuid.UUID(str(cid)) for cid in chat_info.get("affected_contact_ids", [])]
+            for cid in affected:
                 try:
                     await calculate_score(cid, db)
                 except Exception:
                     logger.warning("telegram_chats: score recalc failed for contact %s", cid)
+
+            if affected:
+                await dismiss_suggestions_for_contacts(affected)
 
             # Mark sync timestamp
             from datetime import UTC, datetime
@@ -224,11 +248,15 @@ def sync_telegram_chats_batch_task(self, user_id: str, entity_ids: list[int]) ->
 
             batch_result = await sync_telegram_chats_batch(user, entity_ids, db)
 
-            for cid in batch_result.get("affected_contact_ids", []):
+            affected = [uuid.UUID(str(cid)) for cid in batch_result.get("affected_contact_ids", [])]
+            for cid in affected:
                 try:
                     await calculate_score(cid, db)
                 except Exception:
                     logger.warning("telegram_chats_batch: score recalc failed for %s", cid)
+
+            if affected:
+                await dismiss_suggestions_for_contacts(affected)
 
             await db.commit()
 

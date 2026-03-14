@@ -14,6 +14,7 @@ from app.core.auth import get_current_user
 from app.core.database import get_db
 from app.integrations.linkedin import download_linkedin_avatar
 from app.models.contact import Contact
+from app.models.follow_up import FollowUpSuggestion
 from app.models.interaction import Interaction
 from app.models.user import User
 from app.schemas.responses import Envelope, LinkedInPushResult
@@ -65,6 +66,7 @@ async def push_linkedin_data(
     contacts_updated = 0
     interactions_created = 0
     interactions_skipped = 0
+    contacts_with_new_interactions: set[uuid.UUID] = set()
 
     # --- Profiles ---
     for profile in body.profiles:
@@ -208,11 +210,21 @@ async def push_linkedin_data(
         )
         db.add(interaction)
         interactions_created += 1
+        contacts_with_new_interactions.add(contact.id)
 
         # Update last_interaction_at
         if not contact.last_interaction_at or occurred_at > contact.last_interaction_at:
             contact.last_interaction_at = occurred_at
         contact.interaction_count = (contact.interaction_count or 0) + 1
+
+    # Auto-dismiss pending suggestions for contacts that just received new interactions
+    if contacts_with_new_interactions:
+        from sqlalchemy import update as sa_update
+        await db.execute(
+            sa_update(FollowUpSuggestion)
+            .where(FollowUpSuggestion.contact_id.in_(list(contacts_with_new_interactions)), FollowUpSuggestion.status == "pending")
+            .values(status="dismissed")
+        )
 
     await db.commit()
 

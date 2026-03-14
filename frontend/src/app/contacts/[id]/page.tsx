@@ -68,8 +68,16 @@ interface InteractionResponse {
 const URL_RE = /(https?:\/\/[^\s<]+)/g;
 const URL_TEST = /^https?:\/\/[^\s<]+$/;
 
+function decodeHtmlEntities(s: string): string {
+  const el = typeof document !== "undefined" ? document.createElement("textarea") : null;
+  if (!el) return s;
+  el.innerHTML = s;
+  return el.value;
+}
+
 function Linkify({ text, className }: { text: string; className?: string }) {
-  const parts = text.split(URL_RE);
+  const decoded = decodeHtmlEntities(text);
+  const parts = decoded.split(URL_RE);
   return (
     <span>
       {parts.map((part, i) =>
