@@ -48,6 +48,13 @@ backend/static/
 *.log
 /tmp/
 
+# Planning artifacts & mockups
+Plans.md
+Plans-archive.md
+**/Plans.md
+**/TestPlans.md
+mockups/
+
 # Claude Code
 .claude/
 **/.claude/
