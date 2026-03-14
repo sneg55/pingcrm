@@ -40,8 +40,17 @@ fi
 
 if $RUN_FRONTEND; then
   echo ""
-  echo "━━━ Frontend tests (vitest) ━━━"
+  echo "━━━ Frontend type check (tsc) ━━━"
   cd frontend
+  if npx tsc --noEmit 2>&1; then
+    echo "✅ TypeScript check passed"
+  else
+    echo "❌ TypeScript check failed"
+    FAILED=true
+  fi
+
+  echo ""
+  echo "━━━ Frontend tests (vitest) ━━━"
   if npx vitest run --reporter=dot 2>&1; then
     echo "✅ Frontend tests passed"
   else
