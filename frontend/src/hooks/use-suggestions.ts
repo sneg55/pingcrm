@@ -97,22 +97,14 @@ export function useSendMessage() {
       channel: string;
       scheduledFor?: string;
     }) => {
-      const res = await fetch(
-        `/api/v1/contacts/${contactId}/send-message`,
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${typeof window !== "undefined" ? localStorage.getItem("access_token") : ""}`,
-          },
-          body: JSON.stringify({ message, channel, scheduled_for: scheduledFor || null }),
-        }
-      );
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({}));
-        throw new Error(err.detail || "Failed to send message");
+      const { data, error, response } = await client.POST("/api/v1/contacts/{contact_id}/send-message" as any, {
+        params: { path: { contact_id: contactId } },
+        body: { message, channel, scheduled_for: scheduledFor || null },
+      });
+      if (error || !response.ok) {
+        throw new Error((error as any)?.detail || "Failed to send message");
       }
-      return res.json();
+      return data;
     },
     onSuccess: (_data, vars) => {
       void queryClient.invalidateQueries({ queryKey: ["suggestions"] });

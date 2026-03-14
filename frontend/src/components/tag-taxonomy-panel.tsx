@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Tag, Plus, X, Loader2, Wand2, Check, RotateCcw, AlertCircle } from "lucide-react";
+import { client } from "@/lib/api-client";
 
 interface TaxonomyResult {
   categories: Record<string, string[]>;
@@ -34,12 +35,6 @@ function ElapsedTimer({ running }: { running: boolean }) {
   );
 }
 
-function authHeaders(): HeadersInit {
-  return {
-    Authorization: `Bearer ${localStorage.getItem("access_token") ?? ""}`,
-    "Content-Type": "application/json",
-  };
-}
 
 export function TagTaxonomyPanel() {
   const queryClient = useQueryClient();
@@ -57,12 +52,9 @@ export function TagTaxonomyPanel() {
   const { data: taxonomyData, isLoading } = useQuery({
     queryKey: ["taxonomy"],
     queryFn: async () => {
-      const res = await fetch("/api/v1/contacts/tags/taxonomy", {
-        headers: authHeaders(),
-      });
-      if (!res.ok) return null;
-      const json = await res.json();
-      return json.data as TaxonomyResult | null;
+      const { data, error } = await client.GET("/api/v1/contacts/tags/taxonomy" as any);
+      if (error) return null;
+      return (data as any)?.data as TaxonomyResult | null;
     },
   });
 
@@ -75,17 +67,11 @@ export function TagTaxonomyPanel() {
   // Discover mutation
   const discoverMutation = useMutation({
     mutationFn: async () => {
-      const res = await fetch("/api/v1/contacts/tags/discover", {
-        method: "POST",
-        headers: authHeaders(),
-      });
-      if (!res.ok) {
-        let detail = "Discovery failed";
-        try { detail = (await res.json()).detail || detail; } catch {}
-        throw new Error(detail);
+      const { data, error, response } = await client.POST("/api/v1/contacts/tags/discover" as any);
+      if (error || !response.ok) {
+        throw new Error((error as any)?.detail || "Discovery failed");
       }
-      const json = await res.json();
-      return json.data as TaxonomyResult;
+      return (data as any)?.data as TaxonomyResult;
     },
     onSuccess: (data) => {
       void queryClient.invalidateQueries({ queryKey: ["taxonomy"] });
@@ -101,18 +87,13 @@ export function TagTaxonomyPanel() {
   // Save/approve taxonomy
   const saveMutation = useMutation({
     mutationFn: async ({ cats, newStatus }: { cats: Record<string, string[]>; newStatus?: string }) => {
-      const res = await fetch("/api/v1/contacts/tags/taxonomy", {
-        method: "PUT",
-        headers: authHeaders(),
-        body: JSON.stringify({ categories: cats, status: newStatus }),
+      const { data, error, response } = await client.PUT("/api/v1/contacts/tags/taxonomy" as any, {
+        body: { categories: cats, status: newStatus },
       });
-      if (!res.ok) {
-        let detail = "Save failed";
-        try { detail = (await res.json()).detail || detail; } catch {}
-        throw new Error(detail);
+      if (error || !response.ok) {
+        throw new Error((error as any)?.detail || "Save failed");
       }
-      const json = await res.json();
-      return json.data as TaxonomyResult;
+      return (data as any)?.data as TaxonomyResult;
     },
     onSuccess: (data) => {
       void queryClient.invalidateQueries({ queryKey: ["taxonomy"] });
@@ -127,15 +108,11 @@ export function TagTaxonomyPanel() {
   // Apply tags mutation
   const applyMutation = useMutation({
     mutationFn: async () => {
-      const res = await fetch("/api/v1/contacts/tags/apply", {
-        method: "POST",
-        headers: authHeaders(),
-        body: JSON.stringify({}),
+      const { data, error, response } = await client.POST("/api/v1/contacts/tags/apply" as any, {
+        body: {},
       });
-      if (!res.ok) {
-        let detail = "Apply failed";
-        try { detail = (await res.json()).detail || detail; } catch {}
-        throw new Error(detail);
+      if (error || !response.ok) {
+        throw new Error((error as any)?.detail || "Apply failed");
       }
       const json = await res.json();
       return json.data as { tagged_count: number; task_id: string | null };
