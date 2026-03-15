@@ -17,9 +17,41 @@ from app.services.task_jobs.common import (
 
 BATCH_SIZE = 50  # dialogs per batch for initial Telegram sync
 
+# Lua compare-and-delete script: only deletes the key if its value matches ARGV[1].
+# Returns 1 if deleted, 0 if the token didn't match (lock belongs to a different task).
+_RELEASE_LOCK_LUA = """
+if redis.call('get', KEYS[1]) == ARGV[1] then
+    return redis.call('del', KEYS[1])
+else
+    return 0
+end
+"""
+
+
+def _release_lock(user_id: str, lock_token: str) -> bool:
+    """Release the Telegram sync lock only if we still own it (token matches).
+
+    Uses a Lua compare-and-delete script to prevent a stale task from
+    deleting a lock acquired by a newer task.
+
+    Returns True if the lock was released, False if the token didn't match.
+    """
+    if not lock_token:
+        return False
+    try:
+        from app.core.config import settings
+        import redis as _redis
+        _r = _redis.from_url(settings.REDIS_URL)
+        lock_key = f"tg_sync_lock:{user_id}"
+        result = _r.eval(_RELEASE_LOCK_LUA, 1, lock_key, lock_token)
+        return bool(result)
+    except Exception:
+        logger.warning("_release_lock: failed to release lock for %s", user_id, exc_info=True)
+        return False
+
 
 @shared_task(name="app.services.tasks.sync_telegram_chats_for_user", bind=True, max_retries=3, soft_time_limit=900, time_limit=1200)
-def sync_telegram_chats_for_user(self, user_id: str, max_dialogs: int = 100) -> dict:
+def sync_telegram_chats_for_user(self, user_id: str, max_dialogs: int = 100, lock_token: str = "") -> dict:
     """Sync Telegram DM chats for a single user (incremental: most recent N dialogs)."""
     async def _sync(uid: uuid.UUID) -> dict:
         from app.integrations.telegram import sync_telegram_chats
@@ -75,29 +107,17 @@ def sync_telegram_chats_for_user(self, user_id: str, max_dialogs: int = 100) -> 
         if isinstance(exc, FloodWaitError):
             # FloodWait: release lock and return partial result so the chain (groups → bios → notify) continues
             logger.warning("sync_telegram_chats: FloodWait for %s (%ds) — releasing lock and returning partial result to preserve chain.", user_id, exc.seconds)
-            try:
-                from app.core.config import settings
-                import redis as _redis
-                _r = _redis.from_url(settings.REDIS_URL)
-                _r.delete(f"tg_sync_lock:{user_id}")
-            except Exception:
-                logger.warning("sync_telegram_chats: failed to release lock for %s on FloodWait", user_id, exc_info=True)
+            _release_lock(user_id, lock_token)
             return {"status": "partial_flood_wait", "new_interactions": 0, "new_contacts": 0}
         logger.exception("sync_telegram_chats failed for %s, retrying.", user_id)
         if self.request.retries >= self.max_retries:
-            try:
-                from app.core.config import settings
-                import redis as _redis
-                _r = _redis.from_url(settings.REDIS_URL)
-                _r.delete(f"tg_sync_lock:{user_id}")
-            except Exception:
-                logger.warning("sync_telegram_chats: failed to release lock for %s on max retries", user_id, exc_info=True)
+            _release_lock(user_id, lock_token)
             notify_sync_failure.delay(str(uid), "Telegram chats", str(exc))
         raise self.retry(exc=exc, countdown=60) from exc
 
 
 @shared_task(name="app.services.tasks.sync_telegram_chats_batch_task", bind=True, max_retries=2, soft_time_limit=300, time_limit=420)
-def sync_telegram_chats_batch_task(self, user_id: str, entity_ids: list[int]) -> dict:
+def sync_telegram_chats_batch_task(self, user_id: str, entity_ids: list[int], lock_token: str = "") -> dict:
     """Sync a batch of Telegram dialogs by entity ID (for chunked initial sync)."""
     async def _sync(uid: uuid.UUID) -> dict:
         from app.integrations.telegram import sync_telegram_chats_batch
@@ -147,23 +167,11 @@ def sync_telegram_chats_batch_task(self, user_id: str, entity_ids: list[int]) ->
         if isinstance(exc, FloodWaitError):
             # FloodWait: release lock and return partial result so the chain continues
             logger.warning("sync_telegram_chats_batch: FloodWait for %s (%ds) — releasing lock and returning partial result to preserve chain.", user_id, exc.seconds)
-            try:
-                from app.core.config import settings
-                import redis as _redis
-                _r = _redis.from_url(settings.REDIS_URL)
-                _r.delete(f"tg_sync_lock:{user_id}")
-            except Exception:
-                logger.warning("sync_telegram_chats_batch: failed to release lock for %s on FloodWait", user_id, exc_info=True)
+            _release_lock(user_id, lock_token)
             return {"status": "partial_flood_wait", "new_interactions": 0, "new_contacts": 0}
         logger.exception("sync_telegram_chats_batch failed for %s (batch of %d), retrying.", user_id, len(entity_ids))
         if self.request.retries >= self.max_retries:
-            try:
-                from app.core.config import settings
-                import redis as _redis
-                _r = _redis.from_url(settings.REDIS_URL)
-                _r.delete(f"tg_sync_lock:{user_id}")
-            except Exception:
-                logger.warning("sync_telegram_chats_batch: failed to release lock for %s on max retries", user_id, exc_info=True)
+            _release_lock(user_id, lock_token)
             notify_sync_failure.delay(user_id, "telegram", str(exc))
         raise self.retry(exc=exc, countdown=60) from exc
 
@@ -271,7 +279,7 @@ def recheck_telegram_bios_all() -> dict:
 
 
 @shared_task(name="app.services.tasks.sync_telegram_notify", ignore_result=True)
-def sync_telegram_notify(user_id: str) -> dict:
+def sync_telegram_notify(user_id: str, lock_token: str = "") -> dict:
     """Send a summary notification and release the sync lock.
 
     Since Celery chain with .si() does not forward results, this task
@@ -339,13 +347,7 @@ def sync_telegram_notify(user_id: str) -> dict:
     _run(_mark_done())
 
     # Release the sync lock so the next sync is not blocked
-    try:
-        from app.core.config import settings
-        import redis as _redis
-        _r = _redis.from_url(settings.REDIS_URL)
-        _r.delete(f"tg_sync_lock:{user_id}")
-    except Exception:
-        logger.warning("sync_telegram_notify: failed to release lock for %s", user_id, exc_info=True)
+    _release_lock(user_id, lock_token)
 
     return {"status": "ok"}
 
@@ -366,7 +368,8 @@ def sync_telegram_for_user(user_id: str) -> None:
     import redis as _redis
     _r = _redis.from_url(settings.REDIS_URL)
     lock_key = f"tg_sync_lock:{user_id}"
-    if not _r.set(lock_key, "1", nx=True, ex=3600):  # 1 hour TTL
+    lock_token = str(uuid.uuid4())
+    if not _r.set(lock_key, lock_token, nx=True, ex=3600):  # 1 hour TTL
         logger.info("sync_telegram_for_user: skipping user %s — sync already in progress", user_id)
         return
 
@@ -410,7 +413,7 @@ def sync_telegram_for_user(user_id: str) -> None:
         all_entity_ids = _run(_collect())
         if not all_entity_ids:
             logger.info("sync_telegram_for_user: no dialogs found for %s, skipping.", user_id)
-            _r.delete(lock_key)  # Release lock on early return
+            _release_lock(user_id, lock_token)  # Release lock on early return
             return
 
         # Chunk into batches
@@ -432,11 +435,11 @@ def sync_telegram_for_user(user_id: str) -> None:
         ))
 
         # Build chain: batch1 → batch2 → ... → groups → bios → notify (releases lock)
-        tasks = [sync_telegram_chats_batch_task.si(user_id, batch) for batch in batches]
+        tasks = [sync_telegram_chats_batch_task.si(user_id, batch, lock_token) for batch in batches]
         tasks.extend([
             sync_telegram_groups_for_user.si(user_id),
             sync_telegram_bios_for_user.si(user_id),
-            sync_telegram_notify.si(user_id),
+            sync_telegram_notify.si(user_id, lock_token),
         ])
         chain(*tasks).apply_async()
     else:
@@ -447,9 +450,63 @@ def sync_telegram_for_user(user_id: str) -> None:
         from datetime import UTC, datetime as _dt
         _run(set_progress(user_id, phase="messages", total_dialogs=100, dialogs_processed=0, batches_total=1, batches_completed=0, contacts_found=0, messages_synced=0, started_at=_dt.now(UTC).isoformat()))
         chain(
-            sync_telegram_chats_for_user.si(user_id, 100),
-            sync_telegram_notify.si(user_id),
+            sync_telegram_chats_for_user.si(user_id, 100, lock_token),
+            sync_telegram_notify.si(user_id, lock_token),
         ).apply_async()
+
+
+@shared_task(name="app.services.tasks.cleanup_stale_telegram_locks")
+def cleanup_stale_telegram_locks() -> dict:
+    """Hourly watchdog: delete Telegram sync locks that have no matching progress key.
+
+    A lock is considered stale when:
+      - No ``tg_sync_progress:{user_id}`` key exists (the sync chain never started
+        or the progress key already expired), AND
+      - The lock TTL is below 2700 seconds (i.e. the lock has been held for at least
+        15 minutes of its 3600-second lifetime).
+
+    This cleans up locks left behind by tasks that crashed before releasing them.
+    """
+    from app.core.config import settings
+    import redis as _redis
+
+    deleted = 0
+    scanned = 0
+    try:
+        _r = _redis.from_url(settings.REDIS_URL)
+        for lock_key in _r.scan_iter("tg_sync_lock:*"):
+            scanned += 1
+            # lock_key may be bytes or str depending on decode_responses setting
+            key_str = lock_key.decode() if isinstance(lock_key, bytes) else lock_key
+            user_id = key_str.split(":", 1)[1]  # strip "tg_sync_lock:" prefix
+            progress_key = f"tg_sync_progress:{user_id}"
+
+            has_progress = _r.exists(progress_key)
+            if has_progress:
+                continue  # sync is active; leave the lock alone
+
+            ttl = _r.ttl(lock_key)
+            # TTL == -2 means the key disappeared between scan and ttl call — already gone
+            if ttl == -2:
+                continue
+            # Only delete if the lock has been held for at least 15 minutes
+            # (TTL < 2700 means more than 900 s have elapsed from the original 3600 s)
+            if ttl < 2700:
+                _r.delete(lock_key)
+                deleted += 1
+                logger.info(
+                    "cleanup_stale_telegram_locks: deleted stale lock %s (TTL=%d, no progress key)",
+                    key_str, ttl,
+                )
+    except Exception:
+        logger.exception("cleanup_stale_telegram_locks: unexpected error during scan")
+        return {"scanned": scanned, "deleted": deleted, "error": True}
+
+    logger.info(
+        "cleanup_stale_telegram_locks: scanned=%d deleted=%d",
+        scanned, deleted,
+    )
+    return {"scanned": scanned, "deleted": deleted}
 
 
 @shared_task(name="app.services.tasks.sync_telegram_all")

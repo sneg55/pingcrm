@@ -15,7 +15,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from telethon import TelegramClient
 from telethon.errors import FloodWaitError, RPCError, SessionPasswordNeededError
 from telethon.sessions import StringSession
-from telethon.tl.types import Channel, Chat, InputPeerUser, User as TelegramUser
+from telethon.tl.types import Channel, Chat, InputPeerUser, MessageActionPhoneCall, User as TelegramUser
 
 from app.core.config import settings
 from app.models.contact import Contact
@@ -573,7 +573,6 @@ async def sync_telegram_chats(user: User, db: AsyncSession, *, max_dialogs: int 
                 async for message in client.iter_messages(entity, limit=MAX_MESSAGES):
                     if message.message is None:
                         # Check for phone/video calls
-                        from telethon.tl.types import MessageActionPhoneCall
                         if hasattr(message, 'action') and isinstance(message.action, MessageActionPhoneCall):
                             direction = "outbound" if message.out else "inbound"
                             is_video = getattr(message.action, 'video', False)
@@ -779,7 +778,6 @@ async def sync_telegram_chats_batch(
                 async for message in client.iter_messages(entity, limit=MAX_MESSAGES):
                     if message.message is None:
                         # Check for phone/video calls
-                        from telethon.tl.types import MessageActionPhoneCall
                         if hasattr(message, 'action') and isinstance(message.action, MessageActionPhoneCall):
                             direction = "outbound" if message.out else "inbound"
                             is_video = getattr(message.action, 'video', False)

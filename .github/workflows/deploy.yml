@@ -23,6 +23,18 @@ jobs:
       - name: Check file length limits
         run: bash .github/scripts/check-file-length.sh
 
+  lint-exception-handling:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Check except Exception without logging (soft-fail)
+        run: bash .github/scripts/check-exception-handling.sh
+
   build:
     runs-on: ubuntu-latest
     permissions:
