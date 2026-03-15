@@ -641,6 +641,8 @@ describe("ContactDetailPage", () => {
               {
                 id: "rel-1",
                 full_name: "Bob Jones",
+                title: "Engineer",
+                company: "Acme Corp",
                 avatar_url: null,
                 relationship_score: 5,
                 reasons: ["Same company"],
@@ -656,7 +658,7 @@ describe("ContactDetailPage", () => {
       expect(screen.getByText("Related Contacts")).toBeInTheDocument();
     });
     expect(screen.getByText("Bob Jones")).toBeInTheDocument();
-    expect(screen.getByText("Same company")).toBeInTheDocument();
+    expect(screen.getByText("Engineer @ Acme Corp")).toBeInTheDocument();
   });
 
   /* 39 — Related Contacts card: renders multiple reasons as pills */
@@ -670,9 +672,11 @@ describe("ContactDetailPage", () => {
               {
                 id: "rel-2",
                 full_name: "Carol White",
+                title: "Designer",
+                company: "BetaCo",
                 avatar_url: null,
                 relationship_score: 8,
-                reasons: ["Same company", "Common Telegram group"],
+                reasons: ["Same company", "Shared tag: Founder"],
               },
             ],
           },
@@ -684,8 +688,8 @@ describe("ContactDetailPage", () => {
     await waitFor(() => {
       expect(screen.getByText("Carol White")).toBeInTheDocument();
     });
-    expect(screen.getByText("Same company")).toBeInTheDocument();
-    expect(screen.getByText("Common Telegram group")).toBeInTheDocument();
+    expect(screen.getByText("Designer @ BetaCo")).toBeInTheDocument();
+    expect(screen.getByText("Shared tag: Founder")).toBeInTheDocument();
   });
 
   /* 40 — Timeline: outbound message renders on the right side */

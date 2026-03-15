@@ -320,6 +320,8 @@ async def get_related_contacts(
         items.append({
             "id": str(c.id),
             "full_name": c.full_name,
+            "title": c.title,
+            "company": c.company,
             "avatar_url": c.avatar_url,
             "relationship_score": c.relationship_score,
             "reasons": reasons,
