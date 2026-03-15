@@ -43,7 +43,7 @@ async def get_common_groups_cached(
 
     from app.integrations.telegram import fetch_common_groups
 
-    groups = await fetch_common_groups(
+    groups, resolved_user_id = await fetch_common_groups(
         current_user,
         telegram_username=contact.telegram_username,
         telegram_user_id=contact.telegram_user_id,
@@ -51,6 +51,9 @@ async def get_common_groups_cached(
 
     contact.telegram_common_groups = groups
     contact.telegram_groups_fetched_at = now
+    # Cache resolved numeric ID to avoid future rate-limited username lookups
+    if resolved_user_id and not contact.telegram_user_id:
+        contact.telegram_user_id = resolved_user_id
     await db.flush()
 
     return groups

@@ -1116,12 +1116,16 @@ async def fetch_common_groups(
     client = _make_client(user.telegram_session)
     await _ensure_connected(client)
 
+    resolved_user_id: str | None = None
+
     try:
         # Resolve target — prefer cached numeric ID to avoid rate-limited ResolveUsernameRequest
         if telegram_user_id:
             target = await client.get_input_entity(int(telegram_user_id))
         elif telegram_username:
             target = await client.get_input_entity(telegram_username)
+            # Cache the resolved numeric ID for future calls
+            resolved_user_id = str(getattr(target, "user_id", None) or "")
         else:
             return []
         result = await client(GetCommonChatsRequest(
@@ -1140,13 +1144,13 @@ async def fetch_common_groups(
                 "link": link,
                 "participants_count": getattr(chat, "participants_count", None),
             })
-        return groups
+        return groups, resolved_user_id
     except Exception as exc:
         logger.exception(
             "fetch_common_groups: failed for user %s / @%s: %s",
             user.id, telegram_username, exc,
         )
-        return []
+        return [], None
     finally:
         await client.disconnect()
 

@@ -23,7 +23,7 @@ def _install_telegram_stub(fake_groups=None):
     """Inject a stub module into sys.modules so lazy imports inside the service
     pick it up without touching real Telethon/MTProto code."""
     stub = types.ModuleType("app.integrations.telegram")
-    stub.fetch_common_groups = AsyncMock(return_value=fake_groups if fake_groups is not None else [])
+    stub.fetch_common_groups = AsyncMock(return_value=(fake_groups if fake_groups is not None else [], None))
     sys.modules["app.integrations.telegram"] = stub
     return stub
 
