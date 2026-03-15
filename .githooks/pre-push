@@ -12,15 +12,29 @@ CHANGED=$(git diff --name-only "$REMOTE_REF"..HEAD 2>/dev/null || git diff --nam
 
 RUN_BACKEND=false
 RUN_FRONTEND=false
+EXT_CODE_CHANGED=false
+EXT_MANIFEST_CHANGED=false
 
 for f in $CHANGED; do
   case "$f" in
     backend/*) RUN_BACKEND=true ;;
     frontend/*) RUN_FRONTEND=true ;;
+    chrome-extension/manifest.json) EXT_MANIFEST_CHANGED=true ;;
+    chrome-extension/*) EXT_CODE_CHANGED=true ;;
   esac
 done
 
 FAILED=false
+
+# Extension version bump check
+if $EXT_CODE_CHANGED && ! $EXT_MANIFEST_CHANGED; then
+  echo ""
+  echo "❌ Chrome extension files changed but manifest.json version was not bumped."
+  echo "   Update \"version\" in chrome-extension/manifest.json before pushing."
+  echo "   Changed extension files:"
+  echo "$CHANGED" | grep "^chrome-extension/" | grep -v manifest.json | sed 's/^/     /'
+  FAILED=true
+fi
 
 if $RUN_BACKEND; then
   echo ""
