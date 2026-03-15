@@ -200,7 +200,7 @@ async def test_refresh_bios_rate_limited(
     import fakeredis.aioredis
 
     fr = fakeredis.aioredis.FakeRedis(decode_responses=True)
-    with patch("app.api.contacts.get_redis", return_value=fr):
+    with patch("app.api.contacts_routes.sync.get_redis", return_value=fr):
         resp = await client.post(
             f"/api/v1/contacts/{test_contact.id}/refresh-bios", headers=auth_headers
         )
@@ -225,7 +225,7 @@ async def test_refresh_bios_not_found(client: AsyncClient, auth_headers: dict):
 
     fr = fakeredis.aioredis.FakeRedis(decode_responses=True)
     fake_id = uuid.uuid4()
-    with patch("app.api.contacts.get_redis", return_value=fr):
+    with patch("app.api.contacts_routes.sync.get_redis", return_value=fr):
         resp = await client.post(
             f"/api/v1/contacts/{fake_id}/refresh-bios", headers=auth_headers
         )

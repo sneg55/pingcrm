@@ -12,7 +12,7 @@ def fake_redis():
     with patch("app.core.redis.get_redis", return_value=fr), \
          patch("app.api.twitter.get_redis", return_value=fr), \
          patch("app.api.auth.get_redis", return_value=fr), \
-         patch("app.api.contacts.get_redis", return_value=fr):
+         patch("app.api.contacts_routes.sync.get_redis", return_value=fr):
         yield fr
 
 

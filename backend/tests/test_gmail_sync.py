@@ -217,7 +217,7 @@ async def test_sync_emails_endpoint_success(
         "app.integrations.gmail.sync_contact_emails",
         new=AsyncMock(return_value=3),
     ) as mock_sync, patch(
-        "app.api.contacts.get_redis",
+        "app.api.contacts_routes.sync.get_redis",
     ) as mock_redis:
         mock_r = AsyncMock()
         mock_r.exists.return_value = False
@@ -246,7 +246,7 @@ async def test_sync_emails_endpoint_rate_limited(
     token = create_access_token(data={"sub": str(test_user.id)})
     headers = {"Authorization": f"Bearer {token}"}
 
-    with patch("app.api.contacts.get_redis") as mock_redis:
+    with patch("app.api.contacts_routes.sync.get_redis") as mock_redis:
         mock_r = AsyncMock()
         mock_r.exists.return_value = True  # cache hit
         mock_redis.return_value = mock_r
