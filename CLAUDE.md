@@ -6,7 +6,7 @@ Users import contacts, connect email/messaging accounts, and get AI-powered foll
 
 ## Tech Stack
 - **Backend:** Python + FastAPI
-- **Database:** PostgreSQL (relational) + Vector DB for embeddings
+- **Database:** PostgreSQL (relational)
 - **Queue:** Redis + Celery
 - **AI:** LLM API (Claude) for message generation and classification
 - **Frontend:** Next.js (React)
@@ -17,7 +17,6 @@ Users import contacts, connect email/messaging accounts, and get AI-powered foll
 pingcrm/
 ├── mvp.md              # Product spec (source of truth for requirements)
 ├── CLAUDE.md           # This file
-├── Plans.md            # Task tracking
 ├── backend/            # FastAPI application
 │   ├── app/
 │   │   ├── main.py
@@ -30,14 +29,16 @@ pingcrm/
 │   ├── alembic/        # DB migrations
 │   ├── tests/
 │   └── requirements.txt
-└── frontend/           # Next.js application
-    ├── src/
-    │   ├── app/        # App router pages
-    │   ├── components/ # React components
-    │   ├── lib/        # Utilities, API client
-    │   └── hooks/      # Custom React hooks
-    ├── package.json
-    └── tsconfig.json
+├── frontend/           # Next.js application
+│   ├── src/
+│   │   ├── app/        # App router pages
+│   │   ├── components/ # React components
+│   │   ├── lib/        # Utilities, API client
+│   │   └── hooks/      # Custom React hooks
+│   ├── package.json
+│   └── tsconfig.json
+├── landing/            # Marketing landing page (Next.js)
+└── docs/               # Docusaurus documentation site
 ```
 
 ## Development Commands
