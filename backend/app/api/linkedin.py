@@ -153,8 +153,9 @@ async def push_linkedin_data(
             # Clear broken remote LinkedIn URLs (403 from servers, can't be displayed)
             if contact.avatar_url and not _has_local_avatar(contact.avatar_url):
                 contact.avatar_url = None
-            # Save avatar: prefer base64 data from browser, fall back to URL download
-            if not _has_local_avatar(contact.avatar_url):
+            # Save avatar: always overwrite when base64 data is present (fresh photo from browser)
+            # Otherwise only download if no local avatar exists
+            if profile.avatar_data or not _has_local_avatar(contact.avatar_url):
                 local_path = await _save_avatar(profile, str(contact.id))
                 if local_path:
                     contact.avatar_url = local_path
