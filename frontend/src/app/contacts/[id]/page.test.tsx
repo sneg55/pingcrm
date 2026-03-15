@@ -622,4 +622,154 @@ describe("ContactDetailPage", () => {
     fireEvent.click(moreBtn!);
     expect(screen.getByText("Auto-tag with AI")).toBeInTheDocument();
   });
+
+  /* 37 — Related Contacts card: hidden when no related contacts */
+  it("does not render Related Contacts card when there are no related contacts", () => {
+    // Default mock returns { data: { data: [] } } for all GET calls, so related is empty
+    renderPage();
+    expect(screen.queryByText("Related Contacts")).not.toBeInTheDocument();
+  });
+
+  /* 38 — Related Contacts card: renders when related contacts exist */
+  it("renders Related Contacts card when related contacts exist", async () => {
+    const { client } = await import("@/lib/api-client");
+    (client.GET as ReturnType<typeof vi.fn>).mockImplementation((url: string) => {
+      if ((url as string).includes("/related")) {
+        return Promise.resolve({
+          data: {
+            data: [
+              {
+                id: "rel-1",
+                full_name: "Bob Jones",
+                avatar_url: null,
+                relationship_score: 5,
+                reasons: ["Same company"],
+              },
+            ],
+          },
+        });
+      }
+      return Promise.resolve({ data: { data: [] } });
+    });
+    renderPage();
+    await waitFor(() => {
+      expect(screen.getByText("Related Contacts")).toBeInTheDocument();
+    });
+    expect(screen.getByText("Bob Jones")).toBeInTheDocument();
+    expect(screen.getByText("Same company")).toBeInTheDocument();
+  });
+
+  /* 39 — Related Contacts card: renders multiple reasons as pills */
+  it("renders all reason pills for a related contact", async () => {
+    const { client } = await import("@/lib/api-client");
+    (client.GET as ReturnType<typeof vi.fn>).mockImplementation((url: string) => {
+      if ((url as string).includes("/related")) {
+        return Promise.resolve({
+          data: {
+            data: [
+              {
+                id: "rel-2",
+                full_name: "Carol White",
+                avatar_url: null,
+                relationship_score: 8,
+                reasons: ["Same company", "Common Telegram group"],
+              },
+            ],
+          },
+        });
+      }
+      return Promise.resolve({ data: { data: [] } });
+    });
+    renderPage();
+    await waitFor(() => {
+      expect(screen.getByText("Carol White")).toBeInTheDocument();
+    });
+    expect(screen.getByText("Same company")).toBeInTheDocument();
+    expect(screen.getByText("Common Telegram group")).toBeInTheDocument();
+  });
+
+  /* 40 — Timeline: outbound message renders on the right side */
+  it("renders outbound interaction message in the timeline", async () => {
+    const { client } = await import("@/lib/api-client");
+    (client.GET as ReturnType<typeof vi.fn>).mockImplementation((url: string) => {
+      if (url === "/api/v1/contacts/{contact_id}/interactions") {
+        return Promise.resolve({
+          data: {
+            data: [
+              {
+                id: "out-1",
+                platform: "email",
+                direction: "outbound",
+                content_preview: "Hey Alice, great to connect!",
+                occurred_at: "2025-01-15T10:00:00Z",
+              },
+            ],
+          },
+        });
+      }
+      return Promise.resolve({ data: { data: [] } });
+    });
+    renderPage();
+    await waitFor(() => {
+      expect(screen.getByText("Hey Alice, great to connect!")).toBeInTheDocument();
+    });
+  });
+
+  /* 41 — Timeline: manual note renders via NoteItem */
+  it("renders a manual note interaction in the timeline", async () => {
+    const { client } = await import("@/lib/api-client");
+    (client.GET as ReturnType<typeof vi.fn>).mockImplementation((url: string) => {
+      if (url === "/api/v1/contacts/{contact_id}/interactions") {
+        return Promise.resolve({
+          data: {
+            data: [
+              {
+                id: "note-1",
+                platform: "manual",
+                direction: "outbound",
+                content_preview: "Met at the conference last week",
+                occurred_at: "2025-01-15T10:00:00Z",
+              },
+            ],
+          },
+        });
+      }
+      return Promise.resolve({ data: { data: [] } });
+    });
+    renderPage();
+    await waitFor(() => {
+      expect(screen.getByText("Met at the conference last week")).toBeInTheDocument();
+    });
+    // Notes render with a "Note" label
+    expect(screen.getByText(/Note/)).toBeInTheDocument();
+  });
+
+  /* 42 — Message composer: shows "Write a message..." when no suggestion */
+  it("renders Write a message collapsed header when no follow-up suggestion", () => {
+    mockUseContactSuggestion.mockReturnValue(null);
+    renderPage();
+    expect(screen.getByText("Write a message...")).toBeInTheDocument();
+  });
+
+  /* 43 — Message composer: expands editor on click */
+  it("expands message editor when the composer header is clicked", () => {
+    mockUseContactSuggestion.mockReturnValue(null);
+    renderPage();
+    const composerBtn = screen.getByText("Write a message...").closest("button");
+    expect(composerBtn).toBeTruthy();
+    fireEvent.click(composerBtn!);
+    expect(screen.getByTestId("message-editor")).toBeInTheDocument();
+  });
+
+  /* 44 — Message composer: shows Follow-up suggested when suggestion present */
+  it("renders Follow-up suggested header when a suggestion exists", () => {
+    mockUseContactSuggestion.mockReturnValue({
+      id: "sug-1",
+      suggested_message: "Hey Alice, how are you?",
+      suggested_channel: "email",
+      status: "pending",
+    });
+    renderPage();
+    expect(screen.getByText("Follow-up suggested")).toBeInTheDocument();
+  });
 });

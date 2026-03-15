@@ -1,7 +1,7 @@
 import { render, screen, waitFor, act } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { useSearchParams } from "next/navigation";
+import { useSearchParams, useRouter } from "next/navigation";
 import SettingsPage from "./page";
 
 // Mock the api-client module
@@ -15,9 +15,11 @@ vi.mock("@/lib/api-client", () => ({
   },
 }));
 
-// Mock useTelegramSyncProgress
+// Module-level useTelegramSyncProgress mock factory — tests can override this.
+let telegramSyncProgressData: { active: boolean; phase?: string; total_dialogs?: number; dialogs_processed?: number; contacts_found?: number; messages_synced?: number; started_at?: string } = { active: false };
+
 vi.mock("@/hooks/use-telegram-sync", () => ({
-  useTelegramSyncProgress: () => ({ data: { active: false } }),
+  useTelegramSyncProgress: () => ({ data: telegramSyncProgressData }),
 }));
 
 import { client } from "@/lib/api-client";
@@ -30,6 +32,7 @@ const mockedClient = client as unknown as {
 };
 
 const mockedUseSearchParams = useSearchParams as unknown as ReturnType<typeof vi.fn>;
+const mockedUseRouter = useRouter as unknown as ReturnType<typeof vi.fn>;
 
 function mockMeResponse(overrides: Record<string, unknown> = {}) {
   return {
@@ -52,8 +55,14 @@ function mockMeResponse(overrides: Record<string, unknown> = {}) {
 describe("SettingsPage", () => {
   beforeEach(() => {
     vi.useFakeTimers({ shouldAdvanceTime: true });
+    telegramSyncProgressData = { active: false };
     mockedUseSearchParams.mockReturnValue({
       get: vi.fn(() => null),
+    });
+    mockedUseRouter.mockReturnValue({
+      push: vi.fn(),
+      replace: vi.fn(),
+      back: vi.fn(),
     });
     // Default: disconnected user
     mockedClient.GET.mockImplementation((url: string) => {
@@ -1022,6 +1031,216 @@ describe("SettingsPage", () => {
     await waitFor(() => {
       expect(screen.getByText(/Sync failed/)).toBeInTheDocument();
     });
+  });
+
+  // ─── Tab navigation ──────────────────────────────────────────────
+
+  it("defaults to Integrations tab and shows platform cards", async () => {
+    render(<SettingsPage />);
+    await waitFor(() => {
+      expect(screen.getByText("Gmail")).toBeInTheDocument();
+    });
+    expect(screen.getByText("Telegram")).toBeInTheDocument();
+    expect(screen.getByText("Twitter / X")).toBeInTheDocument();
+    // Import-tab content should NOT be visible
+    expect(screen.queryByText("CSV Import")).not.toBeInTheDocument();
+  });
+
+  it("shows Import tab content when ?tab=import is set", async () => {
+    mockedUseSearchParams.mockReturnValue({
+      get: vi.fn((key: string) => (key === "tab" ? "import" : null)),
+    });
+
+    render(<SettingsPage />);
+    await waitFor(() => {
+      expect(screen.getByText("CSV Import")).toBeInTheDocument();
+    });
+    // Integrations-tab platform cards should NOT be visible
+    expect(screen.queryByText("Gmail")).not.toBeInTheDocument();
+  });
+
+  it("shows Follow-up Rules tab content when ?tab=followup is set", async () => {
+    mockedUseSearchParams.mockReturnValue({
+      get: vi.fn((key: string) => (key === "tab" ? "followup" : null)),
+    });
+    mockedClient.GET.mockImplementation((url: string) => {
+      if (url === "/api/v1/auth/me") return Promise.resolve(mockMeResponse());
+      // priority settings endpoint used by FollowUpRulesTab
+      return Promise.resolve({ data: { data: { high: 7, medium: 30, low: 90 } }, error: null });
+    });
+
+    render(<SettingsPage />);
+    await waitFor(() => {
+      expect(screen.getByText("Priority Thresholds")).toBeInTheDocument();
+    });
+    expect(screen.queryByText("Gmail")).not.toBeInTheDocument();
+  });
+
+  it("shows Account tab content when ?tab=account is set", async () => {
+    mockedUseSearchParams.mockReturnValue({
+      get: vi.fn((key: string) => (key === "tab" ? "account" : null)),
+    });
+
+    render(<SettingsPage />);
+    await waitFor(() => {
+      expect(screen.getByText("Profile")).toBeInTheDocument();
+    });
+    expect(screen.getByText("Danger Zone")).toBeInTheDocument();
+    expect(screen.queryByText("Gmail")).not.toBeInTheDocument();
+  });
+
+  it("clicking a tab button calls router.replace with the correct URL", async () => {
+    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
+    const mockReplace = vi.fn();
+    mockedUseRouter.mockReturnValue({
+      push: vi.fn(),
+      replace: mockReplace,
+      back: vi.fn(),
+    });
+
+    render(<SettingsPage />);
+    await waitFor(() => {
+      expect(screen.getByText("Gmail")).toBeInTheDocument();
+    });
+
+    await user.click(screen.getByText("Import"));
+    expect(mockReplace).toHaveBeenCalledWith("/settings?tab=import", expect.objectContaining({ scroll: false }));
+  });
+
+  it("clicking Follow-up Rules tab calls router.replace with followup tab", async () => {
+    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
+    const mockReplace = vi.fn();
+    mockedUseRouter.mockReturnValue({
+      push: vi.fn(),
+      replace: mockReplace,
+      back: vi.fn(),
+    });
+
+    render(<SettingsPage />);
+    await waitFor(() => {
+      expect(screen.getByText("Gmail")).toBeInTheDocument();
+    });
+
+    await user.click(screen.getByText("Follow-up Rules"));
+    expect(mockReplace).toHaveBeenCalledWith("/settings?tab=followup", expect.objectContaining({ scroll: false }));
+  });
+
+  it("invalid ?tab param falls back to Integrations tab content", async () => {
+    mockedUseSearchParams.mockReturnValue({
+      get: vi.fn((key: string) => (key === "tab" ? "nonexistent" : null)),
+    });
+
+    render(<SettingsPage />);
+    await waitFor(() => {
+      expect(screen.getByText("Gmail")).toBeInTheDocument();
+    });
+  });
+
+  // ─── Platform connection status details ─────────────────────────
+
+  it("shows Not connected badge for each platform when disconnected", async () => {
+    render(<SettingsPage />);
+    await waitFor(() => {
+      expect(screen.getByText("Gmail")).toBeInTheDocument();
+    });
+    const notConnected = screen.getAllByText("Not connected");
+    expect(notConnected).toHaveLength(3);
+  });
+
+  it("shows connected-as username for Telegram when connected", async () => {
+    mockedClient.GET.mockImplementation((url: string) => {
+      if (url === "/api/v1/auth/me")
+        return Promise.resolve(
+          mockMeResponse({ telegram_connected: true, telegram_username: "testuser" })
+        );
+      return Promise.resolve({ data: null, error: { detail: "unexpected" } });
+    });
+
+    render(<SettingsPage />);
+    await waitFor(() => {
+      expect(screen.getByText(/Connected as/i, { exact: false })).toBeInTheDocument();
+    });
+    expect(screen.getByText(/@testuser/)).toBeInTheDocument();
+  });
+
+  it("shows connected-as username for Twitter when connected", async () => {
+    mockedClient.GET.mockImplementation((url: string) => {
+      if (url === "/api/v1/auth/me")
+        return Promise.resolve(
+          mockMeResponse({ twitter_connected: true, twitter_username: "twitteruser" })
+        );
+      return Promise.resolve({ data: null, error: { detail: "unexpected" } });
+    });
+
+    render(<SettingsPage />);
+    await waitFor(() => {
+      expect(screen.getByText(/@twitteruser/)).toBeInTheDocument();
+    });
+  });
+
+  // ─── Telegram sync progress card ────────────────────────────────
+
+  it("does not show Telegram sync progress card when sync is inactive", async () => {
+    // telegramSyncProgressData is already { active: false } from beforeEach
+    render(<SettingsPage />);
+    await waitFor(() => {
+      expect(screen.getByText("Telegram")).toBeInTheDocument();
+    });
+    expect(screen.queryByText("Collecting dialogs...")).not.toBeInTheDocument();
+    expect(screen.queryByText("Syncing messages...")).not.toBeInTheDocument();
+  });
+
+  it("shows Telegram sync progress card when sync is active", async () => {
+    telegramSyncProgressData = {
+      active: true,
+      phase: "messages",
+      total_dialogs: 100,
+      dialogs_processed: 42,
+      contacts_found: 15,
+      messages_synced: 230,
+    };
+
+    render(<SettingsPage />);
+    await waitFor(() => {
+      expect(screen.getByText("Telegram")).toBeInTheDocument();
+    });
+    expect(screen.getByText("Syncing messages...")).toBeInTheDocument();
+    expect(screen.getByText(/42 \/ 100 dialogs/)).toBeInTheDocument();
+    expect(screen.getByText(/15 contacts/)).toBeInTheDocument();
+    expect(screen.getByText(/230 messages/)).toBeInTheDocument();
+  });
+
+  it("shows Telegram sync progress card with done phase", async () => {
+    telegramSyncProgressData = {
+      active: true,
+      phase: "done",
+      total_dialogs: 50,
+      dialogs_processed: 50,
+      contacts_found: 8,
+      messages_synced: 100,
+    };
+
+    render(<SettingsPage />);
+    await waitFor(() => {
+      expect(screen.getByText("Telegram")).toBeInTheDocument();
+    });
+    expect(screen.getByText("Done!")).toBeInTheDocument();
+    expect(screen.getByText(/8 contacts/)).toBeInTheDocument();
+  });
+
+  it("shows Telegram sync progress card with chats phase", async () => {
+    telegramSyncProgressData = {
+      active: true,
+      phase: "chats",
+      contacts_found: 0,
+      messages_synced: 0,
+    };
+
+    render(<SettingsPage />);
+    await waitFor(() => {
+      expect(screen.getByText("Telegram")).toBeInTheDocument();
+    });
+    expect(screen.getByText("Collecting dialogs...")).toBeInTheDocument();
   });
 });
 
