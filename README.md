@@ -1,10 +1,27 @@
 # Ping CRM
 
-An AI-powered personal networking CRM that helps you maintain professional relationships. Import your contacts, connect your email and messaging accounts, and get intelligent follow-up suggestions with AI-drafted messages.
+**Your AI Networking Co-Pilot**
 
-**One-line pitch:** Upload your contacts, connect your accounts. Ping tells you who to reach out to and writes the message.
+[![License: AGPL-3.0](https://img.shields.io/badge/License-AGPL%20v3-blue.svg)](LICENSE)
+[![GitHub stars](https://img.shields.io/github/stars/sneg55/pingcrm)](https://github.com/sneg55/pingcrm/stargazers)
 
----
+Auto-syncs Gmail, Telegram, and Twitter/X. Detects life events. Drafts contextual follow-ups. Tells you who to reach out to and why.
+
+> **[Full Documentation](https://sneg55.github.io/pingcrm/)** · **[Join the Waitlist](https://pingcrm.xyz)** · **[Self-Host Guide](https://sneg55.github.io/pingcrm/setup)**
+
+## Why PingCRM?
+
+| Feature | PingCRM | Monica | Dex |
+|---|---|---|---|
+| Price | Free (self-hosted) | Free (self-hosted) | $12/mo |
+| AI follow-up suggestions | Yes | No | No |
+| Gmail sync | Yes | No | Yes |
+| Telegram sync | Yes | No | No |
+| Twitter/X sync | Yes | No | No |
+| Identity resolution | Yes (4-tier) | No | No |
+| Life event detection | Yes | No | No |
+| Open source | Yes (AGPL-3.0) | Yes (AGPL-3.0) | No |
+| Self-hostable | Yes | Yes | No |
 
 ## Table of Contents
 
@@ -793,4 +810,6 @@ npm run test:watch
 
 ## License
 
-Private / All rights reserved.
+This project is licensed under the [GNU Affero General Public License v3.0](LICENSE).
+
+You are free to self-host, modify, and distribute PingCRM. If you run a modified version as a network service, you must make your source code available under the same license.
