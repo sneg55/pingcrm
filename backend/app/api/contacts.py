@@ -696,6 +696,66 @@ async def get_contact_activity(
     })
 
 
+@router.get("/{contact_id}/related")
+async def get_related_contacts(
+    contact_id: uuid.UUID,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> dict:
+    """Return up to 5 contacts related to the given contact by org, company, or shared tags."""
+    from sqlalchemy import or_
+
+    result = await db.execute(
+        select(Contact).where(Contact.id == contact_id, Contact.user_id == current_user.id)
+    )
+    contact = result.scalar_one_or_none()
+    if not contact:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Contact not found")
+
+    conditions = []
+    if contact.organization_id:
+        conditions.append(Contact.organization_id == contact.organization_id)
+    if contact.company:
+        conditions.append(func.lower(Contact.company) == contact.company.lower())
+    if contact.tags:
+        conditions.append(Contact.tags.overlap(contact.tags))
+
+    if not conditions:
+        return envelope([])
+
+    related_result = await db.execute(
+        select(Contact).where(
+            Contact.user_id == current_user.id,
+            Contact.id != contact_id,
+            Contact.priority_level != "archived",
+            or_(*conditions),
+        ).order_by(Contact.relationship_score.desc().nullslast())
+        .limit(5)
+    )
+    related_contacts = list(related_result.scalars().all())
+
+    items = []
+    for c in related_contacts:
+        reasons: list[str] = []
+        if contact.organization_id and c.organization_id == contact.organization_id:
+            reasons.append("Same org")
+        if contact.company and c.company and c.company.lower() == contact.company.lower():
+            reasons.append("Same company")
+        if contact.tags and c.tags:
+            for tag in contact.tags:
+                if tag in c.tags:
+                    reasons.append(f"Shared tag: {tag}")
+        items.append({
+            "id": str(c.id),
+            "full_name": c.full_name,
+            "avatar_url": c.avatar_url,
+            "relationship_score": c.relationship_score,
+            "reasons": reasons,
+        })
+
+    return envelope(items)
+
+
 @router.put("/{contact_id}", response_model=Envelope[ContactResponse])
 async def update_contact(
     contact_id: uuid.UUID,
