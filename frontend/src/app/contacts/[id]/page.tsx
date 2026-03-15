@@ -178,6 +178,13 @@ export default function ContactDetailPage() {
 
           {/* Sidebar (1/3) — DOM order 1, visual order 1 on desktop */}
           <div className="lg:order-1 space-y-6">
+            {/* Contact Details */}
+            <DetailsPanel
+              contact={contact}
+              onSaveField={saveField}
+              onLinkOrg={handleLinkOrg}
+            />
+
             {/* Relationship Health */}
             {ctrl.activityLoading ? (
               <div className="bg-white rounded-xl border border-stone-200 p-5 animate-pulse">
@@ -191,13 +198,6 @@ export default function ContactDetailPage() {
             ) : ctrl.activityData ? (
               <RelationshipHealth activityData={ctrl.activityData} contact={contact} />
             ) : null}
-
-            {/* Contact Details */}
-            <DetailsPanel
-              contact={contact}
-              onSaveField={saveField}
-              onLinkOrg={handleLinkOrg}
-            />
 
             {/* Common Telegram Groups */}
             <CommonGroupsCard
