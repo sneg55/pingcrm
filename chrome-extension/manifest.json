@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "PingCRM LinkedIn Companion",
-  "version": "0.6.0",
+  "version": "0.6.1",
   "description": "Passively syncs LinkedIn profile and message data to your PingCRM instance",
   "permissions": ["storage", "activeTab"],
   "host_permissions": ["https://www.linkedin.com/*", "http://localhost/*", "http://127.0.0.1/*", "https://*/*"],

@@ -79,27 +79,41 @@
       if (extracted) company = extracted.split(/\s*[|·]\s*/)[0].trim();
     }
 
-    // Avatar: find profile photo (not company logo or cover)
-    const imgs = Array.from(topcard.querySelectorAll('img'));
+    // Avatar: find profile photo
+    // Strategy: search topcard first, then broader page for profile photo
     let avatarImg = null;
-    for (const img of imgs) {
+
+    // 1. Look for profile photo by URL pattern (most reliable)
+    const allPageImgs = Array.from(document.querySelectorAll('img'));
+    for (const img of allPageImgs) {
       const src = img.src || '';
-      // Skip cover photos, company logos, and tiny icons
-      if (src.includes('company-logo') || src.includes('background-cover') || src.includes('/li-default-avatar')) continue;
-      // Profile photos contain "profile-displayphoto" or are in a photo container
-      if (src.includes('profile-displayphoto') || src.includes('/dms/image/') && !src.includes('company-logo')) {
+      if (src.includes('profile-displayphoto')) {
         avatarImg = img;
         break;
       }
     }
-    // Fallback: use first non-cover img if no profile photo found
-    if (!avatarImg && imgs.length > 1) {
-      const fallback = imgs[1];
-      const fbSrc = fallback?.src || '';
-      if (!fbSrc.includes('company-logo') && !fbSrc.includes('background-cover')) {
-        avatarImg = fallback;
+
+    // 2. Topcard images — skip company logos and covers
+    if (!avatarImg) {
+      const topcardImgs = Array.from(topcard.querySelectorAll('img'));
+      for (const img of topcardImgs) {
+        const src = img.src || '';
+        if (!src || src.includes('company-logo') || src.includes('background-cover') || src.includes('li-default-avatar')) continue;
+        if (src.includes('/dms/image/')) {
+          avatarImg = img;
+          break;
+        }
       }
     }
+
+    // 3. Fallback: circular img near the name (often has specific dimensions)
+    if (!avatarImg) {
+      const circularImg = document.querySelector('img[class*="profile-photo"], img[class*="pv-top-card-profile-picture"], .pv-top-card--photo img');
+      if (circularImg) avatarImg = circularImg;
+    }
+
+    console.debug('[PingCRM] Avatar search:', avatarImg ? avatarImg.src?.substring(0, 80) : 'NOT FOUND',
+      '| topcard imgs:', Array.from(topcard.querySelectorAll('img')).map(i => i.src?.substring(0, 60)));
 
     // About section
     const aboutEl = querySelector('about');
@@ -118,6 +132,7 @@
       location: location || null,
       about: aboutEl ? aboutEl.textContent.trim() : null,
       avatar_url: avatarUrl,
+      _avatarImgElement: avatarImg,  // DOM ref for canvas extraction (deleted before send)
     };
   }
 
@@ -169,10 +184,35 @@
   }
 
   /**
-   * Download an image URL as a base64 data URI.
-   * Uses the page's fetch (which has LinkedIn cookies) so CDN requests succeed.
+   * Extract avatar as base64 from an already-loaded <img> element.
+   * Draws the image to a canvas to bypass CORS restrictions on fetch().
+   * Falls back to fetch() if canvas fails (tainted canvas).
    */
-  async function fetchAvatarAsBase64(url) {
+  async function extractAvatarAsBase64(imgElement, url) {
+    // Method 1: Canvas (works when image is same-origin or CORS-allowed)
+    try {
+      const img = imgElement || new Image();
+      if (!imgElement) {
+        img.crossOrigin = 'anonymous';
+        img.src = url;
+        await new Promise((resolve, reject) => {
+          img.onload = resolve;
+          img.onerror = reject;
+          setTimeout(reject, 5000);
+        });
+      }
+      const canvas = document.createElement('canvas');
+      canvas.width = img.naturalWidth || img.width || 400;
+      canvas.height = img.naturalHeight || img.height || 400;
+      const ctx = canvas.getContext('2d');
+      ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+      const dataUrl = canvas.toDataURL('image/jpeg', 0.9);
+      if (dataUrl && dataUrl.length > 100) return dataUrl;
+    } catch (e) {
+      console.debug('[PingCRM] Canvas avatar extract failed:', e.message);
+    }
+
+    // Method 2: Fetch with credentials (may fail with CORS)
     try {
       const resp = await fetch(url, { credentials: 'include' });
       if (!resp.ok) return null;
@@ -201,12 +241,29 @@
         return;
       }
 
-      // Download avatar as base64 (browser has LinkedIn cookies, server doesn't)
+      // If no avatar found yet, don't send — wait for the page to fully load
+      // and the MutationObserver to trigger another capture attempt
+      if (!profile.avatar_url) {
+        console.debug('[PingCRM] No avatar found yet, deferring capture for:', profile.profile_id);
+        return;
+      }
+
+      // Request avatar download from service worker (has host_permissions, bypasses CORS)
       if (profile.avatar_url && !profile.avatar_url.startsWith('data:')) {
-        const base64 = await fetchAvatarAsBase64(profile.avatar_url);
-        if (base64) {
-          profile.avatar_data = base64;  // data:image/jpeg;base64,...
+        try {
+          const base64 = await new Promise((resolve) => {
+            chrome.runtime.sendMessage(
+              { type: 'DOWNLOAD_AVATAR', url: profile.avatar_url },
+              (response) => resolve(response?.data || null)
+            );
+          });
+          if (base64) {
+            profile.avatar_data = base64;
+          }
+        } catch (e) {
+          console.debug('[PingCRM] Avatar download request failed:', e.message);
         }
+        delete profile._avatarImgElement;
       }
 
       console.log('[PingCRM] Captured profile:', profile.full_name, profile.profile_id);

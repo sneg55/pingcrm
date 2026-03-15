@@ -218,6 +218,26 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
       }
     })();
     return true; // async sendResponse
+  } else if (message.type === 'DOWNLOAD_AVATAR') {
+    // Download image as base64 — service worker has host_permissions (bypasses CORS)
+    (async () => {
+      try {
+        const resp = await fetch(message.url);
+        if (!resp.ok) {
+          sendResponse({ data: null });
+          return;
+        }
+        const blob = await resp.blob();
+        const reader = new FileReader();
+        reader.onloadend = () => sendResponse({ data: reader.result });
+        reader.onerror = () => sendResponse({ data: null });
+        reader.readAsDataURL(blob);
+      } catch (e) {
+        console.debug('[PingCRM] Avatar download failed:', e.message);
+        sendResponse({ data: null });
+      }
+    })();
+    return true; // async sendResponse
   }
   return false;
 });
