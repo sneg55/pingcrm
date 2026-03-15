@@ -4,6 +4,7 @@
 
 [![License: AGPL-3.0](https://img.shields.io/badge/License-AGPL%20v3-blue.svg)](LICENSE)
 [![GitHub stars](https://img.shields.io/github/stars/sneg55/pingcrm)](https://github.com/sneg55/pingcrm/stargazers)
+[![Build](https://github.com/sneg55/pingcrm/actions/workflows/deploy.yml/badge.svg)](https://github.com/sneg55/pingcrm/actions/workflows/deploy.yml)
 
 Auto-syncs Gmail, Telegram, and Twitter/X. Detects life events. Drafts contextual follow-ups. Tells you who to reach out to and why.
 
