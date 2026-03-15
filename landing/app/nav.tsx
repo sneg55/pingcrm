@@ -47,6 +47,15 @@ export function Nav() {
         <PingLogo />
         <div className="flex items-center gap-6">
           <a
+            href="https://sneg55.github.io/pingcrm/"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-sm transition-colors duration-200 hover:!text-[var(--text)]"
+            style={{ fontFamily: "'Space Mono', monospace", color: "var(--text-muted)", fontSize: "13px" }}
+          >
+            Docs
+          </a>
+          <a
             href={GITHUB_URL}
             target="_blank"
             rel="noopener noreferrer"
@@ -82,7 +91,7 @@ export function Footer() {
         <div className="flex items-center gap-6">
           {[
             { label: "GitHub", href: GITHUB_URL, external: true },
-            { label: "Docs", href: `${GITHUB_URL}#readme`, external: true },
+            { label: "Docs", href: "https://sneg55.github.io/pingcrm/", external: true },
             { label: "Waitlist", href: "#waitlist", external: false },
           ].map((link) => (
             <a
