@@ -26,6 +26,7 @@ export interface ActivityEvent {
   type: string;
   contact_name: string;
   contact_id: string;
+  contact_avatar_url: string | null;
   platform: string;
   direction: string;
   content_preview: string | null;

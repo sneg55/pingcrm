@@ -279,29 +279,36 @@ const platformStyles: Record<string, { bg: string; icon: ReactNode }> = {
   },
 };
 
-function ActivityItem({ event, isLast }: { event: ActivityEvent; isLast: boolean }) {
+function ActivityItem({ event }: { event: ActivityEvent }) {
   const style = platformStyles[event.platform] ?? platformStyles.email;
   const dirLabel = event.direction === "inbound" ? "from" : "to";
   return (
-    <div className="flex gap-3">
-      <div className="flex flex-col items-center">
-        <div className={`w-7 h-7 rounded-full ${style.bg} flex items-center justify-center shrink-0`}>
+    <Link
+      href={`/contacts/${event.contact_id}`}
+      className="flex items-center gap-3 bg-white rounded-xl border border-stone-200 p-3.5 hover:border-stone-300 transition-colors"
+    >
+      <ContactAvatar
+        avatarUrl={event.contact_avatar_url}
+        name={event.contact_name || "?"}
+        size="sm"
+      />
+      <div className="flex-1 min-w-0">
+        <p className="text-sm font-medium text-stone-900 truncate">
+          {event.contact_name}
+        </p>
+        <p className="text-xs text-stone-500 truncate">
+          {event.content_preview || `${event.platform} ${dirLabel === "from" ? "message received" : "message sent"}`}
+        </p>
+      </div>
+      <div className="flex flex-col items-end shrink-0 gap-1">
+        <div className={`w-6 h-6 rounded-full ${style.bg} flex items-center justify-center`}>
           {style.icon}
         </div>
-        {!isLast && <div className="w-px flex-1 bg-stone-100 mt-1" />}
-      </div>
-      <div className={isLast ? "" : "pb-4"}>
-        <p className="text-xs text-stone-700">
-          <strong className="capitalize">{event.platform}</strong> {dirLabel}{" "}
-          <Link href={`/contacts/${event.contact_id}`} className="font-medium hover:text-teal-700">
-            {event.contact_name}
-          </Link>
-        </p>
-        <p className="text-[11px] text-stone-400 mt-0.5">
+        <span className="text-[10px] text-stone-400">
           {formatDistanceToNow(new Date(event.timestamp), { addSuffix: true })}
-        </p>
+        </span>
       </div>
-    </div>
+    </Link>
   );
 }
 
@@ -448,8 +455,9 @@ export default function DashboardPage() {
         {/* Two-column layout */}
         {!isEmpty && (
           <div className="grid grid-cols-1 lg:grid-cols-5 gap-6">
-            {/* LEFT 3/5: Pending Follow-ups */}
+            {/* LEFT 3/5: Pending Follow-ups + Recent Activity */}
             <div className="lg:col-span-3 space-y-6">
+              {/* Pending Follow-ups */}
               <div>
                 <div className="flex items-center justify-between mb-3">
                   <h2 className="text-sm font-display font-semibold text-stone-900">
@@ -484,11 +492,35 @@ export default function DashboardPage() {
                   </div>
                 )}
               </div>
+
+              {/* Recent Activity */}
+              <div>
+                <h2 className="text-sm font-display font-semibold text-stone-900 mb-3">
+                  Recent Activity
+                </h2>
+                {isLoading ? (
+                  <div className="space-y-3">
+                    {[1, 2, 3].map((n) => (
+                      <div key={n} className="h-16 rounded-xl bg-white border border-stone-200 animate-pulse" />
+                    ))}
+                  </div>
+                ) : recentActivity.length === 0 ? (
+                  <div className="bg-white rounded-xl border border-stone-200 p-8 text-center">
+                    <MessageCircle className="w-8 h-8 text-stone-200 mx-auto mb-2" />
+                    <p className="text-sm text-stone-400">No recent activity</p>
+                  </div>
+                ) : (
+                  <div className="space-y-2">
+                    {recentActivity.map((event) => (
+                      <ActivityItem key={`${event.contact_id}-${event.timestamp}`} event={event} />
+                    ))}
+                  </div>
+                )}
+              </div>
             </div>
 
-            {/* RIGHT 2/5: Needs Attention + Recent Activity */}
+            {/* RIGHT 2/5: Needs Attention */}
             <div className="lg:col-span-2 space-y-6">
-              {/* Needs Attention */}
               <div className="bg-white rounded-xl border border-stone-200 p-5">
                 <div className="flex items-center justify-between mb-4">
                   <h2 className="text-sm font-display font-semibold text-stone-900">
@@ -525,34 +557,6 @@ export default function DashboardPage() {
                   >
                     View all &rarr;
                   </Link>
-                )}
-              </div>
-
-              {/* Recent Activity */}
-              <div className="bg-white rounded-xl border border-stone-200 p-5">
-                <h2 className="text-sm font-display font-semibold text-stone-900 mb-4">
-                  Recent Activity
-                </h2>
-                {isLoading ? (
-                  <div className="space-y-3">
-                    {[1, 2, 3].map((n) => (
-                      <div key={n} className="h-10 rounded-md bg-stone-100 animate-pulse" />
-                    ))}
-                  </div>
-                ) : recentActivity.length === 0 ? (
-                  <p className="text-sm text-stone-400 text-center py-4">
-                    No recent activity
-                  </p>
-                ) : (
-                  <div className="space-y-4">
-                    {recentActivity.map((event, i) => (
-                      <ActivityItem
-                        key={`${event.contact_id}-${event.timestamp}`}
-                        event={event}
-                        isLast={i === recentActivity.length - 1}
-                      />
-                    ))}
-                  </div>
                 )}
               </div>
             </div>

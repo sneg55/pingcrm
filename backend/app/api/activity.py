@@ -34,23 +34,32 @@ async def get_recent_activity(
         .where(
             Interaction.user_id == current_user.id,
             Interaction.occurred_at >= since,
+            Contact.priority_level != "archived",
         )
         .order_by(Interaction.occurred_at.desc())
-        .limit(limit)
+        .limit(limit * 3)  # fetch extra to allow dedup
     )
     rows = result.all()
 
-    events = [
-        {
+    # Deduplicate: only the most recent activity per contact
+    seen_contacts: set[str] = set()
+    events: list[dict] = []
+    for interaction, contact in rows:
+        cid = str(contact.id)
+        if cid in seen_contacts:
+            continue
+        seen_contacts.add(cid)
+        events.append({
             "type": "message",
             "contact_name": contact.full_name,
-            "contact_id": str(contact.id),
+            "contact_id": cid,
+            "contact_avatar_url": contact.avatar_url,
             "platform": interaction.platform,
             "direction": interaction.direction,
             "content_preview": interaction.content_preview,
             "timestamp": interaction.occurred_at.isoformat(),
-        }
-        for interaction, contact in rows
-    ]
+        })
+        if len(events) >= limit:
+            break
 
     return envelope(events)
