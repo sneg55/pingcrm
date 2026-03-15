@@ -34,25 +34,7 @@ import {
   type IdentityMatch,
 } from "@/hooks/use-identity";
 import { cn } from "@/lib/utils";
-
-/* ── Helpers ── */
-
-function getInitials(name: string | null): string {
-  if (!name) return "?";
-  return name.split(" ").map((w) => w[0]).slice(0, 2).join("").toUpperCase();
-}
-
-const avatarColors = [
-  "bg-violet-500", "bg-sky-500", "bg-rose-500", "bg-orange-500",
-  "bg-indigo-500", "bg-teal-600", "bg-pink-500", "bg-fuchsia-500",
-];
-
-function avatarBg(name: string | null): string {
-  if (!name) return avatarColors[0];
-  let hash = 0;
-  for (let i = 0; i < name.length; i++) hash = name.charCodeAt(i) + ((hash << 5) - hash);
-  return avatarColors[Math.abs(hash) % avatarColors.length];
-}
+import { ContactAvatar } from "@/components/contact-avatar";
 
 /* ── Match type config ── */
 interface MatchTypeStyle {
@@ -108,9 +90,7 @@ function ContactPanel({ contact }: { contact: IdentityMatchContact }) {
     <div className="bg-stone-50 rounded-lg p-4 border border-stone-100">
       {/* Avatar + name */}
       <div className="flex items-center gap-3 mb-3">
-        <div className={cn("w-10 h-10 rounded-full flex items-center justify-center text-white text-sm font-bold shrink-0", avatarBg(displayName))}>
-          {getInitials(displayName)}
-        </div>
+        <ContactAvatar avatarUrl={null} name={displayName} size="sm" />
         <div className="min-w-0 flex-1">
           <Link
             href={`/contacts/${contact.id}`}

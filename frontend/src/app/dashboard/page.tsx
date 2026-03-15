@@ -54,15 +54,6 @@ function getContactName(c: Suggestion["contact"]): string {
   );
 }
 
-function getInitials(name: string): string {
-  return name
-    .split(" ")
-    .map((w) => w[0])
-    .slice(0, 2)
-    .join("")
-    .toUpperCase();
-}
-
 function getScoreTier(score: number | null | undefined): { label: string; color: string } {
   if (score == null) return { label: "New", color: "bg-sky-50 text-sky-600 border-sky-200" };
   if (score >= 70) return { label: "Strong", color: "bg-emerald-50 text-emerald-600 border-emerald-200" };

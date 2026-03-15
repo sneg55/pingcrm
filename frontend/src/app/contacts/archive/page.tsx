@@ -16,31 +16,7 @@ import {
 import { useContacts, useUpdateContact } from "@/hooks/use-contacts";
 import { formatDistanceToNow } from "date-fns";
 import { cn } from "@/lib/utils";
-
-/* ── Helpers ── */
-
-function getInitials(name: string | null): string {
-  if (!name) return "?";
-  return name.split(" ").map((w) => w[0]).slice(0, 2).join("").toUpperCase();
-}
-
-const avatarColors = [
-  "bg-blue-100 text-blue-700",
-  "bg-pink-100 text-pink-700",
-  "bg-violet-100 text-violet-700",
-  "bg-orange-100 text-orange-700",
-  "bg-teal-100 text-teal-700",
-  "bg-indigo-100 text-indigo-700",
-  "bg-stone-200 text-stone-600",
-  "bg-emerald-100 text-emerald-700",
-];
-
-function avatarColor(name: string | null): string {
-  if (!name) return avatarColors[6];
-  let hash = 0;
-  for (let i = 0; i < name.length; i++) hash = name.charCodeAt(i) + ((hash << 5) - hash);
-  return avatarColors[Math.abs(hash) % avatarColors.length];
-}
+import { ContactAvatar } from "@/components/contact-avatar";
 
 /* ── Score badge ── */
 function ScorePill({ score }: { score: number | null | undefined }) {
@@ -274,9 +250,7 @@ function ArchivedContactsInner() {
                     />
                   </div>
                   <div className="flex items-center gap-3 min-w-0">
-                    <div className={cn("w-9 h-9 rounded-full flex items-center justify-center text-xs font-semibold shrink-0", avatarColor(displayName))}>
-                      {getInitials(displayName)}
-                    </div>
+                    <ContactAvatar avatarUrl={c.avatar_url} name={displayName} size="sm" />
                     <div className="min-w-0">
                       <Link
                         href={`/contacts/${c.id}`}

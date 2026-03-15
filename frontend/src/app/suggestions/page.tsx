@@ -27,22 +27,13 @@ import {
   type Suggestion,
 } from "@/hooks/use-suggestions";
 import { MessageEditor } from "@/components/message-editor";
+import { ContactAvatar } from "@/components/contact-avatar";
 import Link from "next/link";
 import { cn } from "@/lib/utils";
 
 type Channel = "email" | "telegram" | "twitter";
 
 /* ── Helpers ── */
-
-function getInitials(name: string | null): string {
-  if (!name) return "?";
-  return name
-    .split(" ")
-    .map((w) => w[0])
-    .slice(0, 2)
-    .join("")
-    .toUpperCase();
-}
 
 function displayName(c: Suggestion["contact"]): string {
   return (
@@ -75,23 +66,6 @@ function strengthDotColor(label: string): string {
   if (label === "Strong") return "bg-emerald-500";
   if (label === "Warm") return "bg-amber-400";
   return "bg-sky-400";
-}
-
-/* ── Avatar background color based on initials ── */
-const avatarColors = [
-  "bg-teal-100 text-teal-700",
-  "bg-violet-100 text-violet-700",
-  "bg-amber-100 text-amber-700",
-  "bg-sky-100 text-sky-700",
-  "bg-rose-100 text-rose-700",
-  "bg-stone-200 text-stone-600",
-];
-
-function avatarColor(name: string | null): string {
-  if (!name) return avatarColors[5];
-  let hash = 0;
-  for (let i = 0; i < name.length; i++) hash = name.charCodeAt(i) + ((hash << 5) - hash);
-  return avatarColors[Math.abs(hash) % avatarColors.length];
 }
 
 /* ── Trigger pill config ── */
@@ -219,13 +193,7 @@ function SuggestionCard({
     >
       <div className="flex items-start gap-3">
         {/* Avatar */}
-        {c?.avatar_url ? (
-          <img src={c.avatar_url} alt={name ?? ""} className="w-10 h-10 rounded-full object-cover shrink-0" />
-        ) : (
-          <div className={cn("w-10 h-10 rounded-full flex items-center justify-center text-sm font-semibold shrink-0", avatarColor(name))}>
-            {getInitials(name)}
-          </div>
-        )}
+        <ContactAvatar avatarUrl={suggestion.contact?.avatar_url || null} name={name} size="sm" />
 
         <div className="flex-1 min-w-0">
           {/* Header row */}
