@@ -98,12 +98,18 @@ async def test_recent_activity_limit_param(
     test_user: User,
     test_contact: Contact,
 ):
-    """GET /api/v1/activity/recent respects the limit query parameter."""
+    """GET /api/v1/activity/recent respects the limit query parameter (deduped by contact)."""
+    from app.models.contact import Contact
+
     now = datetime.now(UTC)
+    # Create 5 different contacts with 1 interaction each
     for i in range(5):
+        c = Contact(id=uuid.uuid4(), user_id=test_user.id, full_name=f"Limit Contact {i}")
+        db.add(c)
+        await db.flush()
         db.add(Interaction(
             id=uuid.uuid4(),
-            contact_id=test_contact.id,
+            contact_id=c.id,
             user_id=test_user.id,
             platform="email",
             direction="inbound",
@@ -183,12 +189,18 @@ async def test_recent_activity_ordered_newest_first(
     test_user: User,
     test_contact: Contact,
 ):
-    """GET /api/v1/activity/recent returns events ordered by timestamp descending."""
+    """GET /api/v1/activity/recent returns events ordered by timestamp descending (deduped per contact)."""
+    from app.models.contact import Contact
+
     now = datetime.now(UTC)
+    # Create 3 different contacts so dedup doesn't collapse them
     for i, preview in enumerate(["oldest", "middle", "newest"]):
+        c = Contact(id=uuid.uuid4(), user_id=test_user.id, full_name=f"Order Contact {preview}")
+        db.add(c)
+        await db.flush()
         db.add(Interaction(
             id=uuid.uuid4(),
-            contact_id=test_contact.id,
+            contact_id=c.id,
             user_id=test_user.id,
             platform="email",
             direction="inbound",

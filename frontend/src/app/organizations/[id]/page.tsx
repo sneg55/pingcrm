@@ -48,6 +48,7 @@ interface OrganizationData {
   id: string;
   name: string;
   domain: string | null;
+  logo_url: string | null;
   industry: string | null;
   location: string | null;
   website: string | null;
@@ -350,7 +351,7 @@ export default function OrganizationDetailPage() {
             <ArrowLeft className="h-5 w-5" />
           </button>
           <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-teal-50 dark:bg-teal-900 overflow-hidden">
-            <CompanyFavicon domain={org.domain} size="h-6 w-6" />
+            <CompanyFavicon logoUrl={org.logo_url} domain={org.domain} size="h-6 w-6" />
           </div>
           <OrgNameField value={org.name} onSave={(v) => saveField("name", v)} />
         </div>

@@ -26,6 +26,7 @@ class Organization(Base):
     linkedin_url: Mapped[str | None] = mapped_column(String, nullable=True)
     twitter_handle: Mapped[str | None] = mapped_column(String, nullable=True)
     notes: Mapped[str | None] = mapped_column(Text, nullable=True)
+    logo_url: Mapped[str | None] = mapped_column(String, nullable=True)
 
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False

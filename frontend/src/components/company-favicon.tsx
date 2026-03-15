@@ -20,7 +20,9 @@ function domainFromEmails(emails: string[] | null | undefined): string | null {
 }
 
 interface CompanyFaviconProps {
-  /** Organization domain (preferred, used directly). */
+  /** Organization logo URL (takes priority over all fallbacks). */
+  logoUrl?: string | null;
+  /** Organization domain (used for favicon.ico fallback when logoUrl absent). */
   domain?: string | null;
   /** Contact emails — domain is derived from the first non-common email. */
   emails?: string[] | null;
@@ -31,26 +33,42 @@ interface CompanyFaviconProps {
 }
 
 export const CompanyFavicon = memo(function CompanyFavicon({
+  logoUrl,
   domain,
   emails,
   size = "w-4 h-4",
   className,
 }: CompanyFaviconProps) {
-  const [failed, setFailed] = useState(false);
-  const resolvedDomain = domain || domainFromEmails(emails);
+  const [logFailed, setLogFailed] = useState(false);
+  const [favFailed, setFavFailed] = useState(false);
 
-  if (!resolvedDomain || failed) {
-    return <Building2 className={`${size} text-zinc-400 ${className ?? ""}`} />;
+  // Priority 1: explicit logo URL from org record
+  if (logoUrl && !logFailed) {
+    return (
+      <img
+        src={logoUrl}
+        alt=""
+        className={`${size} rounded-sm object-contain ${className ?? ""}`}
+        onError={() => setLogFailed(true)}
+      />
+    );
   }
 
-  return (
-    <img
-      src={`https://www.google.com/s2/favicons?domain=${encodeURIComponent(resolvedDomain)}&sz=32`}
-      alt=""
-      className={`${size} rounded-sm ${className ?? ""}`}
-      onError={() => setFailed(true)}
-    />
-  );
+  // Priority 2: derive domain and attempt favicon.ico directly
+  const resolvedDomain = domain || domainFromEmails(emails);
+  if (resolvedDomain && !favFailed) {
+    return (
+      <img
+        src={`https://${resolvedDomain}/favicon.ico`}
+        alt=""
+        className={`${size} rounded-sm ${className ?? ""}`}
+        onError={() => setFavFailed(true)}
+      />
+    );
+  }
+
+  // Priority 3: Building2 placeholder
+  return <Building2 className={`${size} text-zinc-400 ${className ?? ""}`} />;
 });
 
 export { domainFromEmails };

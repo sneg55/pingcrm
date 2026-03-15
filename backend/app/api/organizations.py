@@ -13,6 +13,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.auth import get_current_user
 from app.core.database import get_db
+from app.core.redis import get_redis
 from app.models.contact import Contact
 from app.models.organization import Organization
 from app.models.user import User
@@ -49,6 +50,7 @@ class OrganizationResponse(BaseModel):
     linkedin_url: str | None = None
     twitter_handle: str | None = None
     notes: str | None = None
+    logo_url: str | None = None
     created_at: datetime | None = None
     updated_at: datetime | None = None
     # Populated from mat view when listing
@@ -125,6 +127,7 @@ def _org_to_dict(org: Organization, stats: dict | None = None) -> dict:
         "linkedin_url": org.linkedin_url,
         "twitter_handle": org.twitter_handle,
         "notes": org.notes,
+        "logo_url": org.logo_url,
         "created_at": org.created_at,
         "updated_at": org.updated_at,
         "contact_count": 0,
@@ -188,6 +191,14 @@ async def create_organization(
         from app.services.organization_service import auto_assign_by_domain
         assigned = await auto_assign_by_domain(org, db)
         logger.info("create_organization: auto-assigned %d contacts by domain %s", assigned, org.domain)
+
+    # Download logo from website or domain
+    logo_source = org.website or org.domain
+    if logo_source:
+        from app.services.organization_service import download_org_logo
+        logo_url = await download_org_logo(logo_source, org.id)
+        if logo_url:
+            org.logo_url = logo_url
 
     await db.refresh(org)
     return _envelope(_org_to_dict(org))
@@ -272,6 +283,7 @@ async def list_organizations(
 
 # ---------------------------------------------------------------------------
 # POST /api/v1/organizations/merge  (must be before /{org_id} routes)
+# POST /api/v1/organizations/backfill-logos  (must be before /{org_id} routes)
 # ---------------------------------------------------------------------------
 
 
@@ -328,6 +340,19 @@ async def merge_organizations(
         "contacts_updated": move_result.rowcount,
         "source_organizations_merged": delete_result.rowcount,
     })
+
+
+@router.post("/backfill-logos", response_model=Envelope[dict])
+async def backfill_org_logos_endpoint(
+    current_user: User = Depends(get_current_user),
+) -> dict:
+    """Dispatch a background task to backfill logos for orgs that have none.
+
+    Returns immediately; the actual work happens asynchronously in Celery.
+    """
+    from app.services.tasks import backfill_org_logos_task
+    backfill_org_logos_task.delay()
+    return _envelope({"queued": True})
 
 
 # ---------------------------------------------------------------------------
@@ -432,6 +457,7 @@ async def update_organization(
 
     update_data = org_in.model_dump(exclude_unset=True)
     domain_changed = "domain" in update_data and update_data["domain"] != org.domain
+    website_changed = "website" in update_data and update_data["website"] != org.website
 
     for field, value in update_data.items():
         setattr(org, field, value)
@@ -448,6 +474,15 @@ async def update_organization(
     if domain_changed and org.domain:
         from app.services.organization_service import auto_assign_by_domain
         await auto_assign_by_domain(org, db)
+
+    # Re-download logo if website or domain changed
+    if website_changed or domain_changed:
+        logo_source = org.website or org.domain
+        if logo_source:
+            from app.services.organization_service import download_org_logo
+            logo_url = await download_org_logo(logo_source, org.id)
+            if logo_url:
+                org.logo_url = logo_url
 
     await db.flush()
     await db.refresh(org)
@@ -481,5 +516,48 @@ async def delete_organization(
     await db.execute(delete(Organization).where(Organization.id == org.id))
 
     return _envelope({"id": str(org_id), "deleted": True})
+
+
+# ---------------------------------------------------------------------------
+# POST /api/v1/organizations/{id}/refresh-logo
+# ---------------------------------------------------------------------------
+
+_LOGO_REFRESH_TTL = 3600  # 1 hour
+
+
+@router.post("/{org_id}/refresh-logo", response_model=Envelope[dict])
+async def refresh_org_logo(
+    org_id: uuid.UUID,
+    force: bool = Query(False, description="Bypass 1h rate limit"),
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> dict:
+    """Re-download the organization favicon/logo. Rate-limited to once per hour per org."""
+    result = await db.execute(
+        select(Organization).where(
+            Organization.id == org_id, Organization.user_id == current_user.id
+        )
+    )
+    org = result.scalar_one_or_none()
+    if not org:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Organization not found")
+
+    r = get_redis()
+    cache_key = f"org_logo_refresh:{org_id}"
+    if not force and await r.exists(cache_key):
+        return _envelope({"logo_url": org.logo_url, "refreshed": False, "skipped": True, "reason": "refreshed_recently"})
+
+    logo_source = org.website or org.domain
+    if not logo_source:
+        return _envelope({"logo_url": org.logo_url, "refreshed": False, "skipped": True, "reason": "no_domain_or_website"})
+
+    from app.services.organization_service import download_org_logo
+    logo_url = await download_org_logo(logo_source, org.id)
+    if logo_url:
+        org.logo_url = logo_url
+        await db.flush()
+
+    await r.setex(cache_key, _LOGO_REFRESH_TTL, "1")
+    return _envelope({"logo_url": org.logo_url, "refreshed": True})
 
 

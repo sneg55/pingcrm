@@ -1307,6 +1307,21 @@ def refresh_org_stats() -> dict:
     return {"status": "ok"}
 
 
+@shared_task(name="app.services.tasks.backfill_org_logos_task")
+def backfill_org_logos_task() -> dict:
+    """One-time task: download logos for all orgs that have a domain/website but no logo."""
+    async def _backfill() -> int:
+        from app.services.organization_service import backfill_org_logos
+        async with task_session() as db:
+            count = await backfill_org_logos(db)
+            await db.commit()
+            return count
+
+    updated = _run(_backfill())
+    logger.info("backfill_org_logos_task: updated %d organizations.", updated)
+    return {"status": "ok", "updated": updated}
+
+
 # ---------------------------------------------------------------------------
 # Auto-tagging task
 # ---------------------------------------------------------------------------

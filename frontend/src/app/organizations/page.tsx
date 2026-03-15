@@ -19,6 +19,7 @@ interface Organization {
   id: string;
   name: string;
   domain: string | null;
+  logo_url: string | null;
   industry: string | null;
   location: string | null;
   website: string | null;
@@ -419,7 +420,7 @@ function OrganizationsPageContent() {
                           className="flex items-center gap-3 group"
                         >
                           <div className="w-8 h-8 rounded-lg bg-blue-50 flex items-center justify-center flex-shrink-0 overflow-hidden">
-                            <CompanyFavicon domain={org.domain} size="w-5 h-5" />
+                            <CompanyFavicon logoUrl={org.logo_url} domain={org.domain} size="w-5 h-5" />
                           </div>
                           <div className="min-w-0">
                             <span className="text-sm font-semibold text-gray-900 group-hover:text-blue-600 transition-colors">
