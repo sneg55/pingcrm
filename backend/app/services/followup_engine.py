@@ -537,6 +537,17 @@ async def generate_suggestions(
     )
     queued_contact_ids: set[uuid.UUID] = {row[0] for row in existing_result.all()}
 
+    # Skip contacts whose suggestion was recently dismissed (30-day cooldown)
+    dismiss_cutoff = now - timedelta(days=30)
+    dismissed_result = await db.execute(
+        select(FollowUpSuggestion.contact_id).where(
+            FollowUpSuggestion.user_id == user_id,
+            FollowUpSuggestion.status == "dismissed",
+            FollowUpSuggestion.updated_at >= dismiss_cutoff,
+        )
+    )
+    queued_contact_ids.update(row[0] for row in dismissed_result.all())
+
     # Skip contacts that were recently followed up (cooldown period)
     cooldown_cutoff = now - timedelta(days=FOLLOWUP_COOLDOWN_DAYS)
     recently_followed_up = await db.execute(
