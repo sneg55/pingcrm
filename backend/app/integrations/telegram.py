@@ -1083,7 +1083,8 @@ async def sync_telegram_group_members(user: User, db: AsyncSession) -> dict[str,
                     if not contact.telegram_user_id:
                         contact.telegram_user_id = tg_user_id
 
-                    # Only tag as "2nd Tier" if this contact has no direct interactions
+                    # Tag as "2nd Tier" only if no direct interactions;
+                    # remove the tag if interactions have appeared since last sync
                     has_interactions = await db.execute(
                         select(Interaction.id).where(
                             Interaction.contact_id == contact.id,
@@ -1091,7 +1092,12 @@ async def sync_telegram_group_members(user: User, db: AsyncSession) -> dict[str,
                         ).limit(1)
                     )
                     if has_interactions.scalar_one_or_none() is not None:
-                        pass  # skip tagging — already has direct conversations
+                        # Has conversations — remove "2nd Tier" if present
+                        current_tags = list(contact.tags or [])
+                        if tag_label in current_tags:
+                            current_tags.remove(tag_label)
+                            contact.tags = current_tags
+                            updated_contacts += 1
                     else:
                         current_tags = list(contact.tags or [])
                         if tag_label not in current_tags:
