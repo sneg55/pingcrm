@@ -1,3 +1,6 @@
+# Research (local-only analysis files)
+research/
+
 # Python
 __pycache__/
 *.py[cod]
