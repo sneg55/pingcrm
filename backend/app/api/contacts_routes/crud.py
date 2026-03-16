@@ -4,7 +4,7 @@ import logging
 import uuid
 
 from fastapi import APIRouter
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 from app.api.contacts_routes.shared import (
     Contact,
@@ -25,6 +25,7 @@ from app.schemas.contact import (
     ContactCreate,
     ContactResponse,
     ContactUpdate,
+    _normalize_tags,
 )
 from app.schemas.responses import DeletedData, EnrichData
 
@@ -41,6 +42,13 @@ class BulkUpdateBody(BaseModel):
     remove_tags: list[str] | None = Field(default=None, max_length=50)
     priority_level: str | None = None
     company: str | None = None
+
+    @field_validator("add_tags", "remove_tags", mode="before")
+    @classmethod
+    def normalize_tags(cls, v: list[str] | None) -> list[str] | None:
+        if v is None:
+            return None
+        return _normalize_tags(v)
 
 
 @router.post("", response_model=Envelope[ContactResponse], status_code=status.HTTP_201_CREATED)

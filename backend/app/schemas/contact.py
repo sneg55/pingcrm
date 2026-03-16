@@ -1,7 +1,19 @@
 import uuid
 from datetime import datetime
 
-from pydantic import BaseModel
+from pydantic import BaseModel, field_validator
+
+
+def _normalize_tags(tags: list[str]) -> list[str]:
+    """Lowercase, strip, deduplicate tags while preserving order."""
+    seen: set[str] = set()
+    result: list[str] = []
+    for t in tags:
+        normalized = t.strip().lower()
+        if normalized and normalized not in seen:
+            seen.add(normalized)
+            result.append(normalized)
+    return result
 
 
 class ContactBase(BaseModel):
@@ -27,6 +39,13 @@ class ContactBase(BaseModel):
     notes: str | None = None
     priority_level: str = "medium"
     source: str | None = None
+
+    @field_validator("tags", mode="before")
+    @classmethod
+    def normalize_tags(cls, v: list[str] | None) -> list[str]:
+        if not v:
+            return []
+        return _normalize_tags(v)
 
 
 class ContactCreate(ContactBase):
@@ -55,6 +74,13 @@ class ContactUpdate(BaseModel):
     priority_level: str | None = None
     source: str | None = None
     organization_id: uuid.UUID | None = None
+
+    @field_validator("tags", mode="before")
+    @classmethod
+    def normalize_tags(cls, v: list[str] | None) -> list[str] | None:
+        if v is None:
+            return None
+        return _normalize_tags(v)
 
 
 class ContactResponse(ContactBase):

@@ -249,12 +249,19 @@ async def list_tags(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ) -> Envelope[list[str]]:
-    """Return all unique tags used across the user's contacts."""
+    """Return all unique tags used across the user's contacts (case-insensitive dedup)."""
     result = await db.execute(
         select(func.unnest(Contact.tags)).where(
             Contact.user_id == current_user.id,
             Contact.tags.isnot(None),
         ).distinct()
     )
-    tags = sorted(row[0] for row in result.all())
-    return {"data": tags, "error": None}
+    # Case-insensitive dedup: keep first seen form, sort lowercased
+    seen: set[str] = set()
+    unique: list[str] = []
+    for (raw_tag,) in result.all():
+        lower = raw_tag.lower()
+        if lower not in seen:
+            seen.add(lower)
+            unique.append(lower)
+    return {"data": sorted(unique), "error": None}

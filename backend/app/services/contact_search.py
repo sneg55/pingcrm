@@ -80,7 +80,7 @@ def build_contact_filter_query(
         )
 
     if tag:
-        base_query = base_query.where(Contact.tags.any(tag))
+        base_query = base_query.where(Contact.tags.any(tag.lower()))
 
     if source:
         base_query = base_query.where(Contact.source == source)
