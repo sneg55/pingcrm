@@ -17,12 +17,7 @@ depends_on: Union[str, Sequence[str], None] = None
 
 
 def upgrade() -> None:
-    # Normalize all tags to lowercase and deduplicate within each contact.
-    # Uses a PostgreSQL subquery to:
-    # 1. unnest the tags array
-    # 2. lower() each tag
-    # 3. select distinct to remove case-duplicates
-    # 4. re-aggregate into an array
+    # 1. Normalize all tags to lowercase and deduplicate within each contact.
     op.execute("""
         UPDATE contacts
         SET tags = (
@@ -30,6 +25,32 @@ def upgrade() -> None:
             FROM unnest(tags) AS tag
         )
         WHERE tags IS NOT NULL AND array_length(tags, 1) > 0
+    """)
+
+    # 2. Trim whitespace from company names.
+    op.execute("""
+        UPDATE contacts
+        SET company = btrim(company)
+        WHERE company IS NOT NULL AND company != btrim(company)
+    """)
+
+    # 3. Normalize company name casing to most-common variant per
+    #    case-insensitive group.  For each group of case-duplicates,
+    #    pick the variant with the highest count as canonical.
+    op.execute("""
+        UPDATE contacts c
+        SET company = canonical.name
+        FROM (
+            SELECT DISTINCT ON (lower(company))
+                lower(company) AS key,
+                company AS name
+            FROM contacts
+            WHERE company IS NOT NULL
+            GROUP BY company
+            ORDER BY lower(company), count(*) DESC
+        ) canonical
+        WHERE lower(c.company) = canonical.key
+          AND c.company != canonical.name
     """)
 
 

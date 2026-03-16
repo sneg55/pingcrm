@@ -47,6 +47,13 @@ class ContactBase(BaseModel):
             return []
         return _normalize_tags(v)
 
+    @field_validator("company", mode="before")
+    @classmethod
+    def normalize_company(cls, v: str | None) -> str | None:
+        if not v:
+            return v
+        return v.strip() or None
+
 
 class ContactCreate(ContactBase):
     pass
