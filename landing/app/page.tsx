@@ -104,7 +104,7 @@ const STEPS = [
   {
     number: "02",
     label: "Monitor",
-    description: "Ping watches your conversations, tracks activity, scores relationships, and detects life events.",
+    description: "Ping organizes your conversations, surfaces patterns, and flags when relationships need attention.",
     visual: (
       <div className="flex items-end gap-1 justify-center h-10">
         {[3, 7, 5, 2, 6, 8, 4].map((h, i) => (
@@ -124,7 +124,7 @@ const STEPS = [
   {
     number: "03",
     label: "Act",
-    description: "Get a weekly digest with AI-drafted messages. Edit, send, or schedule — your relationships, on autopilot.",
+    description: "Get a weekly digest with AI-drafted messages. Review, tweak, and send — staying in touch without the mental overhead.",
     visual: (
       <div
         className="px-4 py-2 rounded text-xs text-center"
@@ -197,17 +197,14 @@ export default function LandingPage() {
             className="animate-fade-up delay-3 text-lg sm:text-xl leading-relaxed max-w-2xl mx-auto mb-10"
             style={{ color: "var(--text-muted)", fontFamily: "'Newsreader', Georgia, serif" }}
           >
-            Upload your contacts, connect your accounts.
-            Ping tells you <em style={{ color: "var(--text)", fontStyle: "italic" }}>who to reach out to</em> and{" "}
-            <em style={{ color: "var(--text)", fontStyle: "italic" }}>writes the message</em>.
-            AI-powered networking CRM for founders, investors, and anyone who can&apos;t afford to lose touch.
+            Ping watches your relationships across Gmail, Telegram, and Twitter — tells you{" "}
+            <em style={{ color: "var(--text)", fontStyle: "italic" }}>who&apos;s slipping away</em>, and{" "}
+            <em style={{ color: "var(--text)", fontStyle: "italic" }}>writes the message</em> to bring them back.
           </p>
 
           <div className="animate-fade-up delay-4 flex flex-col sm:flex-row gap-4 justify-center items-center">
             <a
-              href={GITHUB_URL}
-              target="_blank"
-              rel="noopener noreferrer"
+              href="#waitlist"
               className="flex items-center gap-2.5 px-6 py-3 rounded-lg text-sm font-bold tracking-wide transition-all duration-200 hover:shadow-[0_0_24px_var(--accent-glow-strong)] hover:-translate-y-0.5"
               style={{
                 fontFamily: "'Space Mono', monospace",
@@ -216,11 +213,15 @@ export default function LandingPage() {
                 fontSize: "14px",
               }}
             >
-              <GitHubIcon size={18} />
-              Self-Host on GitHub
+              Get Early Access
+              <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round">
+                <path d="M7 1v12M1 7l6 6 6-6" />
+              </svg>
             </a>
             <a
-              href="#waitlist"
+              href={GITHUB_URL}
+              target="_blank"
+              rel="noopener noreferrer"
               className="flex items-center gap-2 px-6 py-3 rounded-lg text-sm tracking-wide transition-all duration-200 hover:border-[var(--border-bright)] hover:-translate-y-0.5"
               style={{
                 fontFamily: "'Space Mono', monospace",
@@ -230,10 +231,8 @@ export default function LandingPage() {
                 fontSize: "14px",
               }}
             >
-              Join the Waitlist
-              <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round">
-                <path d="M7 1v12M1 7l6 6 6-6" />
-              </svg>
+              <GitHubIcon size={18} />
+              View on GitHub
             </a>
           </div>
 
@@ -274,7 +273,7 @@ export default function LandingPage() {
                 </div>
                 <p className="mt-3" style={{ color: "var(--text-dim)" }}>
                   <span style={{ color: "var(--accent)" }}>&rarr;</span> AI drafts ready. Review at{" "}
-                  <span style={{ color: "var(--accent)", textDecoration: "underline" }}>app.pingcrm.com/digest</span>
+                  <span style={{ color: "var(--accent)", textDecoration: "underline" }}>localhost:3000/digest</span>
                 </p>
               </div>
             </div>
@@ -292,14 +291,14 @@ export default function LandingPage() {
               className="text-xs tracking-[0.2em] uppercase mb-3"
               style={{ fontFamily: "'Space Mono', monospace", color: "var(--accent)" }}
             >
-              Capabilities
+              What Ping Does
             </p>
             <h2
               className="text-3xl sm:text-4xl font-bold tracking-tight"
               style={{ fontFamily: "'Space Mono', monospace" }}
             >
-              Everything you need to{" "}
-              <span style={{ color: "var(--accent)" }}>stay connected</span>
+              Six ways Ping keeps your{" "}
+              <span style={{ color: "var(--accent)" }}>network alive</span>
             </h2>
           </div>
 
@@ -337,7 +336,7 @@ export default function LandingPage() {
               style={{ fontFamily: "'Space Mono', monospace" }}
             >
               Three steps to{" "}
-              <span style={{ color: "var(--accent)" }}>autopilot</span>
+              <span style={{ color: "var(--accent)" }}>effortless follow-up</span>
             </h2>
           </div>
 
@@ -455,16 +454,16 @@ export default function LandingPage() {
             className="text-3xl sm:text-4xl font-bold tracking-tight mb-4"
             style={{ fontFamily: "'Space Mono', monospace" }}
           >
-            Don&apos;t want to self-host?
+            Want us to handle the setup?
           </h2>
           <p className="text-lg leading-relaxed mb-10 max-w-lg mx-auto" style={{ color: "var(--text-muted)" }}>
-            We&apos;re building a managed cloud version. Join the waitlist to get early access when it launches.
+            We&apos;re building a hosted version — same features, zero infrastructure. Join the waitlist for early access and a founding-member discount.
           </p>
           <div className="flex justify-center">
             <WaitlistForm />
           </div>
           <p className="mt-4 text-xs" style={{ color: "var(--text-dim)", fontFamily: "'Space Mono', monospace" }}>
-            No spam. We&apos;ll only email you when it&apos;s ready.
+            We&apos;ll email you once when it&apos;s ready — that&apos;s it.
           </p>
         </div>
       </section>
