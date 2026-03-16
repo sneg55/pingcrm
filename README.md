@@ -14,13 +14,15 @@ Auto-syncs Gmail, Telegram, and Twitter/X. Detects life events. Drafts contextua
 
 | Feature | PingCRM | Monica | Dex |
 |---|---|---|---|
-| Price | Free (self-hosted) | Free (self-hosted) | $12/mo |
-| AI follow-up suggestions | Yes | No | No |
-| Gmail sync | Yes | No | Yes |
+| Price | Free (self-hosted) | Free / $9/mo hosted | Free tier / $12/mo |
+| AI message drafting | Yes | No | No |
+| Gmail sync | Yes (threads) | No | Yes (contacts) |
 | Telegram sync | Yes | No | No |
-| Twitter/X sync | Yes | No | No |
-| Identity resolution | Yes (4-tier) | No | No |
-| Life event detection | Yes | No | No |
+| Twitter/X sync | Yes (DMs + mentions) | No | Import only |
+| LinkedIn sync | No | No | Yes |
+| Relationship scoring | Yes (0–10) | No | Reminders only |
+| Life event detection | Yes (multi-source) | Manual only | Job changes only |
+| Identity resolution | Yes (4-tier) | No | Partial |
 | Open source | Yes (AGPL-3.0) | Yes (AGPL-3.0) | No |
 | Self-hostable | Yes | Yes | No |
 
