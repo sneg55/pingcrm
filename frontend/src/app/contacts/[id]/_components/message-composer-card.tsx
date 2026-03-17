@@ -112,6 +112,9 @@ export function MessageComposerCard({
       setExpanded(false);
       void queryClient.invalidateQueries({ queryKey: ["interactions", contactId] });
       void queryClient.invalidateQueries({ queryKey: ["contacts", contactId] });
+      void queryClient.invalidateQueries({ queryKey: ["contacts", "stats"] });
+      void queryClient.invalidateQueries({ queryKey: ["contacts", "overdue"] });
+      void queryClient.invalidateQueries({ queryKey: ["activity", "recent"] });
       setTimeout(() => setSent(null), 4000);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to send");

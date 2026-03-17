@@ -33,6 +33,8 @@ export interface ActivityEvent {
   timestamp: string;
 }
 
+const DASHBOARD_REFETCH_MS = 5 * 60 * 1000; // 5 minutes
+
 export function useDashboardStats() {
   const suggestionsQuery = useQuery({
     queryKey: ["suggestions"],
@@ -40,6 +42,7 @@ export function useDashboardStats() {
       const { data } = await client.GET("/api/v1/suggestions");
       return data;
     },
+    refetchInterval: DASHBOARD_REFETCH_MS,
   });
 
   const statsQuery = useQuery({
@@ -48,6 +51,7 @@ export function useDashboardStats() {
       const { data } = await client.GET("/api/v1/contacts/stats");
       return data;
     },
+    refetchInterval: DASHBOARD_REFETCH_MS,
   });
 
   const overdueQuery = useQuery({
@@ -58,6 +62,7 @@ export function useDashboardStats() {
       });
       return data ?? { data: [], error: null };
     },
+    refetchInterval: DASHBOARD_REFETCH_MS,
   });
 
   const activityQuery = useQuery({
@@ -68,6 +73,7 @@ export function useDashboardStats() {
       });
       return data ?? { data: [], error: null };
     },
+    refetchInterval: DASHBOARD_REFETCH_MS,
   });
 
   const suggestions = (suggestionsQuery.data?.data ?? []) as Suggestion[];

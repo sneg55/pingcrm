@@ -85,6 +85,9 @@ export function useContactDetailController(id: string) {
       if (data?.new_interactions > 0) {
         void queryClient.invalidateQueries({ queryKey: ["interactions", id] });
         void queryClient.invalidateQueries({ queryKey: ["contacts", id] });
+        void queryClient.invalidateQueries({ queryKey: ["contacts", "stats"] });
+        void queryClient.invalidateQueries({ queryKey: ["contacts", "overdue"] });
+        void queryClient.invalidateQueries({ queryKey: ["activity", "recent"] });
       }
       return true;
     },
@@ -125,6 +128,9 @@ export function useContactDetailController(id: string) {
       if (data?.new_interactions > 0) {
         void queryClient.invalidateQueries({ queryKey: ["interactions", id] });
         void queryClient.invalidateQueries({ queryKey: ["contacts", id] });
+        void queryClient.invalidateQueries({ queryKey: ["contacts", "stats"] });
+        void queryClient.invalidateQueries({ queryKey: ["contacts", "overdue"] });
+        void queryClient.invalidateQueries({ queryKey: ["activity", "recent"] });
       }
       return true;
     },

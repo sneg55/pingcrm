@@ -61,6 +61,7 @@ function NoteItem({
     onSuccess: () => {
       setEditing(false);
       void queryClient.invalidateQueries({ queryKey: ["interactions", contactId] });
+      void queryClient.invalidateQueries({ queryKey: ["activity", "recent"] });
     },
   });
 
@@ -74,6 +75,9 @@ function NoteItem({
     },
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ["interactions", contactId] });
+      void queryClient.invalidateQueries({ queryKey: ["contacts", "stats"] });
+      void queryClient.invalidateQueries({ queryKey: ["contacts", "overdue"] });
+      void queryClient.invalidateQueries({ queryKey: ["activity", "recent"] });
     },
   });
 

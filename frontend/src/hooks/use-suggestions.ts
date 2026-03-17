@@ -66,6 +66,8 @@ export function useUpdateSuggestion() {
     },
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ["suggestions"] });
+      void queryClient.invalidateQueries({ queryKey: ["contacts", "stats"] });
+      void queryClient.invalidateQueries({ queryKey: ["contacts", "overdue"] });
     },
   });
 }
@@ -110,6 +112,9 @@ export function useSendMessage() {
       void queryClient.invalidateQueries({ queryKey: ["suggestions"] });
       void queryClient.invalidateQueries({ queryKey: ["interactions", vars.contactId] });
       void queryClient.invalidateQueries({ queryKey: ["contacts", vars.contactId] });
+      void queryClient.invalidateQueries({ queryKey: ["contacts", "stats"] });
+      void queryClient.invalidateQueries({ queryKey: ["contacts", "overdue"] });
+      void queryClient.invalidateQueries({ queryKey: ["activity", "recent"] });
     },
   });
 }
