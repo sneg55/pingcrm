@@ -1,4 +1,5 @@
 import WaitlistForm from "./waitlist-form";
+import DashboardPreview from "./dashboard-preview";
 import { Nav, Footer } from "./nav";
 
 const GITHUB_URL = "https://github.com/sneg55/pingcrm";
@@ -233,47 +234,9 @@ export default function LandingPage() {
             </a>
           </div>
 
-          {/* Terminal preview */}
+          {/* Dashboard preview */}
           <div className="animate-fade-up delay-5 mt-16 max-w-2xl mx-auto">
-            <div className="rounded-xl overflow-hidden" style={{ border: "1px solid var(--border)", background: "var(--bg-elevated)" }}>
-              <div className="flex items-center gap-2 px-4 py-2.5" style={{ borderBottom: "1px solid var(--border)" }}>
-                <div className="flex gap-1.5">
-                  <div className="w-2.5 h-2.5 rounded-full" style={{ background: "#ff5f57" }} />
-                  <div className="w-2.5 h-2.5 rounded-full" style={{ background: "#febc2e" }} />
-                  <div className="w-2.5 h-2.5 rounded-full" style={{ background: "#28c840" }} />
-                </div>
-                <span className="ml-3 text-xs" style={{ fontFamily: "'Space Mono', monospace", color: "var(--text-dim)" }}>
-                  ping weekly-digest
-                </span>
-              </div>
-              <div className="px-5 py-4 text-left text-sm leading-relaxed" style={{ fontFamily: "'Space Mono', monospace", fontSize: "13px" }}>
-                <p style={{ color: "var(--text-dim)" }}>$ ping digest --week</p>
-                <p className="mt-3" style={{ color: "var(--text-muted)" }}>
-                  <span style={{ color: "var(--accent)" }}>3 contacts</span> need attention this week:
-                </p>
-                <div className="mt-2 space-y-1.5">
-                  <p>
-                    <span style={{ color: "var(--warm)" }}>1.</span>{" "}
-                    <span style={{ color: "var(--text)" }}>Alex Rivera</span>{" "}
-                    <span style={{ color: "var(--text-dim)" }}>&mdash; changed jobs 3d ago, silent 45d</span>
-                  </p>
-                  <p>
-                    <span style={{ color: "var(--warm)" }}>2.</span>{" "}
-                    <span style={{ color: "var(--text)" }}>Sarah Chen</span>{" "}
-                    <span style={{ color: "var(--text-dim)" }}>&mdash; replied to your tweet, no DM in 90d</span>
-                  </p>
-                  <p>
-                    <span style={{ color: "var(--warm)" }}>3.</span>{" "}
-                    <span style={{ color: "var(--text)" }}>Marcus Johnson</span>{" "}
-                    <span style={{ color: "var(--text-dim)" }}>&mdash; fundraising signal, last email 60d</span>
-                  </p>
-                </div>
-                <p className="mt-3" style={{ color: "var(--text-dim)" }}>
-                  <span style={{ color: "var(--accent)" }}>&rarr;</span> AI drafts ready. Review at{" "}
-                  <span style={{ color: "var(--accent)", textDecoration: "underline" }}>localhost:3000/digest</span>
-                </p>
-              </div>
-            </div>
+            <DashboardPreview />
           </div>
         </div>
       </section>
