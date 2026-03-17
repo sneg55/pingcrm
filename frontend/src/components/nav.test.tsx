@@ -23,6 +23,11 @@ vi.mock("@/hooks/use-contacts", () => ({
   useContacts: vi.fn(),
 }));
 
+// Mock ThemeToggle (uses useTheme context not available in tests)
+vi.mock("@/components/theme-toggle", () => ({
+  ThemeToggle: () => <button aria-label="Toggle dark mode" />,
+}));
+
 import { useAuth } from "@/hooks/use-auth";
 import { useUnreadCount } from "@/hooks/use-notifications";
 import { useContacts } from "@/hooks/use-contacts";
