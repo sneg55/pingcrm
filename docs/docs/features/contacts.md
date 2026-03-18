@@ -115,7 +115,7 @@ The enrichment:
 
 The enrichment source is recorded and returned in the API response (`source: "apollo"`), along with the list of fields that were updated.
 
-**Setup:** Set the `APOLLO_API_KEY` environment variable. Without it, the enrichment button is non-functional. See the [Setup guide](/docs/setup) for details.
+**Setup:** Set the `APOLLO_API_KEY` environment variable. Without it, the enrichment button is non-functional. See the [Setup guide](../setup) for details.
 
 ### Rate Limit Handling
 
