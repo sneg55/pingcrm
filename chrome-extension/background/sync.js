@@ -11,7 +11,7 @@
  *   cookiesValid     - boolean; set to false when AUTH_EXPIRED is received
  */
 
-const SYNC_THROTTLE_MS = 2 * 60 * 60 * 1000; // 2 hours between auto-syncs
+const SYNC_THROTTLE_MS = 15 * 60 * 1000; // 15 minutes between auto-syncs
 const RATE_LIMIT_DELAY_MS = 1000;             // 1 second between Voyager calls
 const BACKFILL_WINDOW_MS = 30 * 24 * 60 * 60 * 1000; // 30 days for first-sync full fetch
 const CONVERSATION_PAGE_MAX = 500;            // hard cap to prevent infinite pagination
@@ -221,6 +221,8 @@ async function _runSyncInner(apiUrl, token, force, result) {
     const stored = await chrome.storage.local.get(["lastVoyagerSync", "nextRetryAt"]);
 
     if (stored.nextRetryAt && Date.now() < new Date(stored.nextRetryAt).getTime()) {
+      const waitMin = Math.round((new Date(stored.nextRetryAt).getTime() - Date.now()) / 60000);
+      console.log("[Sync] Skipped: rate-limit backoff active, retry in", waitMin, "min");
       result.skipped = true;
       return result;
     }
@@ -228,6 +230,8 @@ async function _runSyncInner(apiUrl, token, force, result) {
     if (stored.lastVoyagerSync) {
       const elapsed = Date.now() - new Date(stored.lastVoyagerSync).getTime();
       if (elapsed < SYNC_THROTTLE_MS) {
+        const remainMin = Math.round((SYNC_THROTTLE_MS - elapsed) / 60000);
+        console.log("[Sync] Skipped: throttle, last sync", Math.round(elapsed / 60000), "min ago, next in", remainMin, "min");
         result.skipped = true;
         return result;
       }
