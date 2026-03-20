@@ -323,10 +323,17 @@ async def _refresh_and_retry(user: User, db: AsyncSession) -> dict[str, str] | N
 MAX_DM_PAGES = 15  # safety cap: 15 pages * 100 = up to 1500 events
 
 
-async def fetch_dm_conversations(headers: dict[str, str]) -> list[dict[str, Any]]:
+async def fetch_dm_conversations(
+    headers: dict[str, str],
+    *,
+    since_id: str | None = None,
+) -> list[dict[str, Any]]:
     """Fetch DM events using OAuth 2.0 user token (Twitter API v2).
 
-    Paginates through all available pages (up to ~30 days of history).
+    Args:
+        headers: Bearer token headers.
+        since_id: Only return events newer than this DM event ID (delta sync).
+                  If None, fetches all available (up to ~30 days).
     """
     all_events: list[dict[str, Any]] = []
     pagination_token: str | None = None
@@ -338,6 +345,8 @@ async def fetch_dm_conversations(headers: dict[str, str]) -> list[dict[str, Any]
                 "event_types": "MessageCreate",
                 "max_results": "100",
             }
+            if since_id:
+                params["since_id"] = since_id
             if pagination_token:
                 params["pagination_token"] = pagination_token
 
@@ -554,12 +563,12 @@ async def sync_twitter_dms(
             logger.exception("sync_twitter_dms: failed to get user's Twitter ID")
             return 0
 
-    dm_events = await fetch_dm_conversations(headers)
+    dm_events = await fetch_dm_conversations(headers, since_id=user.twitter_dm_cursor)
     if not dm_events:
-        logger.info("sync_twitter_dms: no DM events returned for user %s", user.id)
+        logger.info("sync_twitter_dms: no new DM events for user %s (cursor: %s)", user.id, user.twitter_dm_cursor)
         return 0
 
-    logger.info("sync_twitter_dms: processing %d DM events for user %s", len(dm_events), user.id)
+    logger.info("sync_twitter_dms: processing %d DM events for user %s (cursor: %s)", len(dm_events), user.id, user.twitter_dm_cursor)
 
     # Build or reuse Twitter user ID -> Contact mapping
     id_to_contact = _id_map if _id_map is not None else await _build_twitter_id_to_contact_map(user, db, headers)
@@ -691,10 +700,15 @@ async def sync_twitter_dms(
                     contact.last_interaction_at = interaction.occurred_at
                 new_count += 1
 
+    # Update cursor to the newest event ID so next sync only fetches new DMs
+    newest_id = max((e.get("id", "") for e in dm_events), default=None)
+    if newest_id:
+        user.twitter_dm_cursor = newest_id
+
     await db.flush()
     logger.info(
-        "sync_twitter_dms for user %s: %d new interactions, %d new contacts, %d duplicate (of %d events)",
-        user.id, new_count, created_contacts, skipped_duplicate, len(dm_events),
+        "sync_twitter_dms for user %s: %d new interactions, %d new contacts, %d duplicate (of %d events), cursor: %s",
+        user.id, new_count, created_contacts, skipped_duplicate, len(dm_events), newest_id,
     )
     return {"new_interactions": new_count, "new_contacts": created_contacts}
 
