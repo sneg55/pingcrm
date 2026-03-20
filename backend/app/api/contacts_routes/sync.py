@@ -306,7 +306,12 @@ async def sync_contact_telegram(
 
     from app.integrations.telegram import sync_telegram_contact_messages
 
-    changes = await sync_telegram_contact_messages(current_user, contact, db)
+    try:
+        changes = await sync_telegram_contact_messages(current_user, contact, db)
+    except ValueError as exc:
+        # Telethon can't resolve entity for users we haven't DMed (2nd tier contacts)
+        logger.warning("sync_contact_telegram: entity resolution failed for contact %s: %s", contact_id, exc)
+        return envelope({"new_interactions": 0, "skipped": True, "reason": "entity_not_resolved"})
 
     # Auto-dismiss pending suggestions if new interactions were synced
     if changes.get("new_interactions", 0) > 0:
