@@ -24,6 +24,23 @@ const ringClasses = {
   lg: "ring-[2.5px] ring-offset-2",
 };
 
+const avatarColors = [
+  "bg-violet-100 dark:bg-violet-900 text-violet-700 dark:text-violet-300",
+  "bg-teal-100 dark:bg-teal-900 text-teal-700 dark:text-teal-300",
+  "bg-pink-100 dark:bg-pink-900 text-pink-700 dark:text-pink-300",
+  "bg-orange-100 dark:bg-orange-900 text-orange-700 dark:text-orange-300",
+  "bg-sky-100 dark:bg-sky-900 text-sky-700 dark:text-sky-300",
+  "bg-indigo-100 dark:bg-indigo-900 text-indigo-700 dark:text-indigo-300",
+  "bg-stone-200 dark:bg-stone-700 text-stone-600 dark:text-stone-300",
+  "bg-emerald-100 dark:bg-emerald-900 text-emerald-700 dark:text-emerald-300",
+];
+
+function avatarColor(name: string): string {
+  let hash = 0;
+  for (let i = 0; i < name.length; i++) hash = name.charCodeAt(i) + ((hash << 5) - hash);
+  return avatarColors[Math.abs(hash) % avatarColors.length];
+}
+
 function getScoreRingColor(score: number | undefined): string {
   if (score === undefined) return "";
   if (score >= 8) return "ring-emerald-400";
@@ -66,7 +83,8 @@ export function ContactAvatar({
     <div
       className={cn(
         classes,
-        "rounded-full bg-gradient-to-br from-teal-500 to-cyan-600 flex items-center justify-center text-white font-semibold flex-shrink-0",
+        "rounded-full flex items-center justify-center font-semibold flex-shrink-0",
+        avatarColor(name),
         scoreRing,
         className,
       )}
