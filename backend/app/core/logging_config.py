@@ -12,46 +12,62 @@ import os
 from pathlib import Path
 
 
+def _has_json_logger() -> bool:
+    try:
+        import pythonjsonlogger.jsonlogger  # noqa: F401
+        return True
+    except ImportError:
+        return False
+
+
 def setup_logging() -> None:
-    """Configure structured JSON logging for the application."""
+    """Configure structured JSON logging for the application.
+
+    Falls back to simple text formatting if python-json-logger is not installed
+    (e.g. in test environments).
+    """
     log_level = os.getenv("LOG_LEVEL", "INFO").upper()
     log_level_sql = os.getenv("LOG_LEVEL_SQL", "WARNING").upper()
     log_level_celery = os.getenv("LOG_LEVEL_CELERY", log_level).upper()
+    use_json = _has_json_logger()
 
     # Ensure logs directory exists
     log_dir = Path(__file__).resolve().parent.parent.parent / "logs"
     log_dir.mkdir(exist_ok=True)
     log_file = str(log_dir / "pingcrm.log")
 
-    json_format = "%(asctime)s %(levelname)s %(name)s %(message)s"
+    formatters: dict = {
+        "simple": {
+            "format": "%(asctime)s %(levelname)-8s %(name)s — %(message)s",
+            "datefmt": "%Y-%m-%d %H:%M:%S",
+        },
+    }
+    if use_json:
+        formatters["json"] = {
+            "()": "pythonjsonlogger.jsonlogger.JsonFormatter",
+            "format": "%(asctime)s %(levelname)s %(name)s %(message)s",
+            "rename_fields": {
+                "levelname": "level",
+                "asctime": "timestamp",
+            },
+            "timestamp": True,
+        }
+
+    fmt_name = "json" if use_json else "simple"
 
     config = {
         "version": 1,
         "disable_existing_loggers": False,
-        "formatters": {
-            "json": {
-                "()": "pythonjsonlogger.jsonlogger.JsonFormatter",
-                "format": json_format,
-                "rename_fields": {
-                    "levelname": "level",
-                    "asctime": "timestamp",
-                },
-                "timestamp": True,
-            },
-            "simple": {
-                "format": "%(asctime)s %(levelname)-8s %(name)s — %(message)s",
-                "datefmt": "%Y-%m-%d %H:%M:%S",
-            },
-        },
+        "formatters": formatters,
         "handlers": {
             "console": {
                 "class": "logging.StreamHandler",
-                "formatter": "json",
+                "formatter": fmt_name,
                 "stream": "ext://sys.stdout",
             },
             "file": {
                 "class": "logging.handlers.RotatingFileHandler",
-                "formatter": "json",
+                "formatter": fmt_name,
                 "filename": log_file,
                 "maxBytes": 10_485_760,  # 10 MB
                 "backupCount": 5,
