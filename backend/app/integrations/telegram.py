@@ -558,7 +558,7 @@ async def sync_telegram_chats(user: User, db: AsyncSession, *, max_dialogs: int 
                 contact.telegram_read_outbox_max_id = read_outbox_max_id
                 # Bulk-update existing outbound interactions that are now read
                 from sqlalchemy import update, cast, Integer as SAInteger
-                await db.execute(
+                update_result = await db.execute(
                     update(Interaction)
                     .where(
                         Interaction.contact_id == contact.id,
@@ -570,6 +570,18 @@ async def sync_telegram_chats(user: User, db: AsyncSession, *, max_dialogs: int 
                         cast(func.split_part(Interaction.raw_reference_id, ":", 2), SAInteger) <= read_outbox_max_id,
                     )
                     .values(is_read_by_recipient=True)
+                )
+                if update_result.rowcount > 0:
+                    logger.info(
+                        "read_receipts: marked %d interaction(s) as read for contact %s (read_outbox_max_id=%d)",
+                        update_result.rowcount, contact.id, read_outbox_max_id,
+                        extra={"provider": "telegram", "contact_id": str(contact.id)},
+                    )
+            elif contact:
+                logger.debug(
+                    "read_receipts: no read_outbox_max_id for contact %s (dialog.dialog=%r)",
+                    contact.id, getattr(dialog, "dialog", None),
+                    extra={"provider": "telegram", "contact_id": str(contact.id)},
                 )
 
             # Queue avatar download for after main sync loop

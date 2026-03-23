@@ -65,6 +65,20 @@ cd backend && celery -A worker.celery_app worker --beat --loglevel=info
 # Celery worker and beat as separate processes (recommended for production)
 cd backend && celery -A worker.celery_app beat --loglevel=info
 cd backend && celery -A worker.celery_app worker --loglevel=info
+
+# Production logs (structured JSON, rotating files)
+# Local: logs/pingcrm.log (10MB, 5 backups)
+# Docker: docker compose logs backend --tail=200
+# Docker: docker compose logs worker --tail=200
+# Env vars: LOG_LEVEL=DEBUG, LOG_LEVEL_SQL=WARNING, LOG_LEVEL_CELERY=INFO
+
+# Production server access (SSH)
+ssh -i ~/.ssh/pingcrm_key root@pingcrm.sawinyh.com
+# App directory: /opt/pingcrm
+# Pull logs: ssh -i ~/.ssh/pingcrm_key root@pingcrm.sawinyh.com "cd /opt/pingcrm && docker compose logs worker --tail=100"
+# Run command in container: ssh -i ~/.ssh/pingcrm_key root@pingcrm.sawinyh.com "cd /opt/pingcrm && docker compose exec -T backend python -c 'CODE'"
+# Check migration: ... docker compose exec -T backend alembic current
+# Run migration: ... docker compose exec -T backend alembic upgrade head
 ```
 
 ## Key Conventions
