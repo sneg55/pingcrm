@@ -4,11 +4,16 @@ from collections.abc import AsyncGenerator
 
 from pathlib import Path
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
+from pydantic import BaseModel
+from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from app.core.config import settings
+from app.core.logging_config import setup_logging
+from app.core.middleware import RequestCorrelationMiddleware
 from app.api.auth import router as auth_router
 from app.api.contacts import router as contacts_router
 from app.api.identity import router as identity_router
@@ -23,7 +28,7 @@ from app.api.linkedin import router as linkedin_router
 from app.api.activity import router as activity_router
 from app.api.extension import router as extension_router
 
-logging.basicConfig(level=logging.INFO)
+setup_logging()
 logger = logging.getLogger(__name__)
 
 
@@ -73,6 +78,7 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+app.add_middleware(RequestCorrelationMiddleware)
 
 app.include_router(contacts_router)
 app.include_router(interactions_router)
@@ -93,6 +99,80 @@ _static_dir = Path(__file__).resolve().parent.parent / "static"
 _avatars_dir = _static_dir / "avatars"
 _avatars_dir.mkdir(parents=True, exist_ok=True)
 app.mount("/static", StaticFiles(directory=str(_static_dir)), name="static")
+
+
+@app.exception_handler(StarletteHTTPException)
+async def http_exception_handler(request: Request, exc: StarletteHTTPException) -> JSONResponse:
+    """Log HTTP exceptions with structured context."""
+    if exc.status_code >= 500:
+        logger.error(
+            "http_error %s %s %d",
+            request.method,
+            request.url.path,
+            exc.status_code,
+            extra={
+                "http_method": request.method,
+                "http_path": request.url.path,
+                "http_status": exc.status_code,
+                "error_detail": str(exc.detail),
+            },
+        )
+    return JSONResponse(
+        status_code=exc.status_code,
+        content={"data": None, "error": exc.detail},
+    )
+
+
+@app.exception_handler(Exception)
+async def unhandled_exception_handler(request: Request, exc: Exception) -> JSONResponse:
+    """Catch-all for unhandled exceptions — log full traceback."""
+    logger.exception(
+        "unhandled_error %s %s: %s",
+        request.method,
+        request.url.path,
+        exc,
+        extra={
+            "http_method": request.method,
+            "http_path": request.url.path,
+            "http_status": 500,
+            "exception_type": type(exc).__name__,
+        },
+    )
+    return JSONResponse(
+        status_code=500,
+        content={"data": None, "error": "Internal server error"},
+    )
+
+
+class FrontendErrorReport(BaseModel):
+    message: str
+    source: str | None = None
+    lineno: int | None = None
+    colno: int | None = None
+    stack: str | None = None
+    url: str | None = None
+    component: str | None = None
+
+_frontend_logger = logging.getLogger("app.frontend")
+
+
+@app.post("/api/v1/errors", tags=["errors"])
+async def report_frontend_error(report: FrontendErrorReport) -> dict:
+    """Receive client-side errors and log them in the structured backend log."""
+    _frontend_logger.error(
+        "frontend_error: %s",
+        report.message,
+        extra={
+            "error_source": report.source,
+            "error_lineno": report.lineno,
+            "error_colno": report.colno,
+            "error_stack": report.stack,
+            "error_url": report.url,
+            "error_component": report.component,
+            "origin": "frontend",
+        },
+    )
+    return {"data": {"received": True}, "error": None}
 
 
 @app.get("/api/health", tags=["health"])

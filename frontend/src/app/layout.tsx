@@ -4,6 +4,7 @@ import "./globals.css";
 import { QueryProvider } from "@/lib/query-provider";
 import { ThemeProvider } from "@/components/theme-provider";
 import { Nav } from "@/components/nav";
+import { ErrorReporter } from "@/components/error-reporter";
 
 const dmSans = DM_Sans({
   subsets: ["latin"],
@@ -45,6 +46,7 @@ export default function RootLayout({
       >
         <ThemeProvider>
           <QueryProvider>
+            <ErrorReporter />
             <Nav />
             {children}
           </QueryProvider>

@@ -49,6 +49,7 @@ backend/static/
 
 # Logs
 *.log
+logs/
 /tmp/
 
 # Planning artifacts & mockups

@@ -105,6 +105,7 @@ async def import_csv(
 
             created.append({"id": str(contact.id), "full_name": contact.full_name})
         except Exception as exc:
+            logger.warning("import_contacts_csv: failed to import row %d for user %s", i + 1, user_id, exc_info=True)
             errors.append(f"Row {i + 1}: {exc!s}")
 
     return {"created": created, "errors": errors}
@@ -189,6 +190,7 @@ async def import_linkedin_connections(
 
             created += 1
         except Exception as exc:
+            logger.warning("import_linkedin_connections: failed to import row %d for user %s", i + 1, user_id, exc_info=True)
             errors.append(f"Row {i + 1}: {exc!s}")
 
     return {"created": created, "skipped": skipped, "errors": errors}

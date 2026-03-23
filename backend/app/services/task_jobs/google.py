@@ -47,6 +47,7 @@ def sync_google_contacts_for_user(self, user_id: str) -> dict:
                     access_token = refresh_access_token(token)
                     google_contacts = fetch_google_contacts(access_token)
                 except Exception as exc:
+                    logger.warning("sync_google_contacts: failed to fetch contacts for %s", account_email, exc_info=True)
                     errors.append(f"{account_email}: {exc}")
                     continue
 
@@ -127,6 +128,7 @@ def sync_google_contacts_for_user(self, user_id: str) -> dict:
                             created_count += 1
                     except Exception as exc:
                         name_hint = fields.get("full_name") or ", ".join(fields.get("emails", [])[:1]) or "unknown"
+                        logger.warning("sync_google_contacts: failed to upsert contact %r for user %s", name_hint, uid, exc_info=True)
                         errors.append(f"{name_hint}: {exc}")
 
             # Archive contacts deleted from Google

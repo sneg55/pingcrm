@@ -225,6 +225,7 @@ async def connect_telegram(user: User, phone: str, db: AsyncSession) -> str:
         await client.disconnect()
         return phone_code_hash
     except Exception:
+        logger.warning("connect_telegram: error during send_code_request for user %s", user.id, exc_info=True)
         await client.disconnect()
         raise
 
@@ -250,6 +251,7 @@ async def verify_telegram(
         await client.disconnect()
         raise
     except Exception:
+        logger.warning("verify_telegram: sign_in failed for user %s", user.id, exc_info=True)
         await client.disconnect()
         raise
 
@@ -280,6 +282,7 @@ async def verify_telegram_2fa(user: User, password: str, db: AsyncSession) -> bo
     try:
         await client.sign_in(password=password)
     except Exception:
+        logger.warning("verify_telegram_2fa: sign_in failed for user %s", user.id, exc_info=True)
         await client.disconnect()
         raise
 

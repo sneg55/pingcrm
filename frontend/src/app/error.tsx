@@ -1,5 +1,7 @@
 'use client'
 
+import { useEffect } from "react";
+
 export default function Error({
   error,
   reset,
@@ -7,6 +9,24 @@ export default function Error({
   error: Error & { digest?: string }
   reset: () => void
 }) {
+  useEffect(() => {
+    const token = localStorage.getItem("access_token");
+    fetch("/api/v1/errors", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      },
+      body: JSON.stringify({
+        message: error.message,
+        stack: error.stack,
+        source: "error_boundary",
+        component: "RootErrorBoundary",
+        url: window.location.href,
+      }),
+    }).catch(() => {});
+  }, [error]);
+
   return (
     <div className="min-h-screen flex items-center justify-center bg-white dark:bg-stone-950">
       <div className="text-center">
