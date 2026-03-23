@@ -24,6 +24,9 @@ class User(Base):
     twitter_user_id: Mapped[str | None] = mapped_column(String, nullable=True)
     twitter_username: Mapped[str | None] = mapped_column(String, nullable=True)
     twitter_dm_cursor: Mapped[str | None] = mapped_column(String, nullable=True)
+    twitter_token_expires_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
     telegram_session: Mapped[str | None] = mapped_column(EncryptedString, nullable=True)
     telegram_username: Mapped[str | None] = mapped_column(String, nullable=True)
     telegram_last_synced_at: Mapped[datetime | None] = mapped_column(

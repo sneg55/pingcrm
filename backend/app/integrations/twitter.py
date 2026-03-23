@@ -260,14 +260,39 @@ async def refresh_twitter_token(refresh_token: str) -> dict[str, Any]:
         return resp.json()
 
 
-async def _user_bearer_headers(user: User, db: AsyncSession) -> dict[str, str] | None:
-    """Get Bearer headers using user's OAuth 2.0 token, refreshing if needed.
+def _store_tokens(user: User, tokens: dict[str, Any]) -> None:
+    """Store OAuth tokens and compute expires_at from the response."""
+    user.twitter_access_token = tokens["access_token"]
+    if "refresh_token" in tokens:
+        user.twitter_refresh_token = tokens["refresh_token"]
+    expires_in = tokens.get("expires_in")
+    if expires_in:
+        from datetime import datetime, timedelta, UTC
+        user.twitter_token_expires_at = datetime.now(UTC) + timedelta(seconds=int(expires_in))
 
-    Returns the current token headers directly (no probe request).
-    Call ``_refresh_and_retry`` when a 401 is encountered during an actual API call.
+
+_TOKEN_REFRESH_BUFFER_SECONDS = 300  # refresh 5 minutes before expiry
+
+
+async def _user_bearer_headers(user: User, db: AsyncSession) -> dict[str, str] | None:
+    """Get Bearer headers, proactively refreshing if the token is expired or about to expire.
+
+    Checks twitter_token_expires_at and refreshes if within 5 minutes of expiry.
+    Falls back to returning the stored token if no expiry is tracked.
     """
     if not user.twitter_access_token:
         return None
+
+    # Proactive refresh: if we know the token is expired or about to expire, refresh now
+    if user.twitter_token_expires_at is not None:
+        from datetime import datetime, timedelta, UTC
+        if datetime.now(UTC) >= user.twitter_token_expires_at - timedelta(seconds=_TOKEN_REFRESH_BUFFER_SECONDS):
+            logger.info("Twitter token expiring soon for user %s, proactively refreshing", user.id)
+            refreshed = await _refresh_and_retry(user, db)
+            if refreshed:
+                return refreshed
+            # If refresh failed, try the existing token anyway (might still work)
+
     return {"Authorization": f"Bearer {user.twitter_access_token}"}
 
 
@@ -291,9 +316,7 @@ async def _refresh_and_retry(user: User, db: AsyncSession) -> dict[str, str] | N
 
     try:
         tokens = await refresh_twitter_token(user.twitter_refresh_token)
-        user.twitter_access_token = tokens["access_token"]
-        if "refresh_token" in tokens:
-            user.twitter_refresh_token = tokens["refresh_token"]
+        _store_tokens(user, tokens)
         await db.flush()
         return {"Authorization": f"Bearer {tokens['access_token']}"}
     except httpx.HTTPStatusError as e:
