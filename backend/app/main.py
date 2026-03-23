@@ -119,7 +119,7 @@ async def http_exception_handler(request: Request, exc: StarletteHTTPException) 
         )
     return JSONResponse(
         status_code=exc.status_code,
-        content={"data": None, "error": exc.detail},
+        content={"detail": exc.detail},
     )
 
 
@@ -140,7 +140,7 @@ async def unhandled_exception_handler(request: Request, exc: Exception) -> JSONR
     )
     return JSONResponse(
         status_code=500,
-        content={"data": None, "error": "Internal server error"},
+        content={"detail": "Internal server error"},
     )
 
 
