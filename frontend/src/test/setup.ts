@@ -65,6 +65,7 @@ vi.mock("lucide-react", () => {
     Plus: makeIcon("Plus"),
     Pencil: makeIcon("Pencil"),
     // nav
+    Menu: makeIcon("Menu"),
     LayoutDashboard: makeIcon("LayoutDashboard"),
     Users: makeIcon("Users"),
     Sparkles: makeIcon("Sparkles"),

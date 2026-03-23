@@ -607,10 +607,10 @@ describe("ContactDetailPage", () => {
     expect(screen.getByText("Warm")).toBeInTheDocument();
   });
 
-  /* 35 — Contact Details section heading */
+  /* 35 — Contact Details section heading (appears as both mobile toggle button and section heading) */
   it("renders Contact Details section heading", () => {
     renderPage();
-    expect(screen.getByText("Contact Details")).toBeInTheDocument();
+    expect(screen.getAllByText("Contact Details").length).toBeGreaterThanOrEqual(1);
   });
 
   /* 36 — Auto-tag menu item */

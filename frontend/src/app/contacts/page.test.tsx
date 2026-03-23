@@ -121,11 +121,10 @@ describe("ContactsPage", () => {
       isError: false,
     });
     renderPage();
-    expect(screen.getByText("Alice Smith")).toBeInTheDocument();
-    expect(screen.getByText("Bob Jones")).toBeInTheDocument();
-    expect(screen.getByText("Acme Inc")).toBeInTheDocument();
-    // Stats header shows contact count (mocked via statsQuery which returns undefined, so check contacts exist)
-    expect(screen.getByText("Alice Smith")).toBeInTheDocument();
+    // Name appears in both desktop table (hidden lg:grid) and mobile cards (lg:hidden)
+    expect(screen.getAllByText("Alice Smith").length).toBeGreaterThanOrEqual(1);
+    expect(screen.getAllByText("Bob Jones").length).toBeGreaterThanOrEqual(1);
+    expect(screen.getAllByText("Acme Inc").length).toBeGreaterThanOrEqual(1);
   });
 
   it("shows last interaction as days ago", () => {
