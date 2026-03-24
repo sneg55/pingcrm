@@ -47,3 +47,31 @@ def test_beat_schedule_tasks_are_registered():
         assert task_name in celery_app.tasks, (
             f"Beat schedule task '{task_name}' (schedule entry '{name}') is not registered"
         )
+
+
+def test_no_duplicate_celery_task_names():
+    """No two Celery tasks in app.services.tasks.* may share the same name.
+
+    This catches bugs like the old cleanup_stale_telegram_locks duplicate
+    where a task was registered twice under the same name, causing silent
+    overrides and unpredictable execution.
+    """
+    import app.services.tasks  # noqa: F401 — trigger registration
+
+    app_tasks = [name for name in celery_app.tasks if name.startswith("app.services.tasks.")]
+    duplicates = [name for name in app_tasks if app_tasks.count(name) > 1]
+    assert duplicates == [], f"Duplicate Celery task names found: {set(duplicates)}"
+
+
+def test_all_tasks_registered():
+    """Snapshot: ensure at least the expected minimum number of tasks are registered.
+
+    If this count drops below 15 it likely means a task module failed to import
+    and tasks were silently dropped from the registry.
+    """
+    import app.services.tasks  # noqa: F401 — trigger registration
+
+    app_tasks = sorted(name for name in celery_app.tasks if name.startswith("app.services.tasks."))
+    assert len(app_tasks) >= 15, (
+        f"Expected at least 15 registered app tasks, found {len(app_tasks)}: {app_tasks}"
+    )

@@ -5,6 +5,56 @@ title: Technical Architecture
 
 # Technical Architecture
 
+## Dependency Layers
+
+```
+┌─────────────┐
+│   Frontend  │  Next.js + React
+├─────────────┤
+│  API Layer  │  FastAPI routes (thin handlers)
+├─────────────┤
+│  Services   │  Business logic, follow-up engine, scoring
+├─────────────┤
+│Integrations │  Gmail, Telegram, Twitter, LinkedIn, Apollo
+├─────────────┤
+│   Models    │  SQLAlchemy ORM + Pydantic schemas
+├─────────────┤
+│    Core     │  Config, auth, database, Redis, logging
+└─────────────┘
+```
+
+### Allowed Import Direction
+
+- `api/` → `services/` → `integrations/` → `models/` → `core/`
+- Never: `integrations/` → `api/` or `services/` → `api/`
+
+### Module Ownership
+
+| Directory | Responsibility |
+|-----------|---------------|
+| `api/` | HTTP request handling, validation, response formatting |
+| `services/` | Business logic, orchestration, no HTTP concerns |
+| `integrations/` | External API clients, protocol adapters |
+| `models/` | Database schema, relationships |
+| `schemas/` | Pydantic request/response models |
+| `core/` | Cross-cutting: config, auth, database, logging, middleware |
+| `task_jobs/` | Celery task definitions, organized by domain |
+
+### Key Files by Size
+
+| File | Lines | Role |
+|------|-------|------|
+| `integrations/telegram.py` | ~800 | Telegram DM/bio sync |
+| `integrations/telegram_transport.py` | ~200 | Telethon client lifecycle |
+| `integrations/telegram_helpers.py` | ~150 | Contact resolution helpers |
+| `integrations/telegram_groups.py` | ~250 | Group member sync |
+| `integrations/twitter.py` | ~700 | Twitter DM/mention/reply sync |
+| `integrations/twitter_auth.py` | ~160 | OAuth 2.0 PKCE token management |
+| `services/followup_engine.py` | ~750 | AI follow-up suggestion generation |
+| `services/scoring.py` | ~200 | Relationship score calculation |
+
+---
+
 ## System Overview
 
 PingCRM is a three-tier application: a Next.js frontend communicates with a FastAPI backend, which persists data in PostgreSQL and uses Redis for caching, task brokering, and ephemeral state. Celery workers handle background sync, scoring, and AI-powered suggestion generation.

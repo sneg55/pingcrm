@@ -156,7 +156,7 @@ async def refresh_contact_bios(
                                 )
                     # Extract Twitter handle from Telegram bio if not already set
                     if not contact.twitter_handle and new_bio:
-                        from app.integrations.telegram import _extract_twitter_handle
+                        from app.integrations.telegram_helpers import _extract_twitter_handle
                         twitter_handle = _extract_twitter_handle(new_bio)
                         if twitter_handle:
                             contact.twitter_handle = twitter_handle

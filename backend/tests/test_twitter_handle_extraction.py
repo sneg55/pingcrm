@@ -1,7 +1,7 @@
 """Tests for Twitter handle extraction from Telegram bios."""
 import pytest
 
-from app.integrations.telegram import _extract_twitter_handle
+from app.integrations.telegram_helpers import _extract_twitter_handle
 
 
 class TestExtractTwitterHandle:

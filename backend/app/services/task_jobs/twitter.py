@@ -94,8 +94,8 @@ def sync_twitter_dms_for_user(self, user_id: str) -> dict:
             sync_twitter_replies,
             _user_bearer_headers,
             _refresh_and_retry,
-            _build_twitter_id_to_contact_map,
         )
+        from app.integrations.twitter_contacts import _build_twitter_id_to_contact_map
         from app.models.notification import Notification
         from app.services.scoring import calculate_score
 
