@@ -698,19 +698,67 @@ async def sync_twitter_mentions(
     _id_map: dict[str, Contact] | None = None,
     _headers: dict[str, str] | None = None,
 ) -> int:
-    """Sync Twitter mentions for a user. Returns count of new interactions."""
+    """Sync Twitter mentions via bird CLI. Returns count of new interactions."""
     from app.models.interaction import Interaction
+    from app.integrations.bird import fetch_mentions_bird, is_available as bird_available
+    import app.integrations.bird as bird_module
 
-    headers = _headers or await _user_bearer_headers(user, db)
-    if not headers or not user.twitter_user_id:
+    if not user.twitter_username:
         return 0
 
-    mentions = await fetch_mentions(user.twitter_user_id, headers)
+    if not bird_available():
+        logger.error(
+            "sync_twitter_mentions: bird CLI unavailable for user %s",
+            user.id,
+            extra={"provider": "twitter", "operation": "mentions"},
+        )
+        from app.models.notification import Notification
+        db.add(Notification(
+            user_id=user.id,
+            notification_type="system",
+            title="Twitter mention sync unavailable",
+            body="bird CLI is not installed. Mention sync requires bird CLI.",
+            link="/settings",
+        ))
+        await db.flush()
+        return 0
+
+    # Read cursor for delta sync
+    sync_settings = user.sync_settings or {}
+    mention_cursor = sync_settings.get("twitter_mention_cursor")
+
+    mentions = await fetch_mentions_bird(user.twitter_username, count=50)
+    if not mentions and bird_module.last_error:
+        logger.error(
+            "sync_twitter_mentions: bird CLI failed for user %s: %s",
+            user.id,
+            bird_module.last_error,
+            extra={"provider": "twitter", "operation": "mentions"},
+        )
+        from app.models.notification import Notification
+        db.add(Notification(
+            user_id=user.id,
+            notification_type="system",
+            title="Twitter mention sync failed",
+            body=f"bird CLI error: {bird_module.last_error[:200]}",
+            link="/settings",
+        ))
+        await db.flush()
+        return 0
+
+    if not mentions:
+        return 0
+
+    # Apply cursor: only process tweets newer than the last seen ID
+    if mention_cursor:
+        mentions = [m for m in mentions if m["id"] > mention_cursor]
+
     if not mentions:
         return 0
 
     # Build or reuse Twitter user ID -> Contact mapping
-    id_to_contact = _id_map if _id_map is not None else await _build_twitter_id_to_contact_map(user, db, headers)
+    headers = _headers or await _user_bearer_headers(user, db)
+    id_to_contact = _id_map if _id_map is not None else await _build_twitter_id_to_contact_map(user, db, headers or {})
     new_count = 0
 
     # Batch dedup: collect all ref IDs and query once
@@ -754,6 +802,13 @@ async def sync_twitter_mentions(
         if contact.last_interaction_at is None or contact.last_interaction_at < interaction.occurred_at:
             contact.last_interaction_at = interaction.occurred_at
         new_count += 1
+
+    # Advance cursor to the newest tweet ID processed
+    if mentions:
+        newest = max(m["id"] for m in mentions)
+        sync_settings = user.sync_settings or {}
+        sync_settings["twitter_mention_cursor"] = newest
+        user.sync_settings = sync_settings
 
     await db.flush()
     return new_count
@@ -818,19 +873,67 @@ async def sync_twitter_replies(
     _id_map: dict[str, Contact] | None = None,
     _headers: dict[str, str] | None = None,
 ) -> int:
-    """Sync outbound replies to contacts' tweets. Returns count of new interactions."""
+    """Sync outbound replies to contacts' tweets via bird CLI. Returns count of new interactions."""
     from app.models.interaction import Interaction
+    from app.integrations.bird import fetch_user_replies_bird, is_available as bird_available
+    import app.integrations.bird as bird_module
 
-    headers = _headers or await _user_bearer_headers(user, db)
-    if not headers or not user.twitter_user_id:
+    if not user.twitter_username:
         return 0
 
-    replies = await fetch_user_tweets_with_replies(user.twitter_user_id, headers)
+    if not bird_available():
+        logger.error(
+            "sync_twitter_replies: bird CLI unavailable for user %s",
+            user.id,
+            extra={"provider": "twitter", "operation": "replies"},
+        )
+        from app.models.notification import Notification
+        db.add(Notification(
+            user_id=user.id,
+            notification_type="system",
+            title="Twitter reply sync unavailable",
+            body="bird CLI is not installed. Reply sync requires bird CLI.",
+            link="/settings",
+        ))
+        await db.flush()
+        return 0
+
+    # Read cursor for delta sync
+    sync_settings = user.sync_settings or {}
+    reply_cursor = sync_settings.get("twitter_reply_cursor")
+
+    replies = await fetch_user_replies_bird(user.twitter_username, count=50)
+    if not replies and bird_module.last_error:
+        logger.error(
+            "sync_twitter_replies: bird CLI failed for user %s: %s",
+            user.id,
+            bird_module.last_error,
+            extra={"provider": "twitter", "operation": "replies"},
+        )
+        from app.models.notification import Notification
+        db.add(Notification(
+            user_id=user.id,
+            notification_type="system",
+            title="Twitter reply sync failed",
+            body=f"bird CLI error: {bird_module.last_error[:200]}",
+            link="/settings",
+        ))
+        await db.flush()
+        return 0
+
+    if not replies:
+        return 0
+
+    # Apply cursor: only process tweets newer than the last seen ID
+    if reply_cursor:
+        replies = [r for r in replies if r["id"] > reply_cursor]
+
     if not replies:
         return 0
 
     # Build or reuse Twitter user ID -> Contact mapping
-    id_to_contact = _id_map if _id_map is not None else await _build_twitter_id_to_contact_map(user, db, headers)
+    headers = _headers or await _user_bearer_headers(user, db)
+    id_to_contact = _id_map if _id_map is not None else await _build_twitter_id_to_contact_map(user, db, headers or {})
     new_count = 0
 
     # Batch dedup: collect all ref IDs and query once
@@ -875,6 +978,13 @@ async def sync_twitter_replies(
         if contact.last_interaction_at is None or contact.last_interaction_at < interaction.occurred_at:
             contact.last_interaction_at = interaction.occurred_at
         new_count += 1
+
+    # Advance cursor to the newest tweet ID processed
+    if replies:
+        newest = max(r["id"] for r in replies)
+        sync_settings = user.sync_settings or {}
+        sync_settings["twitter_reply_cursor"] = newest
+        user.sync_settings = sync_settings
 
     await db.flush()
     return new_count

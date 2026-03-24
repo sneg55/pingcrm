@@ -4,7 +4,6 @@ from __future__ import annotations
 import asyncio
 import logging
 
-import httpx
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -13,15 +12,13 @@ from app.models.user import User
 
 logger = logging.getLogger(__name__)
 
-_TWITTER_API_BASE = "https://api.twitter.com/2"
-
 _HANDLE_CACHE_TTL = 30 * 24 * 3600  # 30 days
 
 
 async def _cached_resolve_handles(
     handles: list[str], headers: dict[str, str]
 ) -> dict[str, str]:
-    """Resolve Twitter handles to user IDs via bird CLI (primary) + API (fallback).
+    """Resolve Twitter handles to user IDs via bird CLI.
 
     Returns {handle_lower: twitter_id}.
 
@@ -52,10 +49,9 @@ async def _cached_resolve_handles(
         else:
             to_resolve.append(handle)
 
-    # Primary: resolve via bird CLI (concurrent batches, no API credits needed)
+    # Resolve via bird CLI (concurrent batches, no API credits needed)
     from app.integrations.bird import is_available as bird_available, resolve_user_id_bird
 
-    still_unresolved: list[str] = []
     if bird_available():
         _BIRD_CONCURRENCY = 5
         for i in range(0, len(to_resolve), _BIRD_CONCURRENCY):
@@ -66,37 +62,8 @@ async def _cached_resolve_handles(
             for handle, twitter_id in zip(chunk, resolved):
                 if twitter_id:
                     result[handle.lower()] = twitter_id
-                else:
-                    still_unresolved.append(handle)
-    else:
-        still_unresolved = to_resolve
 
-    # Fallback: batch resolve remaining via Twitter API
-    for i in range(0, len(still_unresolved), 100):
-        batch = still_unresolved[i : i + 100]
-        try:
-            async with httpx.AsyncClient(timeout=15.0) as client:
-                resp = await client.get(
-                    f"{_TWITTER_API_BASE}/users/by",
-                    headers=headers,
-                    params={"usernames": ",".join(batch), "user.fields": "username"},
-                )
-                resp.raise_for_status()
-                for u in resp.json().get("data", []):
-                    username = u.get("username", "").lower()
-                    twitter_id = u["id"]
-                    result[username] = twitter_id
-        except Exception:
-            logger.exception("_cached_resolve_handles: API fallback failed at offset %d", i)
-            continue
-
-        # Cache misses as empty string so we don't re-query deleted/invalid handles
-        resolved_in_batch = {h.lower() for h in batch if h.lower() in result}
-        for handle in batch:
-            if handle.lower() not in resolved_in_batch:
-                await redis.set(f"tw:h2id:{handle.lower()}", "", ex=_HANDLE_CACHE_TTL)
-
-    # Cache misses from bird CLI too
+    # No OAuth API fallback — cache misses from bird CLI
     all_resolved = set(result.keys())
     for handle in to_resolve:
         if handle.lower() not in all_resolved:

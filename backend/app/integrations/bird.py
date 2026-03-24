@@ -222,3 +222,63 @@ async def fetch_user_profile_bird(handle: str) -> dict[str, Any]:
     return result
 
 
+async def fetch_mentions_bird(handle: str, count: int = 50) -> list[dict[str, Any]]:
+    """Fetch tweets mentioning a user via ``bird mentions``.
+
+    Returns a normalized list of dicts with keys:
+    ``id``, ``author_id``, ``text``, ``created_at``.
+    Returns empty list on failure (last_error set).
+    """
+    handle = handle.lstrip("@").strip()
+    if not handle:
+        return []
+    data = await _run_bird("mentions", "-u", f"@{handle}", "-n", str(count))
+    tweets = _extract_tweets(data)
+    result: list[dict[str, Any]] = []
+    for t in tweets:
+        tweet_id = t.get("id") or t.get("tweetId") or t.get("_raw", {}).get("rest_id")
+        if not tweet_id:
+            continue
+        result.append({
+            "id": str(tweet_id),
+            "author_id": t.get("authorId") or t.get("author_id") or "",
+            "text": t.get("text") or "",
+            "created_at": t.get("createdAt") or t.get("created_at") or "",
+        })
+    return result
+
+
+async def fetch_user_replies_bird(handle: str, count: int = 50) -> list[dict[str, Any]]:
+    """Fetch a user's recent tweets via ``bird user-tweets``, filtered to replies only.
+
+    Returns a normalized list of dicts with keys:
+    ``id``, ``text``, ``created_at``, ``in_reply_to_user_id``.
+    Returns empty list on failure (last_error set).
+    """
+    handle = handle.lstrip("@").strip()
+    if not handle:
+        return []
+    data = await _run_bird("user-tweets", f"@{handle}", "-n", str(count))
+    tweets = _extract_tweets(data)
+    result: list[dict[str, Any]] = []
+    for t in tweets:
+        # Filter to replies only
+        in_reply_to = t.get("inReplyToId") or t.get("in_reply_to_user_id")
+        if not in_reply_to:
+            # Check referenced_tweets for reply type
+            refs = t.get("referenced_tweets") or t.get("referencedTweets") or []
+            is_reply = any(r.get("type") == "replied_to" for r in refs)
+            if not is_reply:
+                continue
+        tweet_id = t.get("id") or t.get("tweetId") or t.get("_raw", {}).get("rest_id")
+        if not tweet_id:
+            continue
+        result.append({
+            "id": str(tweet_id),
+            "text": t.get("text") or "",
+            "created_at": t.get("createdAt") or t.get("created_at") or "",
+            "in_reply_to_user_id": str(in_reply_to) if in_reply_to else "",
+        })
+    return result
+
+
