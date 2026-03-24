@@ -92,6 +92,7 @@ class LinkedInMessagesImportResult(BaseModel):
 class BackfillItem(BaseModel):
     contact_id: str
     linkedin_profile_id: str
+    linkedin_url: str | None = None
 
 
 class LinkedInPushResult(BaseModel):

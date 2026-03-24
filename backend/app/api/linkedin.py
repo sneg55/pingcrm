@@ -303,16 +303,21 @@ async def push_linkedin_data(
                 BackfillItem(
                     contact_id=str(contact.id),
                     linkedin_profile_id=contact.linkedin_profile_id,
+                    linkedin_url=contact.linkedin_url,
                 )
             )
 
     # Also include contacts not touched in this push but missing avatar
-    # Only include contacts with slug-format linkedin_profile_id (not URN member IDs like ACoAAA...)
+    # Include contacts with either slug-format profile_id OR a linkedin_url
     if len(backfill_needed) < 10:
+        from sqlalchemy import or_
         filters = [
             Contact.user_id == current_user.id,
             Contact.linkedin_profile_id.isnot(None),
-            ~Contact.linkedin_profile_id.like("ACo%"),
+            or_(
+                ~Contact.linkedin_profile_id.like("ACo%"),  # slug-format profile_id
+                Contact.linkedin_url.isnot(None),           # OR has a usable URL
+            ),
             Contact.avatar_url.is_(None),
         ]
         if seen_ids:
@@ -325,6 +330,7 @@ async def push_linkedin_data(
                 BackfillItem(
                     contact_id=str(c.id),
                     linkedin_profile_id=c.linkedin_profile_id,
+                    linkedin_url=c.linkedin_url,
                 )
             )
 
