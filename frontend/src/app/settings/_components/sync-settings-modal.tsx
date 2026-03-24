@@ -29,7 +29,7 @@ export function SyncSettingsModal({ platform, onClose }: SyncSettingsModalProps)
 
   const fetchSettings = useCallback(async () => {
     try {
-      const { data } = await client.GET("/api/v1/settings/sync" as any, {});
+      const { data } = await client.GET("/api/v1/settings/sync", {});
       const all = (data as any)?.data;
       if (all?.[platform]) {
         setConfig(all[platform]);
@@ -54,7 +54,7 @@ export function SyncSettingsModal({ platform, onClose }: SyncSettingsModalProps)
     setConfig(newConfig);
     setIsSaving(true);
     try {
-      await client.PUT("/api/v1/settings/sync" as any, {
+      await client.PUT("/api/v1/settings/sync", {
         body: { [platform]: newConfig },
       });
     } catch {
@@ -140,11 +140,11 @@ function TelegramSyncOptions() {
   useEffect(() => {
     (async () => {
       try {
-        const { data } = await client.GET("/api/v1/settings/telegram" as any, {});
+        const { data } = await client.GET("/api/v1/settings/telegram", {});
         setSync2ndTier((data as any)?.data?.sync_2nd_tier ?? true);
       } catch {}
       try {
-        const { data } = await client.GET("/api/v1/contacts/2nd-tier/count" as any, {});
+        const { data } = await client.GET("/api/v1/contacts/2nd-tier/count", {});
         setTierCount((data as any)?.data?.count ?? 0);
       } catch {}
       setIsLoading(false);
@@ -154,7 +154,7 @@ function TelegramSyncOptions() {
   const handleToggle = async (checked: boolean) => {
     setSync2ndTier(checked);
     try {
-      await client.PUT("/api/v1/settings/telegram" as any, {
+      await client.PUT("/api/v1/settings/telegram", {
         body: { sync_2nd_tier: checked },
       });
     } catch {
@@ -165,7 +165,7 @@ function TelegramSyncOptions() {
   const handlePurge = async () => {
     setIsPurging(true);
     try {
-      const { data } = await client.DELETE("/api/v1/contacts/2nd-tier" as any, {});
+      const { data } = await client.DELETE("/api/v1/contacts/2nd-tier", {});
       const count = (data as any)?.data?.deleted_count ?? 0;
       setPurgeResult(`Deleted ${count} contact${count !== 1 ? "s" : ""}.`);
       setTierCount(0);

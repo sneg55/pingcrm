@@ -59,7 +59,7 @@ export function useDashboardStats() {
   const overdueQuery = useQuery({
     queryKey: ["contacts", "overdue"],
     queryFn: async () => {
-      const { data } = await client.GET("/api/v1/contacts/overdue" as any, {
+      const { data } = await client.GET("/api/v1/contacts/overdue", {
         params: { query: { limit: 5 } },
       });
       return data ?? { data: [], error: null };
@@ -70,7 +70,7 @@ export function useDashboardStats() {
   const activityQuery = useQuery({
     queryKey: ["activity", "recent"],
     queryFn: async () => {
-      const { data } = await client.GET("/api/v1/activity/recent" as any, {
+      const { data } = await client.GET("/api/v1/activity/recent", {
         params: { query: { limit: 5 } },
       });
       return data ?? { data: [], error: null };

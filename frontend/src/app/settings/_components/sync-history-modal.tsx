@@ -52,7 +52,7 @@ export function SyncHistoryModal({ platform, onClose }: SyncHistoryModalProps) {
 
   const fetchEvents = useCallback(async () => {
     try {
-      const { data } = await client.GET("/api/v1/sync-history" as any, {
+      const { data } = await client.GET("/api/v1/sync-history", {
         params: { query: { platform, limit: 50 } },
       });
       setEvents(((data as any)?.data ?? []) as SyncEvent[]);

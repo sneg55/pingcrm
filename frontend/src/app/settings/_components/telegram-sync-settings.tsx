@@ -16,7 +16,7 @@ export function TelegramSyncSettings() {
 
   const fetchSettings = useCallback(async () => {
     try {
-      const { data } = await client.GET("/api/v1/settings/telegram" as any, {});
+      const { data } = await client.GET("/api/v1/settings/telegram", {});
       const settings = (data as any)?.data;
       setSync2ndTier(settings?.sync_2nd_tier ?? true);
     } catch {
@@ -28,7 +28,7 @@ export function TelegramSyncSettings() {
 
   const fetchCount = useCallback(async () => {
     try {
-      const { data } = await client.GET("/api/v1/contacts/2nd-tier/count" as any, {});
+      const { data } = await client.GET("/api/v1/contacts/2nd-tier/count", {});
       const result = (data as any)?.data;
       setTierCount(result?.count ?? 0);
     } catch {
@@ -55,7 +55,7 @@ export function TelegramSyncSettings() {
     setSync2ndTier(checked);
     setIsSaving(true);
     try {
-      await client.PUT("/api/v1/settings/telegram" as any, {
+      await client.PUT("/api/v1/settings/telegram", {
         body: { sync_2nd_tier: checked },
       });
     } catch {
@@ -69,7 +69,7 @@ export function TelegramSyncSettings() {
     setIsPurging(true);
     setPurgeResult(null);
     try {
-      const { data } = await client.DELETE("/api/v1/contacts/2nd-tier" as any, {});
+      const { data } = await client.DELETE("/api/v1/contacts/2nd-tier", {});
       const count = (data as any)?.data?.deleted_count ?? 0;
       setPurgeResult(`Deleted ${count} contact${count !== 1 ? "s" : ""}.`);
       setTierCount(0);

@@ -99,7 +99,7 @@ export function useSendMessage() {
       channel: string;
       scheduledFor?: string;
     }) => {
-      const { data, error, response } = await client.POST("/api/v1/contacts/{contact_id}/send-message" as any, {
+      const { data, error, response } = await client.POST("/api/v1/contacts/{contact_id}/send-message", {
         params: { path: { contact_id: contactId } },
         body: { message, channel, scheduled_for: scheduledFor || null },
       });

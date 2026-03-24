@@ -229,13 +229,13 @@ export function useContactActivity(id: string) {
     queryKey: ["contact-activity", id],
     queryFn: async () => {
       const { data, error } = await client.GET(
-        "/api/v1/contacts/{contact_id}/activity" as any,
+        "/api/v1/contacts/{contact_id}/activity",
         { params: { path: { contact_id: id } } }
       );
-      if (error || !(data as any)?.data) {
+      if (error || !data?.data) {
         throw new Error("Failed to fetch activity");
       }
-      return (data as any).data as ActivityData;
+      return data.data as ActivityData;
     },
     enabled: Boolean(id),
     retry: false,

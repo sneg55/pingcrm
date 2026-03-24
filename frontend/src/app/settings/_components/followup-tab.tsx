@@ -31,7 +31,7 @@ export function FollowUpRulesTab() {
   useEffect(() => {
     (async () => {
       try {
-        const { data } = await client.GET("/api/v1/settings/suggestions" as any, {});
+        const { data } = await client.GET("/api/v1/settings/suggestions", {});
         const prefs = (data as any)?.data;
         if (prefs) {
           setMaxBatch(String(prefs.max_suggestions ?? 10));
@@ -45,14 +45,14 @@ export function FollowUpRulesTab() {
 
   const saveSuggestionPref = async (updates: Record<string, unknown>) => {
     try {
-      await client.PUT("/api/v1/settings/suggestions" as any, { body: updates });
+      await client.PUT("/api/v1/settings/suggestions", { body: updates });
     } catch {}
   };
 
   useEffect(() => {
     (async () => {
       try {
-        const { data } = await client.GET("/api/v1/settings/priority" as any, {});
+        const { data } = await client.GET("/api/v1/settings/priority", {});
         const ps = (data as any)?.data;
         if (ps) setSettings({ high: ps.high, medium: ps.medium, low: ps.low });
       } catch {
@@ -67,7 +67,7 @@ export function FollowUpRulesTab() {
     setIsSaving(true);
     setFeedback(null);
     try {
-      const { data, error } = await client.PUT("/api/v1/settings/priority" as any, {
+      const { data, error } = await client.PUT("/api/v1/settings/priority", {
         body: settings,
       });
       if (error) {
