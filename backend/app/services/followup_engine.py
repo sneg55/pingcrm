@@ -561,7 +561,12 @@ async def generate_suggestions(
 
     # Collect candidates from both pools
     pool_a = await _collect_pool_a_candidates(user_id, db, now, queued_contact_ids, priority_settings)
-    pool_b = await _collect_pool_b_candidates(user_id, db, now, queued_contact_ids)
+    # Respect include_dormant preference — skip Pool B if disabled
+    _prefs = settings.get("suggestion_prefs", {})
+    if _prefs.get("include_dormant", True):
+        pool_b = await _collect_pool_b_candidates(user_id, db, now, queued_contact_ids)
+    else:
+        pool_b = {}
 
     # Read receipt filter: skip contacts whose last outbound Telegram message is unread,
     # boost priority for "read but no reply" pattern
@@ -652,9 +657,12 @@ async def generate_suggestions(
     sorted_a = sorted(pool_a.values(), key=lambda c: c.priority, reverse=True)
     sorted_b = sorted(pool_b.values(), key=lambda c: c.priority, reverse=True)
 
-    # Budget with rollover
-    a_budget = settings.get("pool_a_slots", POOL_A_SLOTS)
-    b_budget = settings.get("pool_b_slots", POOL_B_SLOTS)
+    # Budget: respect user's max_suggestions preference
+    suggestion_prefs = settings.get("suggestion_prefs", {})
+    max_total = suggestion_prefs.get("max_suggestions", POOL_A_SLOTS + POOL_B_SLOTS)
+    # Split budget: 60% pool A, 40% pool B (rounded)
+    a_budget = settings.get("pool_a_slots", max(1, round(max_total * 0.6)))
+    b_budget = settings.get("pool_b_slots", max(1, max_total - max(1, round(max_total * 0.6))))
 
     actual_a = min(len(sorted_a), a_budget)
     actual_b = min(len(sorted_b), b_budget)

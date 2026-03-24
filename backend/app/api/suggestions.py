@@ -242,7 +242,9 @@ async def generate_suggestions(
                 logger.exception("Score recalculation failed for contact %s", cid)
         await db.flush()
 
-    suggestions = await _generate(current_user.id, db)
+    from app.services.user_settings import get_priority_settings
+    priority_settings = get_priority_settings(current_user)
+    suggestions = await _generate(current_user.id, db, priority_settings=priority_settings)
     await db.flush()
 
     items = [FollowUpResponse.model_validate(s).model_dump() for s in suggestions]
