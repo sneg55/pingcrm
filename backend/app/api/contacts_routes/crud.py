@@ -33,7 +33,7 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/v1/contacts", tags=["contacts"])
 
-VALID_PRIORITY_LEVELS = {"low", "normal", "high", "archived"}
+VALID_PRIORITY_LEVELS = {"low", "medium", "high", "archived"}
 
 
 class BulkUpdateBody(BaseModel):

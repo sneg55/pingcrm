@@ -607,7 +607,8 @@ async def sync_twitter_dms(
     if all_ref_ids:
         dedup_result = await db.execute(
             select(Interaction.raw_reference_id).where(
-                Interaction.raw_reference_id.in_(all_ref_ids)
+                Interaction.raw_reference_id.in_(all_ref_ids),
+                Interaction.user_id == user.id,
             )
         )
         existing_refs = {row[0] for row in dedup_result.all()}
@@ -846,7 +847,8 @@ async def sync_twitter_contact_dms(
     if all_ref_ids:
         dedup_result = await db.execute(
             select(Interaction.raw_reference_id).where(
-                Interaction.raw_reference_id.in_(all_ref_ids)
+                Interaction.raw_reference_id.in_(all_ref_ids),
+                Interaction.user_id == user.id,
             )
         )
         existing_refs = {row[0] for row in dedup_result.all()}
@@ -982,7 +984,8 @@ async def sync_twitter_mentions(
     if all_ref_ids:
         dedup_result = await db.execute(
             select(Interaction.raw_reference_id).where(
-                Interaction.raw_reference_id.in_(all_ref_ids)
+                Interaction.raw_reference_id.in_(all_ref_ids),
+                Interaction.user_id == user.id,
             )
         )
         existing_refs = {row[0] for row in dedup_result.all()}
@@ -1101,7 +1104,8 @@ async def sync_twitter_replies(
     if all_ref_ids:
         dedup_result = await db.execute(
             select(Interaction.raw_reference_id).where(
-                Interaction.raw_reference_id.in_(all_ref_ids)
+                Interaction.raw_reference_id.in_(all_ref_ids),
+                Interaction.user_id == user.id,
             )
         )
         existing_refs = {row[0] for row in dedup_result.all()}

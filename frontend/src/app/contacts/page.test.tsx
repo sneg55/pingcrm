@@ -57,7 +57,7 @@ function makeContact(overrides: Record<string, unknown> = {}) {
     relationship_score: 7,
     last_interaction_at: "2025-01-15T10:00:00Z",
     last_followup_at: null,
-    priority_level: "normal",
+    priority_level: "medium",
     source: "google",
     created_at: "2025-01-01T00:00:00Z",
     updated_at: null,

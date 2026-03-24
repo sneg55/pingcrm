@@ -23,7 +23,7 @@ def _make_contact(
     full_name: str,
     company: str | None,
     *,
-    priority_level: str = "normal",
+    priority_level: str = "medium",
     relationship_score: int = 5,
     title: str | None = None,
 ) -> Contact:

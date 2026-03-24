@@ -162,7 +162,7 @@ describe("ArchivedContactsPage", () => {
     fireEvent.click(unarchiveBtn);
     expect(mockMutate).toHaveBeenCalledWith({
       id: "c1",
-      input: { priority_level: "normal" },
+      input: { priority_level: "medium" },
     });
   });
 
@@ -191,8 +191,8 @@ describe("ArchivedContactsPage", () => {
     // Click Unarchive All
     fireEvent.click(screen.getByText("Unarchive All"));
 
-    expect(mockMutate).toHaveBeenCalledWith({ id: "c1", input: { priority_level: "normal" } });
-    expect(mockMutate).toHaveBeenCalledWith({ id: "c2", input: { priority_level: "normal" } });
+    expect(mockMutate).toHaveBeenCalledWith({ id: "c1", input: { priority_level: "medium" } });
+    expect(mockMutate).toHaveBeenCalledWith({ id: "c2", input: { priority_level: "medium" } });
   });
 
   it("shows bulk action bar when contacts are selected and hides it on dismiss", () => {

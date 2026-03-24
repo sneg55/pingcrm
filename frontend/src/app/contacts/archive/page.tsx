@@ -105,7 +105,7 @@ function ArchivedContactsInner() {
   const meta = data?.meta;
 
   const handleUnarchive = (contactId: string) => {
-    updateContact.mutate({ id: contactId, input: { priority_level: "normal" } });
+    updateContact.mutate({ id: contactId, input: { priority_level: "medium" } });
   };
 
   const toggleSelect = (id: string) => {
@@ -127,7 +127,7 @@ function ArchivedContactsInner() {
 
   const bulkUnarchive = () => {
     for (const id of selected) {
-      updateContact.mutate({ id, input: { priority_level: "normal" } });
+      updateContact.mutate({ id, input: { priority_level: "medium" } });
     }
     setSelected(new Set());
   };

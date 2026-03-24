@@ -322,8 +322,11 @@ async def google_callback(
 # ---------------------------------------------------------------------------
 
 
+from pydantic import Field as _Field
+
+
 class ProfileUpdate(BaseModel):
-    full_name: str | None = None
+    full_name: str | None = _Field(default=None, max_length=200)
 
 
 @router.put("/me")
@@ -340,8 +343,8 @@ async def update_profile(
 
 
 class PasswordChange(BaseModel):
-    current_password: str
-    new_password: str
+    current_password: str = _Field(max_length=128)
+    new_password: str = _Field(max_length=128)
 
 
 @router.post("/change-password")

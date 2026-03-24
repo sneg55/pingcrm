@@ -99,7 +99,7 @@ export default function ContactDetailPage() {
 
   const handleArchive = () => {
     if (contact.priority_level === "archived") {
-      ctrl.updateContact.mutate({ id, input: { priority_level: "normal" } });
+      ctrl.updateContact.mutate({ id, input: { priority_level: "medium" } });
     } else {
       ctrl.updateContact.mutate({ id, input: { priority_level: "archived" } });
       router.back();

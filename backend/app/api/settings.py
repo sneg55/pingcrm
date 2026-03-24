@@ -58,7 +58,7 @@ class SuggestionPrefsInput(BaseModel):
     max_suggestions: int | None = Field(default=None, ge=5, le=20)
     include_dormant: bool | None = None
     birthday_reminders: bool | None = None
-    preferred_channel: str | None = None
+    preferred_channel: str | None = Field(default=None, pattern="^(auto|email|telegram|twitter)$")
 
 
 class SuggestionPrefsData(BaseModel):

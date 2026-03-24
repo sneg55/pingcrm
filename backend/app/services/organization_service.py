@@ -22,6 +22,33 @@ AVATARS_DIR = Path(os.environ.get(
 logger = logging.getLogger(__name__)
 
 
+import ipaddress
+import socket
+
+
+def _is_safe_url(url: str) -> bool:
+    """Reject URLs that target private/internal/link-local networks (SSRF protection)."""
+    parsed = urlparse(url)
+    if parsed.scheme not in ("http", "https"):
+        return False
+    hostname = parsed.hostname
+    if not hostname:
+        return False
+    # Reject obvious internal hostnames
+    if hostname in ("localhost", "127.0.0.1", "0.0.0.0", "::1", "[::1]"):
+        return False
+    # Resolve DNS and check IP ranges
+    try:
+        for info in socket.getaddrinfo(hostname, None, socket.AF_UNSPEC, socket.SOCK_STREAM):
+            ip = ipaddress.ip_address(info[4][0])
+            if ip.is_private or ip.is_loopback or ip.is_link_local or ip.is_multicast or ip.is_reserved:
+                logger.warning("_is_safe_url: rejected %s (resolves to private IP %s)", url, ip)
+                return False
+    except (socket.gaierror, ValueError):
+        return False
+    return True
+
+
 async def download_org_logo(website_or_domain: str, org_id: uuid.UUID) -> str | None:
     """Download an organization's favicon/logo and save to static/avatars/.
 
@@ -57,6 +84,11 @@ async def download_org_logo(website_or_domain: str, org_id: uuid.UUID) -> str | 
     if not domain:
         return None
 
+    # SSRF protection: reject private/internal network targets
+    if not _is_safe_url(base_url):
+        logger.warning("download_org_logo: rejected unsafe URL %r for org %s", base_url, org_id)
+        return None
+
     AVATARS_DIR.mkdir(parents=True, exist_ok=True)
     filename = f"org_{org_id}.png"
     filepath = AVATARS_DIR / filename
@@ -66,7 +98,7 @@ async def download_org_logo(website_or_domain: str, org_id: uuid.UUID) -> str | 
         return f"/static/avatars/{filename}"
 
     try:
-        async with httpx.AsyncClient(timeout=10.0, follow_redirects=True) as client:
+        async with httpx.AsyncClient(timeout=10.0, follow_redirects=False) as client:
             # --- Attempt 1: direct favicon.ico ---
             favicon_url = f"{base_url}/favicon.ico"
             try:
@@ -96,8 +128,7 @@ async def download_org_logo(website_or_domain: str, org_id: uuid.UUID) -> str | 
                     if icon_href:
                         # Resolve relative URLs
                         icon_url = urljoin(base_url, icon_href)
-                        icon_parsed = urlparse(icon_url)
-                        if icon_parsed.scheme not in ("http", "https"):
+                        if not _is_safe_url(icon_url):
                             return None
                         icon_resp = await client.get(icon_url)
                         if icon_resp.status_code == 200 and icon_resp.content:

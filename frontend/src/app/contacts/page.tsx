@@ -254,7 +254,7 @@ function BulkActionBar({
           <div className="absolute left-0 bottom-full mb-1 w-40 bg-white dark:bg-stone-900 rounded-lg border border-stone-200 dark:border-stone-700 shadow-lg z-50 p-1">
             {[
               { value: "high", label: "High", color: "text-red-600 dark:text-red-400" },
-              { value: "normal", label: "Normal", color: "text-stone-700 dark:text-stone-300" },
+              { value: "medium", label: "Medium", color: "text-stone-700 dark:text-stone-300" },
               { value: "low", label: "Low", color: "text-stone-400 dark:text-stone-500" },
             ].map((opt) => (
               <button

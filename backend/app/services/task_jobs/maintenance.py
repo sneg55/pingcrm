@@ -24,24 +24,7 @@ def refresh_org_stats() -> dict:
     return {"status": "ok"}
 
 
-@shared_task(name="app.services.tasks.cleanup_stale_telegram_locks")
-def cleanup_stale_telegram_locks() -> dict:
-    """Hourly watchdog: remove orphaned Telegram sync locks."""
-    import redis as _redis
-    from app.core.config import settings
-    r = _redis.from_url(settings.REDIS_URL)
-
-    # Find all tg_sync_lock:* keys
-    cleaned = 0
-    for key in r.scan_iter("tg_sync_lock:*"):
-        user_id = key.decode().split(":")[-1] if isinstance(key, bytes) else key.split(":")[-1]
-        # Check if there's active progress for this user
-        progress_key = f"tg_sync_progress:{user_id}"
-        if not r.exists(progress_key):
-            # No progress = likely orphaned lock
-            r.delete(key)
-            cleaned += 1
-    return {"cleaned": cleaned}
+# cleanup_stale_telegram_locks lives in telegram.py (canonical version with TTL check)
 
 
 @shared_task(name="app.services.tasks.backfill_org_logos_task")
