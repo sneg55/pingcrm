@@ -2,7 +2,7 @@ import uuid
 from dataclasses import dataclass, field
 from datetime import UTC, datetime, timedelta
 
-from sqlalchemy import select, func, case, distinct
+from sqlalchemy import select, func, case, distinct, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.contact import Contact
@@ -25,95 +25,29 @@ class ScoreBreakdown:
     interaction_count: int = 0  # lifetime total
 
 
-async def calculate_score_breakdown(contact_id: uuid.UUID, db: AsyncSession) -> ScoreBreakdown:
-    """Calculate full score breakdown for a contact.
+def _compute_score_from_row(row, now: datetime) -> ScoreBreakdown:
+    """Compute a ScoreBreakdown from a single aggregated row.
 
-    Includes tenure bonus and extended decay for long-term contacts:
-    - Interactions 1-2 years old contribute at 0.05x weight
-    - Interactions 2-5 years old contribute at 0.02x weight
-    - Tenure bonus: +1 for 20+ lifetime interactions spanning 1+ year,
-      +2 for 50+ interactions spanning 2+ years
+    Shared by both per-contact and batch scoring paths.
     """
-    now = datetime.now(UTC)
-    d30 = now - timedelta(days=30)
-    d90 = now - timedelta(days=90)
-    d365 = now - timedelta(days=365)
-    d2y = now - timedelta(days=730)
-    d5y = now - timedelta(days=1825)
+    inbound_count = row.inbound or 0
+    outbound_count = row.outbound or 0
 
-    # Query 1: inbound/outbound counts in last 365 days + extended windows
-    counts_result = await db.execute(
-        select(
-            # Last 365 days
-            func.count().filter(
-                Interaction.direction == "inbound",
-                Interaction.occurred_at >= d365,
-            ).label("inbound"),
-            func.count().filter(
-                Interaction.direction == "outbound",
-                Interaction.occurred_at >= d365,
-            ).label("outbound"),
-            # 1-2 year window
-            func.count().filter(
-                Interaction.direction == "inbound",
-                Interaction.occurred_at >= d2y,
-                Interaction.occurred_at < d365,
-            ).label("inbound_1_2y"),
-            func.count().filter(
-                Interaction.direction == "outbound",
-                Interaction.occurred_at >= d2y,
-                Interaction.occurred_at < d365,
-            ).label("outbound_1_2y"),
-            # 2-5 year window
-            func.count().filter(
-                Interaction.direction == "inbound",
-                Interaction.occurred_at >= d5y,
-                Interaction.occurred_at < d2y,
-            ).label("inbound_2_5y"),
-            func.count().filter(
-                Interaction.direction == "outbound",
-                Interaction.occurred_at >= d5y,
-                Interaction.occurred_at < d2y,
-            ).label("outbound_2_5y"),
-        )
-        .select_from(Interaction)
-        .where(Interaction.contact_id == contact_id)
-    )
-    row = counts_result.one()
-    inbound_count = row.inbound
-    outbound_count = row.outbound
-    total = inbound_count + outbound_count
-
-    # Extended decay: add old interactions at reduced weight for reciprocity
-    effective_inbound = inbound_count + row.inbound_1_2y * 0.05 + row.inbound_2_5y * 0.02
-    effective_outbound = outbound_count + row.outbound_1_2y * 0.05 + row.outbound_2_5y * 0.02
+    # Extended decay for reciprocity
+    effective_inbound = inbound_count + (row.inbound_1_2y or 0) * 0.05 + (row.inbound_2_5y or 0) * 0.02
+    effective_outbound = outbound_count + (row.outbound_1_2y or 0) * 0.05 + (row.outbound_2_5y or 0) * 0.02
     effective_total = effective_inbound + effective_outbound
 
-    # Reciprocity (0-4) — uses extended decay counts
+    # Reciprocity (0-4)
     if effective_total == 0 or effective_inbound == 0:
         reciprocity = 0
     else:
         ratio = min(effective_inbound, effective_outbound) / max(effective_inbound, effective_outbound)
         reciprocity = round(ratio * 4)
 
-    # Query 2: last inbound date + last any date
-    dates_result = await db.execute(
-        select(
-            func.max(
-                case(
-                    (Interaction.direction == "inbound", Interaction.occurred_at),
-                )
-            ).label("last_inbound"),
-            func.max(Interaction.occurred_at).label("last_any"),
-        )
-        .select_from(Interaction)
-        .where(Interaction.contact_id == contact_id)
-    )
-    dates_row = dates_result.one()
-    last_inbound = dates_row.last_inbound
-    last_any = dates_row.last_any
-
     # Recency (0-3)
+    last_inbound = row.last_inbound
+    last_any = row.last_any
     if last_inbound is not None:
         base_date = last_inbound if last_inbound.tzinfo else last_inbound.replace(tzinfo=UTC)
         multiplier = 1.0
@@ -138,40 +72,15 @@ async def calculate_score_breakdown(contact_id: uuid.UUID, db: AsyncSession) -> 
     else:
         recency = 0
 
-    # Query 3: interaction counts per time window (including extended decay)
-    freq_result = await db.execute(
-        select(
-            func.count().filter(Interaction.occurred_at >= d30).label("c30"),
-            func.count().filter(
-                Interaction.occurred_at >= d90,
-                Interaction.occurred_at < d30,
-            ).label("c90"),
-            func.count().filter(
-                Interaction.occurred_at >= d365,
-                Interaction.occurred_at < d90,
-            ).label("c365"),
-            func.count().filter(
-                Interaction.occurred_at >= d2y,
-                Interaction.occurred_at < d365,
-            ).label("c1_2y"),
-            func.count().filter(
-                Interaction.occurred_at >= d5y,
-                Interaction.occurred_at < d2y,
-            ).label("c2_5y"),
-        )
-        .select_from(Interaction)
-        .where(Interaction.contact_id == contact_id)
-    )
-    freq_row = freq_result.one()
-    count_30d = freq_row.c30
-    count_90d = freq_row.c90
-    # Extended decay: old interactions contribute at reduced rates
+    # Frequency (0-2) with extended decay
+    count_30d = row.c30 or 0
+    count_90d = row.c90 or 0
     weighted = (
         count_30d * 1.0
         + count_90d * 0.3
-        + freq_row.c365 * 0.1
-        + freq_row.c1_2y * 0.05
-        + freq_row.c2_5y * 0.02
+        + (row.c365 or 0) * 0.1
+        + (row.c1_2y or 0) * 0.05
+        + (row.c2_5y or 0) * 0.02
     )
     if weighted >= 8:
         frequency = 2
@@ -180,23 +89,13 @@ async def calculate_score_breakdown(contact_id: uuid.UUID, db: AsyncSession) -> 
     else:
         frequency = 0
 
-    # Query 4: platforms + lifetime count + first interaction (merged from 3 queries)
-    meta_result = await db.execute(
-        select(
-            func.count().label("lifetime_count"),
-            func.min(Interaction.occurred_at).label("first_at"),
-            func.array_agg(distinct(Interaction.platform)).label("platforms"),
-        )
-        .select_from(Interaction)
-        .where(Interaction.contact_id == contact_id)
-    )
-    meta_row = meta_result.one()
-    interaction_count = meta_row.lifetime_count
-    first_at = meta_row.first_at
-    platforms = [p for p in (meta_row.platforms or []) if p is not None]
+    # Breadth (0-1)
+    platforms = [p for p in (row.platforms or []) if p is not None]
     breadth = 1 if len(platforms) >= 2 else 0
 
-    # Tenure bonus: acknowledges established relationships during quiet periods
+    # Tenure bonus (0-2)
+    interaction_count = row.lifetime_count or 0
+    first_at = row.first_at
     tenure = 0
     if first_at is not None:
         first_date = first_at if first_at.tzinfo else first_at.replace(tzinfo=UTC)
@@ -224,6 +123,53 @@ async def calculate_score_breakdown(contact_id: uuid.UUID, db: AsyncSession) -> 
     )
 
 
+def _scoring_columns(now: datetime):
+    """Return the SELECT columns for the unified scoring query."""
+    d30 = now - timedelta(days=30)
+    d90 = now - timedelta(days=90)
+    d365 = now - timedelta(days=365)
+    d2y = now - timedelta(days=730)
+    d5y = now - timedelta(days=1825)
+
+    return [
+        # Reciprocity: inbound/outbound per time window
+        func.count().filter(Interaction.direction == "inbound", Interaction.occurred_at >= d365).label("inbound"),
+        func.count().filter(Interaction.direction == "outbound", Interaction.occurred_at >= d365).label("outbound"),
+        func.count().filter(Interaction.direction == "inbound", Interaction.occurred_at >= d2y, Interaction.occurred_at < d365).label("inbound_1_2y"),
+        func.count().filter(Interaction.direction == "outbound", Interaction.occurred_at >= d2y, Interaction.occurred_at < d365).label("outbound_1_2y"),
+        func.count().filter(Interaction.direction == "inbound", Interaction.occurred_at >= d5y, Interaction.occurred_at < d2y).label("inbound_2_5y"),
+        func.count().filter(Interaction.direction == "outbound", Interaction.occurred_at >= d5y, Interaction.occurred_at < d2y).label("outbound_2_5y"),
+        # Recency: last inbound + last any
+        func.max(case((Interaction.direction == "inbound", Interaction.occurred_at))).label("last_inbound"),
+        func.max(Interaction.occurred_at).label("last_any"),
+        # Frequency: time window counts
+        func.count().filter(Interaction.occurred_at >= d30).label("c30"),
+        func.count().filter(Interaction.occurred_at >= d90, Interaction.occurred_at < d30).label("c90"),
+        func.count().filter(Interaction.occurred_at >= d365, Interaction.occurred_at < d90).label("c365"),
+        func.count().filter(Interaction.occurred_at >= d2y, Interaction.occurred_at < d365).label("c1_2y"),
+        func.count().filter(Interaction.occurred_at >= d5y, Interaction.occurred_at < d2y).label("c2_5y"),
+        # Breadth + tenure
+        func.array_agg(distinct(Interaction.platform)).label("platforms"),
+        func.count().label("lifetime_count"),
+        func.min(Interaction.occurred_at).label("first_at"),
+    ]
+
+
+async def calculate_score_breakdown(contact_id: uuid.UUID, db: AsyncSession) -> ScoreBreakdown:
+    """Calculate full score breakdown for a single contact using 1 query.
+
+    Includes tenure bonus and extended decay for long-term contacts.
+    """
+    now = datetime.now(UTC)
+    result = await db.execute(
+        select(*_scoring_columns(now))
+        .select_from(Interaction)
+        .where(Interaction.contact_id == contact_id)
+    )
+    row = result.one()
+    return _compute_score_from_row(row, now)
+
+
 async def calculate_score(contact_id: uuid.UUID, db: AsyncSession) -> int:
     """Calculate and persist relationship score (0-10) for a contact."""
     breakdown = await calculate_score_breakdown(contact_id, db)
@@ -236,3 +182,37 @@ async def calculate_score(contact_id: uuid.UUID, db: AsyncSession) -> int:
         await db.flush()
 
     return breakdown.total
+
+
+async def batch_update_scores(user_id: uuid.UUID, db: AsyncSession) -> int:
+    """Recalculate scores for ALL contacts of a user in a single query.
+
+    Returns the number of contacts updated.
+    """
+    now = datetime.now(UTC)
+
+    # Single query: aggregate all interactions grouped by contact_id
+    result = await db.execute(
+        select(Interaction.contact_id, *_scoring_columns(now))
+        .where(
+            Interaction.contact_id.in_(
+                select(Contact.id).where(Contact.user_id == user_id)
+            )
+        )
+        .group_by(Interaction.contact_id)
+    )
+
+    updated = 0
+    for row in result.all():
+        breakdown = _compute_score_from_row(row, now)
+        await db.execute(
+            update(Contact)
+            .where(Contact.id == row.contact_id)
+            .values(
+                relationship_score=breakdown.total,
+                interaction_count=breakdown.interaction_count,
+            )
+        )
+        updated += 1
+
+    return updated

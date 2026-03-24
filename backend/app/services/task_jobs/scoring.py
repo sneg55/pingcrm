@@ -5,7 +5,6 @@ from celery import shared_task
 from sqlalchemy import select
 
 from app.core.database import task_session
-from app.models.contact import Contact
 from app.models.user import User
 from app.services.task_jobs.common import _run, logger
 
@@ -15,11 +14,14 @@ def update_relationship_scores() -> dict:
     """
     Beat-scheduled task: recalculate relationship scores for all contacts.
 
+    Uses batch_update_scores() which runs a single aggregation query per user
+    instead of N queries per contact.
+
     Returns:
         A dict with ``updated`` count and ``errors`` count.
     """
     async def _update_all() -> dict:
-        from app.services.scoring import calculate_score
+        from app.services.scoring import batch_update_scores
 
         updated = 0
         errors = 0
@@ -29,20 +31,14 @@ def update_relationship_scores() -> dict:
             user_ids = user_result.scalars().all()
 
             for user_id in user_ids:
-                contact_result = await db.execute(
-                    select(Contact.id).where(Contact.user_id == user_id)
-                )
-                contact_ids = contact_result.scalars().all()
-
-                for contact_id in contact_ids:
-                    try:
-                        await calculate_score(contact_id, db)
-                        updated += 1
-                    except Exception:
-                        logger.exception(
-                            "update_relationship_scores: failed for contact %s.", contact_id
-                        )
-                        errors += 1
+                try:
+                    count = await batch_update_scores(user_id, db)
+                    updated += count
+                except Exception:
+                    logger.exception(
+                        "update_relationship_scores: batch failed for user %s.", user_id
+                    )
+                    errors += 1
 
             await db.commit()
 
