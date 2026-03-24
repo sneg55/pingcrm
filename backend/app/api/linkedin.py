@@ -290,6 +290,24 @@ async def push_linkedin_data(
 
     await db.flush()
 
+    # Record sync event for LinkedIn push
+    if contacts_created + contacts_updated + interactions_created > 0:
+        from app.services.sync_history import record_sync_start, record_sync_complete
+        sync_event = await record_sync_start(current_user.id, "linkedin", "webhook", db)
+        await record_sync_complete(
+            sync_event,
+            records_created=contacts_created + interactions_created,
+            records_updated=contacts_updated,
+            details={
+                "contacts_created": contacts_created,
+                "contacts_updated": contacts_updated,
+                "interactions_created": interactions_created,
+                "interactions_skipped": interactions_skipped,
+            },
+            db=db,
+        )
+        await db.flush()
+
     # Collect contacts that need backfill: have a linkedin_profile_id but are
     # missing avatar_url (or title/company). Check touched contacts first,
     # then query for any other contacts missing avatars (up to 10 total).

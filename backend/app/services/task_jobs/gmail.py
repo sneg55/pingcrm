@@ -26,6 +26,7 @@ def sync_gmail_for_user(self, user_id: str) -> dict:
     async def _sync(uid: uuid.UUID) -> dict:
         from app.integrations.gmail import sync_gmail_for_user as _gmail_sync
         from app.services.scoring import calculate_score
+        from app.services.sync_history import record_sync_start, record_sync_complete, record_sync_failure
 
         async with task_session() as db:
             result = await db.execute(select(User).where(User.id == uid))
@@ -34,7 +35,14 @@ def sync_gmail_for_user(self, user_id: str) -> dict:
                 logger.warning("sync_gmail_for_user: user %s not found.", uid)
                 return {"status": "user_not_found", "new_interactions": 0}
 
-            new_count = await _gmail_sync(user, db)
+            sync_event = await record_sync_start(uid, "gmail", "scheduled", db)
+
+            try:
+                new_count = await _gmail_sync(user, db)
+            except Exception as exc:
+                await record_sync_failure(sync_event, str(exc), db=db)
+                await db.commit()
+                raise
 
             # Rescore contacts that have interactions
             if new_count > 0:
@@ -50,6 +58,7 @@ def sync_gmail_for_user(self, user_id: str) -> dict:
                     except Exception:
                         logger.warning("gmail: score recalc failed for contact %s", cid, exc_info=True)
 
+            await record_sync_complete(sync_event, records_created=new_count, db=db)
             await db.commit()
 
         return {"status": "ok", "new_interactions": new_count}

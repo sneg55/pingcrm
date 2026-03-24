@@ -113,6 +113,9 @@ def sync_twitter_dms_for_user(self, user_id: str) -> dict:
             if not headers:
                 return {"status": "skipped", "reason": "no_twitter_token", "new_interactions": 0}
 
+            from app.services.sync_history import record_sync_start, record_sync_complete, record_sync_failure
+            sync_event = await record_sync_start(uid, "twitter", "scheduled", db)
+
             id_map = await _build_twitter_id_to_contact_map(user, db, headers)
 
             try:
@@ -156,6 +159,13 @@ def sync_twitter_dms_for_user(self, user_id: str) -> dict:
                 parts.append(f"{replies} replies")
             if new_contacts:
                 parts.append(f"{new_contacts} new contacts")
+            total_new = dm_interactions + mentions + replies
+            await record_sync_complete(
+                sync_event,
+                records_created=total_new,
+                details={"dms": dm_interactions, "mentions": mentions, "replies": replies, "new_contacts": new_contacts},
+                db=db,
+            )
             db.add(Notification(
                 user_id=uid,
                 notification_type="sync",
