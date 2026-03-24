@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { RefreshCw, Check, AlertCircle, X, Link2, Settings, RotateCcw, History, Unplug } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { client } from "@/lib/api-client";
 import { SyncHistoryModal } from "../sync-history-modal";
 import { SyncSettingsModal } from "../sync-settings-modal";
 import {
@@ -107,10 +108,20 @@ export function TelegramCard({
                 <KebabMenu
                   items={[
                     { icon: Settings, label: "Sync settings", onClick: () => setShowSyncSettings(true) },
-                    { icon: RotateCcw, label: "Reset session" },
+                    { icon: RotateCcw, label: "Reset session", onClick: async () => {
+                      if (confirm("Reset your Telegram session? You'll need to re-enter your phone number and code.")) {
+                        await client.POST("/api/v1/auth/telegram/reset-session" as any, {});
+                        window.location.reload();
+                      }
+                    }},
                     { icon: History, label: "Sync history", onClick: () => setShowSyncHistory(true) },
                     { icon: Unplug, label: "---" },
-                    { icon: Unplug, label: "Disconnect Telegram", danger: true },
+                    { icon: Unplug, label: "Disconnect Telegram", danger: true, onClick: async () => {
+                      if (confirm("Disconnect Telegram? Your synced messages will be kept but no new data will sync.")) {
+                        await client.DELETE("/api/v1/auth/telegram/disconnect" as any, {});
+                        window.location.reload();
+                      }
+                    }},
                   ]}
                 />
               </>

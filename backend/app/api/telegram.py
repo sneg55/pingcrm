@@ -240,6 +240,42 @@ async def sync_telegram(
 
 
 # ---------------------------------------------------------------------------
+# Disconnect endpoint
+# ---------------------------------------------------------------------------
+
+
+@router.delete(
+    "/api/v1/auth/telegram/disconnect",
+    status_code=status.HTTP_200_OK,
+)
+async def disconnect_telegram(
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> dict:
+    """Clear Telegram session and related data for the authenticated user."""
+    current_user.telegram_session = None
+    current_user.telegram_username = None
+    current_user.telegram_last_synced_at = None
+    await db.flush()
+    return {"data": {"disconnected": True}, "error": None}
+
+
+@router.post(
+    "/api/v1/auth/telegram/reset-session",
+    status_code=status.HTTP_200_OK,
+)
+async def reset_telegram_session(
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> dict:
+    """Clear only the Telegram session (keeps username for re-connect)."""
+    current_user.telegram_session = None
+    current_user.telegram_last_synced_at = None
+    await db.flush()
+    return {"data": {"reset": True}, "error": None}
+
+
+# ---------------------------------------------------------------------------
 # Sync progress endpoint
 # ---------------------------------------------------------------------------
 

@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { RefreshCw, Check, AlertCircle, Link2, Settings, Key, History, Unplug } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { client } from "@/lib/api-client";
 import { SyncHistoryModal } from "../sync-history-modal";
 import { SyncSettingsModal } from "../sync-settings-modal";
 import {
@@ -88,7 +89,12 @@ export function TwitterCard({
                   },
                   { icon: History, label: "Sync history", onClick: () => setShowSyncHistory(true) },
                   { icon: Unplug, label: "---" },
-                  { icon: Unplug, label: "Disconnect Twitter", danger: true },
+                  { icon: Unplug, label: "Disconnect Twitter", danger: true, onClick: async () => {
+                    if (confirm("Disconnect Twitter? Your synced messages will be kept but no new data will sync.")) {
+                      await client.DELETE("/api/v1/auth/twitter/disconnect" as any, {});
+                      window.location.reload();
+                    }
+                  }},
                 ]}
               />
             </>

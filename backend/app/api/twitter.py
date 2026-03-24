@@ -111,3 +111,19 @@ async def twitter_callback(
 
     await db.flush()
     return {"data": {"connected": True, "username": current_user.twitter_username}, "error": None}
+
+
+@router.delete("/disconnect", status_code=status.HTTP_200_OK)
+async def disconnect_twitter(
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> dict:
+    """Clear Twitter OAuth tokens and related data for the authenticated user."""
+    current_user.twitter_access_token = None
+    current_user.twitter_refresh_token = None
+    current_user.twitter_username = None
+    current_user.twitter_user_id = None
+    current_user.twitter_dm_cursor = None
+    current_user.twitter_token_expires_at = None
+    await db.flush()
+    return {"data": {"disconnected": True}, "error": None}
