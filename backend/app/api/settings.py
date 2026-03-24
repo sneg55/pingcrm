@@ -52,6 +52,61 @@ async def update_priority(
     return {"data": settings, "error": None}
 
 
+class SyncSettingsInput(BaseModel):
+    """Per-platform sync configuration."""
+    telegram: dict | None = None  # {auto_sync: bool, schedule: "daily"|"6h"|"12h"|"manual"}
+    gmail: dict | None = None
+    twitter: dict | None = None
+    linkedin: dict | None = None
+
+
+class SyncSettingsData(BaseModel):
+    telegram: dict
+    gmail: dict
+    twitter: dict
+    linkedin: dict
+
+
+_DEFAULT_SYNC_SETTINGS: dict[str, dict] = {
+    "telegram": {"auto_sync": True, "schedule": "daily"},
+    "gmail": {"auto_sync": True, "schedule": "6h"},
+    "twitter": {"auto_sync": True, "schedule": "daily"},
+    "linkedin": {"auto_sync": False, "schedule": "manual"},
+}
+
+
+def _get_sync_settings(user: "User") -> dict:
+    """Merge user sync_settings with defaults."""
+    stored = user.sync_settings or {}
+    result = {}
+    for platform, defaults in _DEFAULT_SYNC_SETTINGS.items():
+        result[platform] = {**defaults, **(stored.get(platform) or {})}
+    return result
+
+
+@router.get("/sync", response_model=Envelope[SyncSettingsData])
+async def get_sync_settings(
+    current_user: User = Depends(get_current_user),
+) -> Envelope[SyncSettingsData]:
+    return {"data": _get_sync_settings(current_user), "error": None}
+
+
+@router.put("/sync", response_model=Envelope[SyncSettingsData])
+async def update_sync_settings(
+    body: SyncSettingsInput,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> Envelope[SyncSettingsData]:
+    current = current_user.sync_settings or {}
+    updates = body.model_dump(exclude_none=True)
+    for platform, vals in updates.items():
+        if vals:
+            current[platform] = {**(current.get(platform) or {}), **vals}
+    current_user.sync_settings = current
+    await db.flush()
+    return {"data": _get_sync_settings(current_user), "error": None}
+
+
 class TelegramSettingsInput(BaseModel):
     sync_2nd_tier: bool
 

@@ -4,6 +4,7 @@ import { useState } from "react";
 import { RefreshCw, Check, AlertCircle, X, Link2, Settings, RotateCcw, History, Unplug } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { SyncHistoryModal } from "../sync-history-modal";
+import { SyncSettingsModal } from "../sync-settings-modal";
 import {
   ConnectionBadge,
   SyncButtonWrapper,
@@ -50,6 +51,7 @@ export function TelegramCard({
     handleTelegram2FA,
   } = telegramFlow;
   const [showSyncHistory, setShowSyncHistory] = useState(false);
+  const [showSyncSettings, setShowSyncSettings] = useState(false);
 
   return (
     <>
@@ -104,7 +106,7 @@ export function TelegramCard({
                 </SyncButtonWrapper>
                 <KebabMenu
                   items={[
-                    { icon: Settings, label: "Sync settings" },
+                    { icon: Settings, label: "Sync settings", onClick: () => setShowSyncSettings(true) },
                     { icon: RotateCcw, label: "Reset session" },
                     { icon: History, label: "Sync history", onClick: () => setShowSyncHistory(true) },
                     { icon: Unplug, label: "---" },
@@ -296,6 +298,9 @@ export function TelegramCard({
 
       {showSyncHistory && (
         <SyncHistoryModal platform="telegram" onClose={() => setShowSyncHistory(false)} />
+      )}
+      {showSyncSettings && (
+        <SyncSettingsModal platform="telegram" onClose={() => setShowSyncSettings(false)} />
       )}
     </>
   );

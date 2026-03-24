@@ -36,6 +36,7 @@ class User(Base):
         DateTime(timezone=True), server_default=func.now(), nullable=False
     )
     priority_settings: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
+    sync_settings: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
     sync_2nd_tier: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False, server_default="true")
     linkedin_extension_paired_at: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True), nullable=True

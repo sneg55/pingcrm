@@ -105,22 +105,17 @@ async def push_linkedin_data(
     touched_contacts: list[Contact] = []
 
     # --- Pre-load all user's LinkedIn contacts for in-memory matching ---
+    # Load all user contacts for in-memory matching (profile_id, url, name)
     all_contacts_result = await db.execute(
-        select(Contact).where(
-            Contact.user_id == current_user.id,
-            or_(
-                Contact.linkedin_profile_id.isnot(None),
-                Contact.linkedin_url.isnot(None),
-            ),
-        )
+        select(Contact).where(Contact.user_id == current_user.id)
     )
-    all_linkedin_contacts = list(all_contacts_result.scalars().all())
-    profile_id_map: dict[str, Contact] = {
-        c.linkedin_profile_id: c for c in all_linkedin_contacts if c.linkedin_profile_id
-    }
+    all_user_contacts = list(all_contacts_result.scalars().all())
+    profile_id_map: dict[str, Contact] = {}
     url_map: dict[str, Contact] = {}
     name_map: dict[str, Contact] = {}
-    for c in all_linkedin_contacts:
+    for c in all_user_contacts:
+        if c.linkedin_profile_id:
+            profile_id_map[c.linkedin_profile_id] = c
         if c.linkedin_url:
             url_map[c.linkedin_url.rstrip("/")] = c
         if c.full_name:
