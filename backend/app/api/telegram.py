@@ -233,8 +233,13 @@ async def sync_telegram(
             detail="Telegram account not connected. Use /api/v1/auth/telegram/connect first.",
         )
 
-    from app.services.tasks import sync_telegram_chats_for_user
-    sync_telegram_chats_for_user.delay(str(current_user.id), 100, "")
+    from app.services.tasks import sync_telegram_chats_for_user, sync_telegram_notify
+    from celery import chain
+    user_id_str = str(current_user.id)
+    chain(
+        sync_telegram_chats_for_user.si(user_id_str, 100, ""),
+        sync_telegram_notify.si(user_id_str, ""),
+    ).apply_async()
 
     return {"data": {"status": "started"}, "error": None}
 
