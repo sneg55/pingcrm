@@ -161,12 +161,12 @@ async def auto_create_organization(
         )
         return result.scalar_one_or_none()
 
-    # Find existing org by name (case-insensitive)
+    # Find existing org by name (case-insensitive) — use first() to handle duplicates
     result = await db.execute(
         select(Organization).where(
             Organization.user_id == user_id,
             Organization.name.ilike(company),
-        )
+        ).limit(1)
     )
     org = result.scalar_one_or_none()
 
