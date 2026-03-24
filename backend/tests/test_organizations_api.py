@@ -455,3 +455,54 @@ async def test_merge_organizations_only_affects_current_user(
     result = await db.execute(sa_select(Contact).where(Contact.id == other_contact.id))
     other_refreshed = result.scalar_one()
     assert other_refreshed.organization_id == other_org.id
+
+
+# ---------------------------------------------------------------------------
+# Duplicate org handling via extract-bio
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_auto_create_org_handles_duplicate_names(
+    client: AsyncClient, auth_headers: dict, db: AsyncSession, test_user: User
+):
+    """Creating 2 organizations with the same name, then calling extract-bio on a
+    contact with that company name must not crash (uses first() to handle duplicates)."""
+    from unittest.mock import patch, AsyncMock
+    from app.models.organization import Organization
+
+    company_name = "Duplicate Corp"
+
+    # Deliberately create two orgs with the same name to simulate the duplicate scenario
+    org1 = Organization(id=uuid.uuid4(), user_id=test_user.id, name=company_name)
+    org2 = Organization(id=uuid.uuid4(), user_id=test_user.id, name=company_name)
+    db.add_all([org1, org2])
+    await db.flush()
+
+    # Contact with a bio so extract-bio endpoint accepts it, with no company pre-set
+    contact = Contact(
+        id=uuid.uuid4(),
+        user_id=test_user.id,
+        full_name="Test Person",
+        given_name="Test",
+        family_name="Person",
+        twitter_bio="Engineer at Duplicate Corp",
+        company=None,
+        source="manual",
+    )
+    db.add(contact)
+    await db.commit()
+
+    # Mock the AI extractor to return the duplicate company name
+    with patch(
+        "app.services.bio_extractor.extract_from_bios",
+        new_callable=AsyncMock,
+        return_value={"company": company_name},
+    ):
+        resp = await client.post(
+            f"/api/v1/contacts/{contact.id}/extract-bio",
+            headers=auth_headers,
+        )
+
+    # Must not crash with MultipleResultsFound; 200 is the expected success code
+    assert resp.status_code == 200, f"Expected 200, got {resp.status_code}: {resp.text}"
