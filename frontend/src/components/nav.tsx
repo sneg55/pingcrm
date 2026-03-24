@@ -28,19 +28,24 @@ const navLinks = [
   { href: "/settings", label: "Settings", icon: Settings },
 ];
 
-function TelegramSyncDot() {
+function LogoDot() {
   const { data } = useTelegramSyncProgress();
-  if (!data?.active) return null;
-  return (
-    <span
-      title="Telegram sync in progress"
-      className="relative flex items-center justify-center w-3 h-3"
-      aria-label="Telegram sync in progress"
-    >
-      <span className="absolute inline-flex w-full h-full rounded-full bg-sky-400 opacity-75 animate-ping" />
-      <span className="relative inline-flex w-2 h-2 rounded-full bg-sky-500" />
-    </span>
-  );
+  const syncing = !!data?.active;
+
+  if (syncing) {
+    return (
+      <span
+        title="Telegram sync in progress"
+        className="relative flex items-center justify-center w-2.5 h-2.5"
+        aria-label="Telegram sync in progress"
+      >
+        <span className="absolute inline-flex w-full h-full rounded-full bg-sky-400 opacity-75 animate-ping" />
+        <span className="relative inline-flex w-2 h-2 rounded-full bg-sky-500" />
+      </span>
+    );
+  }
+
+  return <span className="w-2.5 h-2.5 rounded-full bg-teal-500" />;
 }
 
 function NotificationBell() {
@@ -292,15 +297,14 @@ export function Nav() {
     <nav className="sticky top-0 z-40 bg-white dark:bg-stone-900 border-b border-stone-200 dark:border-stone-800">
       <div className="max-w-6xl mx-auto px-4 h-14 flex items-center gap-6">
         {/* Logo */}
-        <div className="flex items-center gap-1.5 shrink-0">
+        <div className="shrink-0">
           <Link
             href="/dashboard"
             className="flex items-center gap-2 text-lg font-display font-bold text-teal-600 dark:text-teal-400 hover:text-teal-700 dark:hover:text-teal-300 transition-colors"
           >
-            <span className="w-2.5 h-2.5 rounded-full bg-teal-500" />
+            <LogoDot />
             Ping
           </Link>
-          <TelegramSyncDot />
         </div>
 
         {/* Search — left, right after logo */}
