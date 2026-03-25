@@ -642,6 +642,51 @@ class TestContactTools:
 
         result = await _get_contact(uuid.uuid4(), db, contact_id=str(uuid.uuid4()))
         assert "not found" in result.lower()
+
+    @pytest.mark.asyncio
+    async def test_get_contact_by_name_fuzzy(self):
+        from mcp_server.tools.contacts import _get_contact
+
+        contact = MagicMock()
+        contact.full_name = "Jane Doe"
+        contact.title = "CTO"
+        contact.company = "Acme"
+        contact.emails = []
+        contact.phones = []
+        contact.relationship_score = 7
+        contact.interaction_count = 10
+        contact.last_interaction_at = None
+        contact.tags = []
+        contact.priority_level = "high"
+        contact.twitter_bio = None
+        contact.linkedin_headline = None
+        contact.linkedin_bio = None
+        contact.telegram_bio = None
+
+        mock_result = MagicMock()
+        mock_result.scalars.return_value.all.return_value = [contact]
+
+        db = AsyncMock()
+        db.execute.return_value = mock_result
+
+        result = await _get_contact(uuid.uuid4(), db, name="jane")
+        assert "Jane Doe" in result
+
+    @pytest.mark.asyncio
+    async def test_get_contact_no_params(self):
+        from mcp_server.tools.contacts import _get_contact
+
+        db = AsyncMock()
+        result = await _get_contact(uuid.uuid4(), db)
+        assert "Provide either" in result
+
+    @pytest.mark.asyncio
+    async def test_get_contact_invalid_uuid(self):
+        from mcp_server.tools.contacts import _get_contact
+
+        db = AsyncMock()
+        result = await _get_contact(uuid.uuid4(), db, contact_id="not-a-uuid")
+        assert "Invalid" in result
 ```
 
 - [ ] **Step 2: Implement contacts.py**
@@ -851,6 +896,42 @@ class TestInteractionTools:
 
         result = await _get_interactions(uuid.uuid4(), db, contact_id=str(uuid.uuid4()), limit=10)
         assert "No interactions" in result
+
+    @pytest.mark.asyncio
+    async def test_get_interactions_invalid_uuid(self):
+        from mcp_server.tools.interactions import _get_interactions
+
+        db = AsyncMock()
+        result = await _get_interactions(uuid.uuid4(), db, contact_id="not-a-uuid", limit=10)
+        assert "Invalid" in result
+
+    @pytest.mark.asyncio
+    async def test_get_interactions_read_receipts(self):
+        from mcp_server.tools.interactions import _get_interactions
+
+        ix_read = MagicMock()
+        ix_read.occurred_at = datetime(2026, 3, 20, tzinfo=UTC)
+        ix_read.platform = "telegram"
+        ix_read.direction = "outbound"
+        ix_read.content_preview = "Hello there"
+        ix_read.is_read_by_recipient = True
+
+        ix_unread = MagicMock()
+        ix_unread.occurred_at = datetime(2026, 3, 21, tzinfo=UTC)
+        ix_unread.platform = "telegram"
+        ix_unread.direction = "outbound"
+        ix_unread.content_preview = "Follow up"
+        ix_unread.is_read_by_recipient = False
+
+        mock_result = MagicMock()
+        mock_result.scalars.return_value.all.return_value = [ix_unread, ix_read]
+
+        db = AsyncMock()
+        db.execute.return_value = mock_result
+
+        result = await _get_interactions(uuid.uuid4(), db, contact_id=str(uuid.uuid4()), limit=10)
+        assert "✓✓" in result  # read
+        assert "✓" in result   # delivered (unread)
 ```
 
 - [ ] **Step 2: Implement interactions.py**
@@ -1017,6 +1098,19 @@ class TestSuggestionsTools:
         result = await _get_suggestions(uuid.uuid4(), db, limit=10)
         assert "Jane Doe" in result
         assert "time_based" in result
+
+    @pytest.mark.asyncio
+    async def test_get_suggestions_empty(self):
+        from mcp_server.tools.suggestions import _get_suggestions
+
+        mock_result = MagicMock()
+        mock_result.scalars.return_value.all.return_value = []
+
+        db = AsyncMock()
+        db.execute.return_value = mock_result
+
+        result = await _get_suggestions(uuid.uuid4(), db, limit=10)
+        assert "No pending" in result
 ```
 
 ```bash
@@ -1080,6 +1174,58 @@ async def _get_notifications(
             lines.append(f"  {n.body[:200]}")
 
     return "\n".join(lines)
+```
+
+Tests to append:
+
+```python
+class TestNotificationTools:
+    @pytest.mark.asyncio
+    async def test_get_notifications_returns_unread(self):
+        from mcp_server.tools.notifications import _get_notifications
+
+        notif = MagicMock()
+        notif.title = "Twitter sync completed"
+        notif.body = "3 DMs, 1 new contact"
+        notif.notification_type = "sync"
+        notif.read = False
+        notif.created_at = datetime(2026, 3, 25, 10, 0, tzinfo=UTC)
+
+        mock_result = MagicMock()
+        mock_result.scalars.return_value.all.return_value = [notif]
+
+        db = AsyncMock()
+        db.execute.return_value = mock_result
+
+        result = await _get_notifications(uuid.uuid4(), db, unread_only=True, limit=20)
+        assert "Twitter sync completed" in result
+        assert "3 DMs" in result
+
+    @pytest.mark.asyncio
+    async def test_get_notifications_empty(self):
+        from mcp_server.tools.notifications import _get_notifications
+
+        mock_result = MagicMock()
+        mock_result.scalars.return_value.all.return_value = []
+
+        db = AsyncMock()
+        db.execute.return_value = mock_result
+
+        result = await _get_notifications(uuid.uuid4(), db, unread_only=True, limit=20)
+        assert "No unread" in result
+
+    @pytest.mark.asyncio
+    async def test_get_notifications_all_includes_read(self):
+        from mcp_server.tools.notifications import _get_notifications
+
+        mock_result = MagicMock()
+        mock_result.scalars.return_value.all.return_value = []
+
+        db = AsyncMock()
+        db.execute.return_value = mock_result
+
+        result = await _get_notifications(uuid.uuid4(), db, unread_only=False, limit=20)
+        assert "No notifications" in result  # different message for all vs unread
 ```
 
 ```bash
@@ -1182,6 +1328,69 @@ async def _get_dashboard_stats(
         lines.append("No interactions in the last 7 days.")
 
     return "\n".join(lines)
+```
+
+Tests to append:
+
+```python
+class TestDashboardTools:
+    @pytest.mark.asyncio
+    async def test_get_dashboard_stats_returns_formatted(self):
+        from mcp_server.tools.dashboard import _get_dashboard_stats
+
+        # Mock 4 DB calls: total count, score distribution, pending suggestions, 7d interactions
+        total_result = MagicMock()
+        total_result.scalar_one.return_value = 150
+
+        score_row = MagicMock()
+        score_row.strong = 30
+        score_row.warm = 60
+        score_row.cold = 60
+        score_result = MagicMock()
+        score_result.one.return_value = score_row
+
+        sugg_result = MagicMock()
+        sugg_result.scalar_one.return_value = 5
+
+        ix_result = MagicMock()
+        ix_result.all.return_value = [("telegram", 20), ("email", 10), ("twitter", 5)]
+
+        db = AsyncMock()
+        db.execute.side_effect = [total_result, score_result, sugg_result, ix_result]
+
+        result = await _get_dashboard_stats(uuid.uuid4(), db)
+        assert "150" in result
+        assert "Strong" in result
+        assert "Warm" in result
+        assert "Cold" in result
+        assert "telegram" in result
+        assert "5" in result  # pending suggestions
+
+    @pytest.mark.asyncio
+    async def test_get_dashboard_stats_empty_interactions(self):
+        from mcp_server.tools.dashboard import _get_dashboard_stats
+
+        total_result = MagicMock()
+        total_result.scalar_one.return_value = 0
+
+        score_row = MagicMock()
+        score_row.strong = 0
+        score_row.warm = 0
+        score_row.cold = 0
+        score_result = MagicMock()
+        score_result.one.return_value = score_row
+
+        sugg_result = MagicMock()
+        sugg_result.scalar_one.return_value = 0
+
+        ix_result = MagicMock()
+        ix_result.all.return_value = []
+
+        db = AsyncMock()
+        db.execute.side_effect = [total_result, score_result, sugg_result, ix_result]
+
+        result = await _get_dashboard_stats(uuid.uuid4(), db)
+        assert "No interactions" in result
 ```
 
 ```bash
