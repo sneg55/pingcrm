@@ -8,6 +8,15 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.contact import Contact
 from app.services.contact_search import build_contact_filter_query
+from mcp_server.server import mcp_app
+from mcp_server.db import get_session
+
+_current_user_id = None
+
+
+def set_user_id(uid):
+    global _current_user_id
+    _current_user_id = uid
 
 
 # Map MCP-friendly score labels → internal filter values
@@ -138,3 +147,17 @@ async def _get_contact(
         lines.extend(bios)
 
     return "\n".join(lines)
+
+
+@mcp_app.tool()
+async def search_contacts(query: str = "", tag: str = "", score: str = "", priority: str = "", limit: int = 20) -> str:
+    """Search your contacts by name, company, tag, score tier (strong/warm/cold), or priority level."""
+    async with get_session() as db:
+        return await _search_contacts(_current_user_id, db, query=query or None, tag=tag or None, score=score or None, priority=priority or None, limit=limit)
+
+
+@mcp_app.tool()
+async def get_contact(contact_id: str = "", name: str = "") -> str:
+    """Get full profile for a contact. Provide either contact_id (UUID) or name for fuzzy search."""
+    async with get_session() as db:
+        return await _get_contact(_current_user_id, db, contact_id=contact_id or None, name=name or None)

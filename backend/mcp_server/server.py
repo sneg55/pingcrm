@@ -10,11 +10,11 @@ from __future__ import annotations
 import argparse
 import logging
 
-from mcp.server import Server
+from mcp.server.fastmcp import FastMCP
 
 logger = logging.getLogger(__name__)
 
-mcp_app = Server("pingcrm")
+mcp_app = FastMCP("pingcrm")
 
 
 def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
@@ -27,19 +27,42 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
 
 def _register_tools():
     """Import tool modules to register @mcp_app.tool() handlers."""
-    # Tools will be registered when their modules are imported (Task 11)
-    pass
+    from mcp_server.tools import contacts, interactions, suggestions, notifications, dashboard  # noqa: F401
 
 
 async def run_stdio(user_email: str | None = None):
     """Run in stdio mode (local subprocess)."""
-    from mcp.server.stdio import stdio_server
+    from mcp_server.db import get_session
+    from sqlalchemy import select
+    from app.models.user import User
 
     _register_tools()
-    logger.info("Starting PingCRM MCP server (stdio mode)")
 
-    async with stdio_server() as (read_stream, write_stream):
-        await mcp_app.run(read_stream, write_stream, mcp_app.create_initialization_options())
+    async with get_session() as db:
+        if user_email:
+            result = await db.execute(select(User).where(User.email == user_email))
+            user = result.scalar_one_or_none()
+            if not user:
+                print(f"Error: No user found with email '{user_email}'")
+                return
+        else:
+            result = await db.execute(select(User))
+            users = result.scalars().all()
+            if not users:
+                print("Error: No users found in database")
+                return
+            if len(users) > 1:
+                print("Error: Multiple users found. Use --user-email to specify.")
+                return
+            user = users[0]
+
+    from mcp_server.tools import contacts, interactions, suggestions, notifications, dashboard
+    for mod in [contacts, interactions, suggestions, notifications, dashboard]:
+        mod.set_user_id(user.id)
+
+    logger.info("MCP server ready for user %s (%s)", user.email, user.id)
+
+    await mcp_app.run_stdio_async()
 
 
 async def run_sse(port: int):
