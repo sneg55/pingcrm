@@ -230,13 +230,36 @@ async def merge_contacts(
     contact_a.phones = _merge_list(contact_a.phones, contact_b.phones)
     contact_a.tags = _merge_list(contact_a.tags, contact_b.tags)
 
-    # Fill missing scalar fields from contact_b.
+    # Clear unique-constrained fields on contact_b FIRST and flush, so that
+    # copying values to contact_a doesn't violate uniqueness constraints
+    # (both contacts exist in the same transaction until contact_b is deleted).
+    # Capture values before clearing so we can copy them to contact_a.
+    b_unique_fields = {
+        "telegram_username": contact_b.telegram_username,
+        "telegram_user_id": contact_b.telegram_user_id,
+        "twitter_handle": contact_b.twitter_handle,
+        "twitter_user_id": contact_b.twitter_user_id,
+        "linkedin_profile_id": contact_b.linkedin_profile_id,
+    }
+    contact_b.telegram_username = None
+    contact_b.telegram_user_id = None
+    contact_b.twitter_handle = None
+    contact_b.twitter_user_id = None
+    contact_b.linkedin_profile_id = None
+    await db.flush()
+
+    # Fill missing scalar fields from contact_b (using captured values for unique fields).
     for field in ("full_name", "given_name", "family_name", "company", "title",
-                  "twitter_handle", "twitter_bio", "telegram_username", "telegram_bio",
-                  "linkedin_url", "linkedin_profile_id", "linkedin_headline", "linkedin_bio",
+                  "twitter_bio", "telegram_bio",
+                  "linkedin_url", "linkedin_headline", "linkedin_bio",
                   "notes", "source"):
         if not getattr(contact_a, field) and getattr(contact_b, field):
             setattr(contact_a, field, getattr(contact_b, field))
+
+    # Copy unique-constrained fields from captured values (now safe since contact_b is cleared).
+    for field, value in b_unique_fields.items():
+        if not getattr(contact_a, field) and value:
+            setattr(contact_a, field, value)
 
     # Keep the better relationship score
     if (contact_b.relationship_score or 0) > (contact_a.relationship_score or 0):
@@ -247,14 +270,6 @@ async def merge_contacts(
         not contact_a.last_interaction_at or contact_b.last_interaction_at > contact_a.last_interaction_at
     ):
         contact_a.last_interaction_at = contact_b.last_interaction_at
-
-    # Clear unique-constrained fields on contact_b before flush to avoid
-    # violating per-user uniqueness indexes while both contacts still exist.
-    contact_b.telegram_username = None
-    contact_b.telegram_user_id = None
-    contact_b.twitter_handle = None
-    contact_b.twitter_user_id = None
-    contact_b.linkedin_profile_id = None
 
     # Reassign interactions.
     interactions_result = await db.execute(
