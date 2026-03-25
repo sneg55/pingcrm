@@ -185,21 +185,26 @@ export function MessageEditor({
 
       {/* Schedule datetime picker (inline, when active) */}
       {showSchedule && channel === "telegram" && (
-        <div className="flex items-center gap-2 mt-2 pt-2 border-t border-stone-100 dark:border-stone-800">
-          <Clock className="w-3.5 h-3.5 text-sky-500 shrink-0" />
-          <input
-            type="datetime-local"
-            value={scheduledFor}
-            onChange={(e) => setScheduledFor(e.target.value)}
-            min={new Date(Date.now() + 60000).toISOString().slice(0, 16)}
-            className="flex-1 text-xs border border-stone-200 dark:border-stone-700 rounded-md px-2 py-1.5 focus:outline-none focus:ring-1 focus:ring-sky-400 bg-transparent text-stone-900 dark:text-stone-100"
-          />
-          <button
-            onClick={() => { setShowSchedule(false); setScheduledFor(""); }}
-            className="text-xs text-stone-400 hover:text-stone-600 dark:hover:text-stone-300"
-          >
-            Cancel
-          </button>
+        <div className="mt-2 pt-2 border-t border-stone-100 dark:border-stone-800 space-y-1.5">
+          <div className="flex items-center gap-2">
+            <Clock className="w-3.5 h-3.5 text-sky-500 shrink-0" />
+            <input
+              type="datetime-local"
+              value={scheduledFor}
+              onChange={(e) => setScheduledFor(e.target.value)}
+              min={new Date(Date.now() + 60000).toISOString().slice(0, 16)}
+              className="flex-1 text-xs border border-stone-200 dark:border-stone-700 rounded-md px-2 py-1.5 focus:outline-none focus:ring-1 focus:ring-sky-400 bg-transparent text-stone-900 dark:text-stone-100"
+            />
+            <button
+              onClick={() => { setShowSchedule(false); setScheduledFor(""); }}
+              className="text-xs text-stone-400 hover:text-stone-600 dark:hover:text-stone-300"
+            >
+              Cancel
+            </button>
+          </div>
+          <p className="text-xs text-stone-400 dark:text-stone-500">
+            Uses Telegram native scheduling. Edit or cancel from the Telegram app.
+          </p>
         </div>
       )}
 
