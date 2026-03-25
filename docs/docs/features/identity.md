@@ -19,6 +19,8 @@ Criteria:
 
 Because these signals are unique identifiers, false positives are extremely rare, and auto-merge is safe.
 
+Deterministic matching also runs automatically after each platform sync (Gmail, Telegram, Twitter, LinkedIn). Contacts created during sync that share an email or phone number with an existing contact are merged immediately, preventing duplicate accumulation.
+
 ## Tier 2: Probabilistic Matching
 
 When no exact identifier overlap exists, PingCRM computes a weighted similarity score across five signals:
@@ -37,7 +39,7 @@ A combined score **above 85%** triggers an automatic merge. Scores below that th
 
 The colleague guard prevents false merges between coworkers. When two contacts share the same company but have clearly different names, the score is capped below the auto-merge threshold. This ensures that, for example, two employees at the same company with similar usernames are not incorrectly merged.
 
-## Tier 4: Manual Review
+## Manual Review Queue
 
 Candidates that score below the auto-merge threshold appear in the manual review queue. Each candidate pair is displayed as a **side-by-side comparison card** showing:
 

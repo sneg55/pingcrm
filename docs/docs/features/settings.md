@@ -13,6 +13,8 @@ The **Settings** page (`/settings`) manages platform connections, data imports, 
 - **Connected email** -- displays the Gmail address currently linked.
 - **Sync Contacts** -- triggers a one-way import of Google Contacts into PingCRM.
 - **Sync Calendar** -- imports Google Calendar events as meeting-type interactions.
+- **Sync Settings** -- configure auto-sync schedule and meeting prep emails (enabled by default).
+- **Sync History** -- view past sync events with record counts and error details.
 
 ## Telegram
 
@@ -20,11 +22,15 @@ The **Settings** page (`/settings`) manages platform connections, data imports, 
 - **OTP verification** -- enter the one-time code sent to your Telegram app.
 - **2FA support** -- if two-factor authentication is enabled on your Telegram account, you will be prompted for your password after OTP.
 - **Sync Chats** -- imports Telegram DMs as interactions and discovers contacts from group memberships.
+- **Sync Settings** -- configure auto-sync schedule and 2nd-tier contact sync.
+- **Sync History** -- view past sync events with record counts and error details.
 
 ## Twitter / X
 
 - **OAuth Connect / Disconnect** -- initiates or revokes the Twitter OAuth 2.0 PKCE flow.
 - **Sync DMs and Mentions** -- imports direct message conversations and @mention interactions.
+- **Sync Settings** -- configure auto-sync schedule.
+- **Sync History** -- view past sync events with record counts and error details.
 
 ## LinkedIn (Chrome Extension)
 

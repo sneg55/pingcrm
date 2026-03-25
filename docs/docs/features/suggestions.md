@@ -13,23 +13,26 @@ The follow-up engine runs daily via Celery beat. It selects contacts across two 
 
 ### Pool A — Active Relationships (3 slots)
 
-Three independent triggers feed into Pool A. A contact only needs to match **one**:
+Four independent triggers feed into Pool A. A contact only needs to match **one**:
 
 | Trigger | Condition | Example |
 |---|---|---|
 | **Time-based** | No interaction in 90+ days, score > 0 | "Haven't talked to Alex in 3 months" |
 | **Event-based** | DetectedEvent in last 7 days, confidence > 70% | Bio change, tweet about fundraising |
 | **Scheduled** | Past the priority interval since last follow-up | Medium priority set to 60 days, last follow-up was 65 days ago |
+| **Birthday** | Birthday in next 3 days | High priority (1500), bypasses dormancy filter |
 
 Priority intervals are configurable per priority level in Settings (default: high=30d, medium=60d, low=180d).
 
 ### Pool B — Dormant Revival (2 slots)
 
-Surfaces contacts you've lost touch with but had meaningful past engagement:
+Surfaces contacts you've lost touch with but had meaningful past engagement. Three sub-triggers:
 
-- No interaction in 365+ days
-- At least 2 past interactions, relationship score >= 3
-- Interaction history spans at least 30 days
+| Trigger | Condition |
+|---|---|
+| **B1 — Deep dormant** | No interaction in 365+ days, 2+ past interactions, score >= 3, history spans 30+ days |
+| **B2 — Mid dormant** | No interaction in 180-365 days, 3+ past interactions, score >= 4 |
+| **B3 — Event revival** | Dormant 180+ days but had a recent detected event (job change, etc.) |
 
 ### Cooldowns and Guards
 
@@ -55,6 +58,23 @@ Within each pool, candidates are ranked by priority score:
 - **Interaction count** — richer history = higher priority
 - **Days since last contact** — longer gap = higher priority
 - **Event trigger bonus** — +200 for event-based triggers (ensures timely events surface quickly)
+- **Birthday bonus** — +1500 for upcoming birthdays (highest priority)
+
+### Relationship Score
+
+The relationship score (0-10) is computed from five weighted dimensions plus a tenure bonus:
+
+| Dimension | Weight | What it measures |
+|---|---|---|
+| Reciprocity | 30% | Balance of inbound vs outbound messages |
+| Recency | 25% | How recently you interacted (exponential decay) |
+| Frequency | 20% | How often you interact |
+| Breadth | 15% | Number of platforms you communicate on |
+| Tenure | 10% | How long you've known the contact |
+
+**Tenure bonus:** 0-2 extra points based on relationship duration (caps at 2 years).
+
+**Extended decay:** Interactions from 1-2 years ago still contribute at 0.05x weight; 2-5 years at 0.02x. This prevents long-term contacts from dropping to zero.
 
 ### Event Classification
 

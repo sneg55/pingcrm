@@ -15,6 +15,8 @@ Twitter uses the OAuth 2.0 Authorization Code flow with PKCE (Proof Key for Code
 
 Direct message conversations are imported as interactions. Each conversation captures participants, message content, and timestamps. Conversations are deduplicated by Twitter conversation ID. Per-contact sync uses the targeted `/dm_conversations/with/:participant_id` endpoint for efficiency.
 
+DM sync uses **delta sync** via a `since_id` cursor stored on the user record (`twitter_dm_cursor`). After each sync, the cursor advances to the newest event ID, so subsequent runs only fetch new DMs.
+
 ## Mention & Reply Sync
 
 Tweets that @mention you and your outbound replies are imported as interactions via **bird CLI** (zero API cost). Each sync stores a cursor (`twitter_mention_cursor` / `twitter_reply_cursor` in sync_settings) so only new tweets are processed on subsequent runs.
@@ -107,5 +109,5 @@ The backend checks for Bird availability at runtime via `shutil.which("bird")`. 
 |---|---|---|
 | Bio + profile polling | Daily (cron) | Fetches profiles via Bird CLI, detects bio changes, downloads avatars |
 | DM sync | Daily (cron) | Imports DM conversations via Twitter OAuth |
-| Mention sync | Daily (cron) | Imports @mentions and replies via Twitter OAuth |
+| Mention sync | Daily (cron) | Imports @mentions and replies via bird CLI (zero API cost) |
 | Tweet fetching + classification | On-demand | Fetched when composing follow-up suggestions (12h Redis cache) |
