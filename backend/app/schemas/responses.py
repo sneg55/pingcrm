@@ -311,3 +311,20 @@ class OAuthUrlData(BaseModel):
 class TokenData(BaseModel):
     access_token: str
     token_type: str
+
+
+# ---------------------------------------------------------------------------
+# MCP server payload types
+# ---------------------------------------------------------------------------
+
+
+class McpKeyData(BaseModel):
+    key: str
+
+
+class McpKeyRevokedData(BaseModel):
+    revoked: bool
+
+
+class McpKeyStatusData(BaseModel):
+    has_key: bool

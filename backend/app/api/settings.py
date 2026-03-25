@@ -6,7 +6,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.auth import get_current_user
 from app.core.database import get_db
 from app.models.user import User
-from app.schemas.responses import Envelope
+from app.schemas.responses import Envelope, McpKeyData, McpKeyRevokedData, McpKeyStatusData
+from mcp_server.auth import generate_api_key, hash_api_key
 from app.services.user_settings import DEFAULT_PRIORITY_SETTINGS, get_priority_settings
 
 router = APIRouter(prefix="/api/v1/settings", tags=["settings"])
@@ -180,3 +181,36 @@ async def update_telegram_settings(
     current_user.sync_2nd_tier = body.sync_2nd_tier
     await db.flush()
     return {"data": {"sync_2nd_tier": current_user.sync_2nd_tier}, "error": None}
+
+
+# ---------------------------------------------------------------------------
+# MCP API key management
+# ---------------------------------------------------------------------------
+
+
+@router.get("/mcp-key", response_model=Envelope[McpKeyStatusData])
+async def get_mcp_key_status(
+    current_user: User = Depends(get_current_user),
+) -> Envelope[McpKeyStatusData]:
+    return {"data": McpKeyStatusData(has_key=bool(current_user.mcp_api_key_hash)), "error": None}
+
+
+@router.post("/mcp-key", response_model=Envelope[McpKeyData])
+async def generate_mcp_key(
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> Envelope[McpKeyData]:
+    key = generate_api_key()
+    current_user.mcp_api_key_hash = hash_api_key(key)
+    await db.flush()
+    return {"data": McpKeyData(key=key), "error": None}
+
+
+@router.delete("/mcp-key", response_model=Envelope[McpKeyRevokedData])
+async def revoke_mcp_key(
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> Envelope[McpKeyRevokedData]:
+    current_user.mcp_api_key_hash = None
+    await db.flush()
+    return {"data": McpKeyRevokedData(revoked=True), "error": None}
