@@ -15,20 +15,25 @@ A Model Context Protocol (MCP) server that exposes PingCRM data as read-only too
 ## Architecture
 
 ```
-mcp/
-├── server.py           # Entry point, transport selection, tool registration
-├── tools/
-│   ├── contacts.py     # search_contacts, get_contact
-│   ├── interactions.py # get_interactions
-│   ├── suggestions.py  # get_suggestions
-│   ├── notifications.py # get_notifications
-│   └── dashboard.py    # get_dashboard_stats
-├── db.py               # Async session factory (reuses backend config)
-└── README.md           # Setup instructions for Claude Desktop / Cursor
+backend/
+├── mcp_server/
+│   ├── __init__.py
+│   ├── server.py           # Entry point, transport selection, tool registration
+│   ├── db.py               # Async session factory (module-level engine, per-tool-call sessions)
+│   ├── auth.py             # API key hashing + verification
+│   ├── tools/
+│   │   ├── __init__.py
+│   │   ├── contacts.py     # search_contacts, get_contact
+│   │   ├── interactions.py # get_interactions
+│   │   ├── suggestions.py  # get_suggestions
+│   │   ├── notifications.py # get_notifications
+│   │   └── dashboard.py    # get_dashboard_stats
+│   └── README.md           # Setup instructions for Claude Desktop / Cursor
 ```
 
-- **SDK:** `mcp` Python package (official MCP SDK)
-- **DB access:** Imports `backend/app/models` and `backend/app/core/config` (adds `backend/` to `sys.path`)
+- **SDK:** `mcp>=1.0.0,<2.0.0` Python package (official MCP SDK, pinned to avoid breaking changes)
+- **DB access:** Lives inside `backend/` so it naturally imports `app.models` and `app.core.config` — same as Celery workers. Module-level engine created at startup; each tool call gets a fresh `AsyncSession` (no per-request dependency injection).
+- **Docker:** Shares the same Docker image as the backend (same build context `./backend`). Different command in `docker-compose.yml`.
 - **User resolution:** stdio mode takes `--user-email` CLI arg or uses the single user in DB; SSE mode resolves user from API key
 
 ## Key Decisions
@@ -41,7 +46,8 @@ mcp/
 | Auth (stdio) | None | Subprocess communication has no network exposure |
 | Output format | Markdown text | More useful for LLM consumption than raw JSON |
 | Initial scope | Read-only (6 tools) | Safe to ship; write tools added later |
-| File location | `mcp/` top-level | Clean separation from backend; imports backend models |
+| File location | `backend/mcp_server/` | Inside backend package; shares Docker image and Python path with Celery workers |
+| Key hashing | HMAC-SHA256 | Direct DB lookup by hash; sub-ms verification; secure for random 32-byte keys |
 
 ## Transport & Auth
 
@@ -72,45 +78,55 @@ Protected by per-user API key:
 
 ### Caddy config addition
 
+Insert before the frontend catch-all `handle` block:
+
 ```
 handle /mcp/* {
-    reverse_proxy backend:8808
+    reverse_proxy mcp:8808
 }
 ```
 
 ### Docker
 
-The MCP SSE server runs as a separate service in `docker-compose.yml`:
+The MCP SSE server shares the backend Docker image (same build context `./backend`), different command:
 
 ```yaml
 mcp:
-  build: .
-  command: python mcp/server.py --sse --port 8808
+  build: ./backend
+  command: python -m mcp_server.server --sse --port 8808
   environment:
     - DATABASE_URL=${DATABASE_URL}
+    - SECRET_KEY=${SECRET_KEY}
+    - ENCRYPTION_KEY=${ENCRYPTION_KEY}
   depends_on:
     - postgres
 ```
+
+`ENCRYPTION_KEY` is passed to avoid crashes if any model relationship triggers decryption of encrypted columns.
 
 ## API Key Management
 
 ### Data model
 
-New column on `User`:
-- `mcp_api_key_hash: String, nullable` — bcrypt hash of the API key
+New column on `User` (requires Alembic migration):
+- `mcp_api_key_hash: String(128), nullable` — HMAC-SHA256 hash of the API key (hex-encoded)
+
+Hashing: `hmac.new(SECRET_KEY.encode(), api_key.encode(), hashlib.sha256).hexdigest()`. This allows direct DB lookup via `WHERE mcp_api_key_hash = computed_hash` — no iteration over users, sub-ms verification.
 
 ### Settings UI
 
 A new "MCP Access" card on the Settings page:
-- **Generate API Key** button → generates a random 32-byte key, stores bcrypt hash on User, displays the key once with a copy button
+- **Generate API Key** button → generates a random 32-byte key, stores HMAC-SHA256 hash on User, displays the key once with a copy button
 - **Revoke** button → clears the hash, invalidates the key immediately
 - **Status indicator** — shows whether a key is active
 
 ### API endpoints
 
-- `POST /api/v1/settings/mcp-key` → generates key, returns `{ key: "pingcrm_..." }` (plaintext, shown once)
-- `DELETE /api/v1/settings/mcp-key` → revokes key, returns `{ revoked: true }`
-- `GET /api/v1/settings/mcp-key` → returns `{ has_key: true/false }` (never exposes the key)
+- `POST /api/v1/settings/mcp-key` → generates key, returns `Envelope[McpKeyData]` with `{ key: "pingcrm_..." }` (plaintext, shown once)
+- `DELETE /api/v1/settings/mcp-key` → revokes key, returns `Envelope[McpKeyRevokedData]` with `{ revoked: true }`
+- `GET /api/v1/settings/mcp-key` → returns `Envelope[McpKeyStatusData]` with `{ has_key: true/false }` (never exposes the key)
+
+Response schemas go in `backend/app/schemas/responses.py` following existing patterns. All three endpoints must declare `response_model` (CI guard).
 
 ### Key format
 
@@ -122,9 +138,9 @@ A new "MCP Access" card on the Settings page:
 
 Search and filter contacts.
 
-- **Inputs:** `query` (string, optional), `tag` (string, optional), `min_score` / `max_score` (int, optional), `priority` (string, optional), `limit` (int, default 20, max 50)
+- **Inputs:** `query` (string, optional), `tag` (string, optional), `score` (string, optional — "strong", "warm", or "cold"), `priority` (string, optional), `limit` (int, default 20, max 50)
 - **Returns:** Markdown table with: name, company, title, score, last_interaction_at, tags
-- **Query logic:** Reuses existing `contact_search.py` relevance ranking (name prefix > name contains > company > handle > other)
+- **Query logic:** Reuses existing `contact_search.py` with `build_contact_filter_query()`. The `score` param maps to tier names matching the existing API (strong=7-10, warm=4-6, cold=0-3).
 
 ### get_contact
 
@@ -174,6 +190,8 @@ Network health overview.
 | Missing API key (SSE) | Server refuses to start: "MCP_API_KEY required for SSE mode" |
 | Invalid API key (SSE) | Returns 401 |
 
+All error handlers must follow the project exception handling policy (`.claude/rules/exception-handling.md`): `logger.exception()` with structured `extra={"provider": "mcp", "operation": "..."}` before returning the user-friendly message.
+
 ## Client Configuration Examples
 
 ### Claude Desktop (local / stdio)
@@ -183,8 +201,8 @@ Network health overview.
   "mcpServers": {
     "pingcrm": {
       "command": "python",
-      "args": ["mcp/server.py"],
-      "cwd": "/path/to/pingcrm",
+      "args": ["-m", "mcp_server.server"],
+      "cwd": "/path/to/pingcrm/backend",
       "env": {
         "DATABASE_URL": "postgresql+asyncpg://user:pass@localhost/pingcrm"
       }
@@ -193,7 +211,7 @@ Network health overview.
 }
 ```
 
-### Claude Desktop (remote / SSE via SSH)
+### Claude Desktop (remote / stdio via SSH)
 
 ```json
 {
@@ -203,7 +221,7 @@ Network health overview.
       "args": [
         "-i", "~/.ssh/pingcrm_key",
         "root@pingcrm.sawinyh.com",
-        "cd /opt/pingcrm && docker compose exec -T mcp python mcp/server.py"
+        "cd /opt/pingcrm && docker compose exec -T backend python -m mcp_server.server"
       ]
     }
   }
@@ -238,9 +256,9 @@ These are not part of the initial release but the architecture supports adding t
 
 ## Dependencies
 
-- `mcp` — official MCP Python SDK (add to `requirements.txt` or a separate `mcp/requirements.txt`)
-- `bcrypt` — for API key hashing (already in backend deps via `passlib`)
-- All backend models/config imported at runtime
+- `mcp>=1.0.0,<2.0.0` — official MCP Python SDK (add to `backend/requirements.txt`)
+- `hmac` + `hashlib` — for API key hashing (stdlib, no new dependency)
+- All backend models/config imported naturally (lives inside `backend/`)
 
 ## Testing
 
