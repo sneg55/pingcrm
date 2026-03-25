@@ -644,51 +644,8 @@ async def sync_twitter_contact_dms(
 
 
 # ---------------------------------------------------------------------------
-# Mention sync
+# Mention sync (bird CLI — no OAuth API cost)
 # ---------------------------------------------------------------------------
-
-
-async def fetch_mentions(
-    twitter_user_id: str,
-    headers: dict[str, str],
-    since_id: str | None = None,
-) -> list[dict[str, Any]]:
-    """Fetch mentions for user using OAuth 2.0, with pagination."""
-    all_mentions: list[dict[str, Any]] = []
-    pagination_token: str | None = None
-
-    try:
-        async with httpx.AsyncClient(timeout=30.0) as client:
-            for _ in range(MAX_DM_PAGES):
-                params: dict[str, str] = {
-                    "tweet.fields": "created_at,author_id,text",
-                    "max_results": "100",
-                }
-                if since_id:
-                    params["since_id"] = since_id
-                if pagination_token:
-                    params["pagination_token"] = pagination_token
-
-                resp = await client.get(
-                    f"{_TWITTER_API_BASE}/users/{twitter_user_id}/mentions",
-                    headers=headers,
-                    params=params,
-                )
-                resp.raise_for_status()
-                body = resp.json()
-                all_mentions.extend(body.get("data", []))
-
-                pagination_token = body.get("meta", {}).get("next_token")
-                if not pagination_token:
-                    break
-
-        return all_mentions
-    except httpx.HTTPStatusError as exc:
-        logger.warning("fetch_mentions: HTTP %s — %s", exc.response.status_code, exc.response.text)
-        return all_mentions  # return what we got so far
-    except Exception:
-        logger.exception("fetch_mentions: unexpected error.")
-        return all_mentions
 
 
 async def sync_twitter_mentions(
@@ -815,55 +772,8 @@ async def sync_twitter_mentions(
 
 
 # ---------------------------------------------------------------------------
-# Reply sync — outbound replies to contacts' tweets
+# Reply sync (bird CLI — no OAuth API cost)
 # ---------------------------------------------------------------------------
-
-async def fetch_user_tweets_with_replies(
-    twitter_user_id: str,
-    headers: dict[str, str],
-    since_id: str | None = None,
-) -> list[dict[str, Any]]:
-    """Fetch the authenticated user's recent tweets, including replies.
-
-    Returns tweets that have ``in_reply_to_user_id`` set (i.e. replies).
-    """
-    all_tweets: list[dict[str, Any]] = []
-    pagination_token: str | None = None
-
-    try:
-        async with httpx.AsyncClient(timeout=30.0) as client:
-            for _ in range(MAX_DM_PAGES):
-                params: dict[str, str] = {
-                    "tweet.fields": "created_at,in_reply_to_user_id,text,referenced_tweets",
-                    "max_results": "100",
-                    "exclude": "retweets",
-                }
-                if since_id:
-                    params["since_id"] = since_id
-                if pagination_token:
-                    params["pagination_token"] = pagination_token
-
-                resp = await client.get(
-                    f"{_TWITTER_API_BASE}/users/{twitter_user_id}/tweets",
-                    headers=headers,
-                    params=params,
-                )
-                resp.raise_for_status()
-                body = resp.json()
-                all_tweets.extend(body.get("data", []))
-
-                pagination_token = body.get("meta", {}).get("next_token")
-                if not pagination_token:
-                    break
-
-        # Filter to only replies (have in_reply_to_user_id)
-        return [t for t in all_tweets if t.get("in_reply_to_user_id")]
-    except httpx.HTTPStatusError as exc:
-        logger.warning("fetch_user_tweets_with_replies: HTTP %s — %s", exc.response.status_code, exc.response.text)
-        return [t for t in all_tweets if t.get("in_reply_to_user_id")]
-    except Exception:
-        logger.exception("fetch_user_tweets_with_replies: unexpected error.")
-        return [t for t in all_tweets if t.get("in_reply_to_user_id")]
 
 
 async def sync_twitter_replies(
