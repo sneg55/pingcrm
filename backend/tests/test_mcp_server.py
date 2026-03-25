@@ -86,3 +86,347 @@ class TestMcpServer:
         assert args.sse is True
         assert args.port == 9000
         assert args.user_email == "test@example.com"
+
+
+class TestContactTools:
+    @pytest.mark.asyncio
+    async def test_search_contacts_returns_markdown_table(self):
+        from mcp_server.tools.contacts import _search_contacts
+
+        contact = MagicMock()
+        contact.full_name = "Jane Doe"
+        contact.company = "Acme Corp"
+        contact.title = "CTO"
+        contact.relationship_score = 8
+        contact.last_interaction_at = None
+        contact.tags = ["investor", "tech"]
+
+        mock_result = MagicMock()
+        mock_result.scalars.return_value.all.return_value = [contact]
+
+        db = AsyncMock()
+        db.execute.return_value = mock_result
+
+        result = await _search_contacts(uuid.uuid4(), db, query="Jane", limit=20)
+        assert "Jane Doe" in result
+        assert "Acme Corp" in result
+
+    @pytest.mark.asyncio
+    async def test_search_contacts_empty(self):
+        from mcp_server.tools.contacts import _search_contacts
+
+        mock_result = MagicMock()
+        mock_result.scalars.return_value.all.return_value = []
+
+        db = AsyncMock()
+        db.execute.return_value = mock_result
+
+        result = await _search_contacts(uuid.uuid4(), db, limit=20)
+        assert "No contacts" in result
+
+    @pytest.mark.asyncio
+    async def test_get_contact_by_id(self):
+        from mcp_server.tools.contacts import _get_contact
+
+        contact = MagicMock()
+        contact.id = uuid.uuid4()
+        contact.full_name = "Jane Doe"
+        contact.title = "CTO"
+        contact.company = "Acme Corp"
+        contact.emails = ["jane@acme.com"]
+        contact.phones = []
+        contact.relationship_score = 8
+        contact.interaction_count = 15
+        contact.last_interaction_at = None
+        contact.tags = ["investor"]
+        contact.priority_level = "high"
+        contact.twitter_bio = "Building things"
+        contact.linkedin_headline = "CTO at Acme"
+        contact.linkedin_bio = None
+        contact.telegram_bio = None
+        contact.avatar_url = None
+
+        mock_result = MagicMock()
+        mock_result.scalar_one_or_none.return_value = contact
+
+        db = AsyncMock()
+        db.execute.return_value = mock_result
+
+        result = await _get_contact(uuid.uuid4(), db, contact_id=str(contact.id))
+        assert "Jane Doe" in result
+        assert "CTO" in result
+        assert "Building things" in result
+
+    @pytest.mark.asyncio
+    async def test_get_contact_not_found(self):
+        from mcp_server.tools.contacts import _get_contact
+
+        mock_result = MagicMock()
+        mock_result.scalar_one_or_none.return_value = None
+
+        db = AsyncMock()
+        db.execute.return_value = mock_result
+
+        result = await _get_contact(uuid.uuid4(), db, contact_id=str(uuid.uuid4()))
+        assert "not found" in result.lower()
+
+    @pytest.mark.asyncio
+    async def test_get_contact_by_name_fuzzy(self):
+        from mcp_server.tools.contacts import _get_contact
+
+        contact = MagicMock()
+        contact.full_name = "Jane Doe"
+        contact.title = "CTO"
+        contact.company = "Acme"
+        contact.emails = []
+        contact.phones = []
+        contact.relationship_score = 7
+        contact.interaction_count = 10
+        contact.last_interaction_at = None
+        contact.tags = []
+        contact.priority_level = "high"
+        contact.twitter_bio = None
+        contact.linkedin_headline = None
+        contact.linkedin_bio = None
+        contact.telegram_bio = None
+
+        mock_result = MagicMock()
+        mock_result.scalars.return_value.all.return_value = [contact]
+
+        db = AsyncMock()
+        db.execute.return_value = mock_result
+
+        result = await _get_contact(uuid.uuid4(), db, name="jane")
+        assert "Jane Doe" in result
+
+    @pytest.mark.asyncio
+    async def test_get_contact_no_params(self):
+        from mcp_server.tools.contacts import _get_contact
+        db = AsyncMock()
+        result = await _get_contact(uuid.uuid4(), db)
+        assert "Provide either" in result
+
+    @pytest.mark.asyncio
+    async def test_get_contact_invalid_uuid(self):
+        from mcp_server.tools.contacts import _get_contact
+        db = AsyncMock()
+        result = await _get_contact(uuid.uuid4(), db, contact_id="not-a-uuid")
+        assert "Invalid" in result
+
+
+class TestInteractionTools:
+    @pytest.mark.asyncio
+    async def test_get_interactions_returns_list(self):
+        from mcp_server.tools.interactions import _get_interactions
+
+        ix = MagicMock()
+        ix.occurred_at = datetime(2026, 3, 20, tzinfo=UTC)
+        ix.platform = "telegram"
+        ix.direction = "inbound"
+        ix.content_preview = "Hey, how's the project going?"
+        ix.is_read_by_recipient = True
+
+        mock_result = MagicMock()
+        mock_result.scalars.return_value.all.return_value = [ix]
+
+        db = AsyncMock()
+        db.execute.return_value = mock_result
+
+        result = await _get_interactions(uuid.uuid4(), db, contact_id=str(uuid.uuid4()), limit=10)
+        assert "telegram" in result
+        assert "project going" in result
+
+    @pytest.mark.asyncio
+    async def test_get_interactions_empty(self):
+        from mcp_server.tools.interactions import _get_interactions
+
+        mock_result = MagicMock()
+        mock_result.scalars.return_value.all.return_value = []
+
+        db = AsyncMock()
+        db.execute.return_value = mock_result
+
+        result = await _get_interactions(uuid.uuid4(), db, contact_id=str(uuid.uuid4()), limit=10)
+        assert "No interactions" in result
+
+    @pytest.mark.asyncio
+    async def test_get_interactions_invalid_uuid(self):
+        from mcp_server.tools.interactions import _get_interactions
+        db = AsyncMock()
+        result = await _get_interactions(uuid.uuid4(), db, contact_id="not-a-uuid", limit=10)
+        assert "Invalid" in result
+
+    @pytest.mark.asyncio
+    async def test_get_interactions_read_receipts(self):
+        from mcp_server.tools.interactions import _get_interactions
+
+        ix_read = MagicMock()
+        ix_read.occurred_at = datetime(2026, 3, 20, tzinfo=UTC)
+        ix_read.platform = "telegram"
+        ix_read.direction = "outbound"
+        ix_read.content_preview = "Hello there"
+        ix_read.is_read_by_recipient = True
+
+        ix_unread = MagicMock()
+        ix_unread.occurred_at = datetime(2026, 3, 21, tzinfo=UTC)
+        ix_unread.platform = "telegram"
+        ix_unread.direction = "outbound"
+        ix_unread.content_preview = "Follow up"
+        ix_unread.is_read_by_recipient = False
+
+        mock_result = MagicMock()
+        mock_result.scalars.return_value.all.return_value = [ix_unread, ix_read]
+
+        db = AsyncMock()
+        db.execute.return_value = mock_result
+
+        result = await _get_interactions(uuid.uuid4(), db, contact_id=str(uuid.uuid4()), limit=10)
+        assert "\u2713\u2713" in result
+        assert "\u2713" in result
+
+
+class TestSuggestionsTools:
+    @pytest.mark.asyncio
+    async def test_get_suggestions_returns_list(self):
+        from mcp_server.tools.suggestions import _get_suggestions
+
+        suggestion = MagicMock()
+        suggestion.contact_id = uuid.uuid4()
+        suggestion.trigger_type = "time_based"
+        suggestion.suggested_message = "Hey, long time no talk!"
+        suggestion.created_at = datetime(2026, 3, 25, tzinfo=UTC)
+
+        contact = MagicMock()
+        contact.id = suggestion.contact_id
+        contact.full_name = "Jane Doe"
+
+        sugg_result = MagicMock()
+        sugg_result.scalars.return_value.all.return_value = [suggestion]
+
+        contact_result = MagicMock()
+        contact_result.scalars.return_value.all.return_value = [contact]
+
+        db = AsyncMock()
+        db.execute.side_effect = [sugg_result, contact_result]
+
+        result = await _get_suggestions(uuid.uuid4(), db, limit=10)
+        assert "Jane Doe" in result
+        assert "time_based" in result
+
+    @pytest.mark.asyncio
+    async def test_get_suggestions_empty(self):
+        from mcp_server.tools.suggestions import _get_suggestions
+
+        mock_result = MagicMock()
+        mock_result.scalars.return_value.all.return_value = []
+
+        db = AsyncMock()
+        db.execute.return_value = mock_result
+
+        result = await _get_suggestions(uuid.uuid4(), db, limit=10)
+        assert "No pending" in result
+
+
+class TestNotificationTools:
+    @pytest.mark.asyncio
+    async def test_get_notifications_returns_unread(self):
+        from mcp_server.tools.notifications import _get_notifications
+
+        notif = MagicMock()
+        notif.title = "Twitter sync completed"
+        notif.body = "3 DMs, 1 new contact"
+        notif.notification_type = "sync"
+        notif.read = False
+        notif.created_at = datetime(2026, 3, 25, 10, 0, tzinfo=UTC)
+
+        mock_result = MagicMock()
+        mock_result.scalars.return_value.all.return_value = [notif]
+
+        db = AsyncMock()
+        db.execute.return_value = mock_result
+
+        result = await _get_notifications(uuid.uuid4(), db, unread_only=True, limit=20)
+        assert "Twitter sync completed" in result
+        assert "3 DMs" in result
+
+    @pytest.mark.asyncio
+    async def test_get_notifications_empty_unread(self):
+        from mcp_server.tools.notifications import _get_notifications
+
+        mock_result = MagicMock()
+        mock_result.scalars.return_value.all.return_value = []
+
+        db = AsyncMock()
+        db.execute.return_value = mock_result
+
+        result = await _get_notifications(uuid.uuid4(), db, unread_only=True, limit=20)
+        assert "No unread" in result
+
+    @pytest.mark.asyncio
+    async def test_get_notifications_empty_all(self):
+        from mcp_server.tools.notifications import _get_notifications
+
+        mock_result = MagicMock()
+        mock_result.scalars.return_value.all.return_value = []
+
+        db = AsyncMock()
+        db.execute.return_value = mock_result
+
+        result = await _get_notifications(uuid.uuid4(), db, unread_only=False, limit=20)
+        assert "No notifications" in result
+
+
+class TestDashboardTools:
+    @pytest.mark.asyncio
+    async def test_get_dashboard_stats_returns_formatted(self):
+        from mcp_server.tools.dashboard import _get_dashboard_stats
+
+        total_result = MagicMock()
+        total_result.scalar_one.return_value = 150
+
+        score_row = MagicMock()
+        score_row.strong = 30
+        score_row.warm = 60
+        score_row.cold = 60
+        score_result = MagicMock()
+        score_result.one.return_value = score_row
+
+        sugg_result = MagicMock()
+        sugg_result.scalar_one.return_value = 5
+
+        ix_result = MagicMock()
+        ix_result.all.return_value = [("telegram", 20), ("email", 10)]
+
+        db = AsyncMock()
+        db.execute.side_effect = [total_result, score_result, sugg_result, ix_result]
+
+        result = await _get_dashboard_stats(uuid.uuid4(), db)
+        assert "150" in result
+        assert "Strong" in result
+        assert "telegram" in result
+
+    @pytest.mark.asyncio
+    async def test_get_dashboard_stats_empty_interactions(self):
+        from mcp_server.tools.dashboard import _get_dashboard_stats
+
+        total_result = MagicMock()
+        total_result.scalar_one.return_value = 0
+
+        score_row = MagicMock()
+        score_row.strong = 0
+        score_row.warm = 0
+        score_row.cold = 0
+        score_result = MagicMock()
+        score_result.one.return_value = score_row
+
+        sugg_result = MagicMock()
+        sugg_result.scalar_one.return_value = 0
+
+        ix_result = MagicMock()
+        ix_result.all.return_value = []
+
+        db = AsyncMock()
+        db.execute.side_effect = [total_result, score_result, sugg_result, ix_result]
+
+        result = await _get_dashboard_stats(uuid.uuid4(), db)
+        assert "No interactions" in result
