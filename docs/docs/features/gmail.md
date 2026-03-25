@@ -34,6 +34,21 @@ Calendar events are imported as meeting-type interactions. Event attendees are m
 
 **Schedule:** Calendar sync runs daily at 06:00 UTC.
 
+## Pre-Meeting Prep Emails
+
+When a Google Calendar meeting is 30 minutes away, PingCRM sends a prep brief email to your inbox with context about each attendee:
+
+- **Attendee profiles** -- name, title, company, and relationship score (Strong/Warm/Cold).
+- **Platform bios** -- Twitter, LinkedIn, and Telegram bios when available.
+- **Recent interactions** -- the last 3-5 conversations across all platforms.
+- **AI talking points** -- Claude Haiku generates 3-5 specific, actionable talking points based on the attendee context.
+
+The email is sent from your own Gmail account via the Gmail API (`gmail.send` scope). Existing users may be prompted to re-authorize Gmail to grant the new send permission.
+
+**Schedule:** A background task scans for upcoming meetings every 10 minutes. Meetings in the 30-40 minute window trigger a prep email. Redis dedup keys prevent duplicate sends.
+
+**Settings:** The feature is enabled by default. Disable it via Settings > Sync Settings > Gmail > `meeting_prep_enabled`.
+
 ## Background Processing
 
-All Gmail syncs (email, contacts, calendar) run as Celery background tasks. You do not need to keep the browser open. A notification is delivered when each sync completes or fails.
+All Gmail syncs (email, contacts, calendar) and meeting prep emails run as Celery background tasks. You do not need to keep the browser open. A notification is delivered when each sync completes or fails.
