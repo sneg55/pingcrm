@@ -516,6 +516,9 @@ async def generate_suggestions(
     Collects candidates from Pool A (active) and Pool B (dormant revival),
     applies budget with rollover, and creates FollowUpSuggestion records.
 
+    Uses a Redis lock to prevent concurrent generation runs from creating
+    duplicate suggestions (e.g. user clicks "Generate" twice quickly).
+
     Args:
         user_id: The user for whom suggestions are generated.
         db: Async database session (caller is responsible for commit).
@@ -525,6 +528,27 @@ async def generate_suggestions(
     Returns:
         List of newly created FollowUpSuggestion objects.
     """
+    import redis as _redis
+    from app.core.config import settings as _cfg
+
+    r = _redis.from_url(_cfg.REDIS_URL)
+    lock_key = f"suggestions_gen_lock:{user_id}"
+    if not r.set(lock_key, "1", nx=True, ex=120):
+        logger.info("generate_suggestions: skipped for user %s (concurrent run in progress)", user_id)
+        return []
+
+    try:
+        return await _generate_suggestions_inner(user_id, db, priority_settings)
+    finally:
+        r.delete(lock_key)
+
+
+async def _generate_suggestions_inner(
+    user_id: uuid.UUID,
+    db: AsyncSession,
+    priority_settings: dict | None = None,
+) -> list[FollowUpSuggestion]:
+    """Inner implementation — called with lock held."""
     now = datetime.now(UTC)
     settings = priority_settings or {}
 

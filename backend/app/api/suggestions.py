@@ -82,6 +82,23 @@ async def list_suggestions(
     current_user: User = Depends(get_extension_or_web_user),
 ) -> Envelope[list[dict]]:
     """List pending follow-up suggestions for the current user, with contact info."""
+    # Auto-dismiss stale suggestions where the contact interacted after creation
+    from sqlalchemy import update as sa_update
+    await db.execute(
+        sa_update(FollowUpSuggestion)
+        .where(
+            FollowUpSuggestion.user_id == current_user.id,
+            FollowUpSuggestion.status == "pending",
+            FollowUpSuggestion.contact_id.in_(
+                select(Contact.id).where(
+                    Contact.last_interaction_at > FollowUpSuggestion.created_at
+                )
+            ),
+        )
+        .values(status="dismissed")
+    )
+    await db.flush()
+
     result = await db.execute(
         select(FollowUpSuggestion)
         .join(Contact, FollowUpSuggestion.contact_id == Contact.id)
