@@ -21,7 +21,7 @@ describe("MessageEditor", () => {
     expect(textarea).toHaveValue("Hey, how are you?");
   });
 
-  it("shows Regenerate button when suggestionId is provided", () => {
+  it("shows Regenerate button via title", () => {
     render(
       <MessageEditor
         suggestionId="s1"
@@ -29,19 +29,19 @@ describe("MessageEditor", () => {
         initialChannel="email"
       />
     );
-    expect(screen.getByText("Regenerate")).toBeInTheDocument();
+    expect(screen.getByTitle("Regenerate message")).toBeInTheDocument();
   });
 
   it("shows Regenerate button even without suggestionId", () => {
     render(<MessageEditor contactId="c1" />);
-    expect(screen.getByText("Regenerate")).toBeInTheDocument();
+    expect(screen.getByTitle("Regenerate message")).toBeInTheDocument();
   });
 
-  it("renders all three channel buttons", () => {
+  it("renders all three channel icon buttons", () => {
     render(<MessageEditor />);
-    expect(screen.getByText("Email")).toBeInTheDocument();
-    expect(screen.getByText("Telegram")).toBeInTheDocument();
-    expect(screen.getByText("Twitter/X")).toBeInTheDocument();
+    expect(screen.getByTitle("Send via Email")).toBeInTheDocument();
+    expect(screen.getByTitle("Send via Telegram")).toBeInTheDocument();
+    expect(screen.getByTitle("Send via Twitter/X")).toBeInTheDocument();
   });
 
   it("disables channels passed in disabledChannels", () => {
@@ -63,48 +63,36 @@ describe("MessageEditor", () => {
         onSend={onSend}
       />
     );
-    fireEvent.click(screen.getByText("Send"));
+    fireEvent.click(screen.getByTitle("Send"));
     expect(onSend).toHaveBeenCalledWith("Test message", "telegram", undefined);
   });
 
   it("disables send button when message is empty", () => {
     render(<MessageEditor initialChannel="telegram" />);
-    const sendBtn = screen.getByText("Send").closest("button")!;
+    const sendBtn = screen.getByTitle("Send");
     expect(sendBtn).toBeDisabled();
   });
 
-  it("shows 'Send Email' when email channel is selected", () => {
+  it("send button is enabled for all channels when message exists", () => {
     render(<MessageEditor initialMessage="Hi" initialChannel="email" />);
-    expect(screen.getByText("Send Email")).toBeInTheDocument();
-    expect(screen.queryByText("Send")).not.toBeInTheDocument();
+    expect(screen.getByTitle("Send")).not.toBeDisabled();
   });
 
-  it("shows 'Send DM' when twitter channel is selected", () => {
-    render(<MessageEditor initialMessage="Hi" initialChannel="twitter" />);
-    expect(screen.getByText("Send DM")).toBeInTheDocument();
-    expect(screen.queryByText("Send")).not.toBeInTheDocument();
-  });
-
-  it("shows 'Send' when telegram channel is selected", () => {
-    render(<MessageEditor initialMessage="Hi" initialChannel="telegram" />);
-    expect(screen.getByText("Send")).toBeInTheDocument();
-    expect(screen.queryByText("Send Email")).not.toBeInTheDocument();
-  });
-
-  it("shows character count", () => {
+  it("shows character count when message has content", () => {
     render(
       <MessageEditor initialMessage="Hello" initialChannel="telegram" />
     );
-    expect(screen.getByText("5/4096")).toBeInTheDocument();
+    // Char count shown as "5/4096" in a single span
+    expect(screen.getByText(/5\/4096/)).toBeInTheDocument();
   });
 
-  it("selects initial channel when provided", () => {
+  it("selects initial channel with active styling", () => {
     render(
       <MessageEditor initialMessage="" initialChannel="twitter" />
     );
-    // Twitter/X button should have the selected styling (slate color)
-    const twitterBtn = screen.getByText("Twitter/X").closest("button")!;
-    expect(twitterBtn.className).toContain("text-slate-600");
+    // Twitter button should have active styling (bg-stone-100)
+    const twitterBtn = screen.getByTitle("Send via Twitter/X");
+    expect(twitterBtn.className).toContain("bg-stone-100");
   });
 
   it("disables send button while sending and re-enables after", async () => {
@@ -117,14 +105,14 @@ describe("MessageEditor", () => {
         onSend={onSend}
       />
     );
-    const sendBtn = screen.getByText("Send").closest("button")!;
+    const sendBtn = screen.getByTitle("Send");
     expect(sendBtn).not.toBeDisabled();
 
     fireEvent.click(sendBtn);
+    // While sending, button should be disabled
     await waitFor(() => {
-      expect(screen.getByText("Sending…")).toBeInTheDocument();
+      expect(sendBtn).toBeDisabled();
     });
-    expect(sendBtn).toBeDisabled();
 
     // Double-click should not call onSend again
     fireEvent.click(sendBtn);
@@ -133,9 +121,8 @@ describe("MessageEditor", () => {
     // Resolve the promise — button re-enables
     resolve!();
     await waitFor(() => {
-      expect(screen.getByText("Send")).toBeInTheDocument();
+      expect(sendBtn).not.toBeDisabled();
     });
-    expect(sendBtn).not.toBeDisabled();
   });
 
   it("defaults to first available channel when initial is disabled", () => {
@@ -145,8 +132,8 @@ describe("MessageEditor", () => {
         disabledChannels={{ email: "No email" }}
       />
     );
-    // Should fall back to telegram (next available)
-    const telegramBtn = screen.getByText("Telegram").closest("button")!;
-    expect(telegramBtn.className).toContain("text-sky-600");
+    // Should fall back to telegram (next available) — telegram button has active bg
+    const telegramBtn = screen.getByTitle("Send via Telegram");
+    expect(telegramBtn.className).toContain("bg-stone-100");
   });
 });
