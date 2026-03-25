@@ -11,7 +11,7 @@ interface ChannelConfig {
   label: string;
   icon: ReactNode;
   maxChars: number;
-  color: string;
+  activeColor: string;
 }
 
 const channelConfig: Record<Channel, ChannelConfig> = {
@@ -19,19 +19,19 @@ const channelConfig: Record<Channel, ChannelConfig> = {
     label: "Email",
     icon: <Mail className="w-4 h-4" />,
     maxChars: 2000,
-    color: "text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-950 border-blue-200 dark:border-blue-800",
+    activeColor: "text-blue-500 dark:text-blue-400",
   },
   telegram: {
     label: "Telegram",
     icon: <MessageCircle className="w-4 h-4" />,
     maxChars: 4096,
-    color: "text-sky-600 dark:text-sky-400 bg-sky-50 dark:bg-sky-950 border-sky-200 dark:border-sky-800",
+    activeColor: "text-sky-500 dark:text-sky-400",
   },
   twitter: {
     label: "Twitter/X",
     icon: <Twitter className="w-4 h-4" />,
     maxChars: 280,
-    color: "text-slate-600 dark:text-slate-300 bg-slate-50 dark:bg-slate-900 border-slate-200 dark:border-slate-700",
+    activeColor: "text-stone-600 dark:text-stone-300",
   },
 };
 
@@ -85,6 +85,14 @@ export function MessageEditor({
   useEffect(() => {
     if (autoFocus) textareaRef.current?.focus();
   }, [autoFocus]);
+
+  // Auto-resize textarea
+  useEffect(() => {
+    const el = textareaRef.current;
+    if (!el) return;
+    el.style.height = "auto";
+    el.style.height = `${Math.max(80, el.scrollHeight)}px`;
+  }, [message]);
 
   // Countdown timer for rate limit
   useEffect(() => {
@@ -140,7 +148,6 @@ export function MessageEditor({
     try {
       await onSend?.(message.trim(), channel, iso);
     } catch (err: unknown) {
-      // Detect 429 rate limit from fetch errors
       if (err && typeof err === "object" && "status" in err && (err as { status: number }).status === 429) {
         const body = "body" in err ? (err as { body: { meta?: { retry_after?: number } } }).body : undefined;
         const retryAfter = body?.meta?.retry_after ?? 3600;
@@ -152,61 +159,20 @@ export function MessageEditor({
   };
 
   return (
-    <div className={cn("space-y-3", className)}>
-      {/* Channel selector */}
-      <div className="flex flex-wrap gap-2">
-        {(Object.keys(channelConfig) as Channel[]).map((ch) => {
-          const cfg = channelConfig[ch];
-          const isSelected = channel === ch;
-          const disabledReason = disabledChannels[ch];
-          const isDisabled = Boolean(disabledReason);
-          return (
-            <button
-              key={ch}
-              onClick={() => !isDisabled && setChannel(ch)}
-              disabled={isDisabled}
-              title={disabledReason ?? cfg.label}
-              className={cn(
-                "inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-medium border transition-colors",
-                isDisabled
-                  ? "text-gray-300 dark:text-gray-600 bg-gray-50 dark:bg-gray-900 border-gray-100 dark:border-gray-800 cursor-not-allowed"
-                  : isSelected
-                    ? cfg.color
-                    : "text-gray-500 dark:text-stone-400 bg-white dark:bg-stone-900 border-gray-200 dark:border-stone-700 hover:bg-gray-50 dark:hover:bg-stone-800"
-              )}
-            >
-              {cfg.icon}
-              {cfg.label}
-            </button>
-          );
-        })}
-      </div>
+    <div className={cn("space-y-0", className)}>
+      {/* Textarea — borderless, auto-resize */}
+      <textarea
+        ref={textareaRef}
+        value={message}
+        onChange={(e) => setMessage(e.target.value)}
+        rows={2}
+        className="w-full text-sm bg-transparent border-0 p-0 resize-none focus:outline-none focus:ring-0 text-stone-900 dark:text-stone-100 placeholder:text-stone-400 dark:placeholder:text-stone-500"
+        placeholder="Write a message..."
+      />
 
-      {/* Textarea */}
-      <div className="relative">
-        <textarea
-          ref={textareaRef}
-          value={message}
-          onChange={(e) => setMessage(e.target.value)}
-          rows={4}
-          className={cn(
-            "w-full text-sm border rounded-md p-3 resize-none focus:outline-none focus:ring-2 focus:ring-blue-400 transition-colors bg-white dark:bg-stone-900 text-stone-900 dark:text-stone-100 placeholder:text-stone-400 dark:placeholder:text-stone-500 min-h-[120px]",
-            isOverLimit ? "border-red-300 dark:border-red-700" : "border-gray-300 dark:border-stone-600"
-          )}
-          placeholder="Write a message..."
-        />
-        <span
-          className={cn(
-            "absolute bottom-2 right-2 text-xs",
-            isOverLimit ? "text-red-500 dark:text-red-400 font-medium" : "text-gray-400 dark:text-stone-500"
-          )}
-        >
-          {charCount}/{config.maxChars}
-        </span>
-      </div>
-      {/* Character limit progress bar */}
+      {/* Character limit bar */}
       {charCount > 0 && (
-        <div className="h-1 w-full bg-gray-100 dark:bg-stone-800 rounded-full overflow-hidden -mt-2">
+        <div className="h-0.5 w-full bg-stone-100 dark:bg-stone-800 rounded-full overflow-hidden mt-2">
           <div
             className={cn(
               "h-full transition-all duration-150 rounded-full",
@@ -217,81 +183,131 @@ export function MessageEditor({
         </div>
       )}
 
-      {/* Schedule (Telegram only) */}
-      {channel === "telegram" && (
-        <div className="flex flex-wrap items-center gap-2">
+      {/* Schedule datetime picker (inline, when active) */}
+      {showSchedule && channel === "telegram" && (
+        <div className="flex items-center gap-2 mt-2 pt-2 border-t border-stone-100 dark:border-stone-800">
+          <Clock className="w-3.5 h-3.5 text-sky-500 shrink-0" />
+          <input
+            type="datetime-local"
+            value={scheduledFor}
+            onChange={(e) => setScheduledFor(e.target.value)}
+            min={new Date(Date.now() + 60000).toISOString().slice(0, 16)}
+            className="flex-1 text-xs border border-stone-200 dark:border-stone-700 rounded-md px-2 py-1.5 focus:outline-none focus:ring-1 focus:ring-sky-400 bg-transparent text-stone-900 dark:text-stone-100"
+          />
           <button
-            onClick={() => {
-              setShowSchedule((v) => !v);
-              if (showSchedule) setScheduledFor("");
-            }}
-            className={cn(
-              "inline-flex items-center gap-1.5 px-2.5 py-1 min-h-[44px] text-xs rounded-md border transition-colors",
-              showSchedule
-                ? "text-sky-700 dark:text-sky-400 bg-sky-50 dark:bg-sky-950 border-sky-200 dark:border-sky-800"
-                : "text-gray-500 dark:text-stone-400 bg-white dark:bg-stone-900 border-gray-200 dark:border-stone-700 hover:bg-gray-50 dark:hover:bg-stone-800"
-            )}
+            onClick={() => { setShowSchedule(false); setScheduledFor(""); }}
+            className="text-xs text-stone-400 hover:text-stone-600 dark:hover:text-stone-300"
           >
-            <Clock className="w-3.5 h-3.5" />
-            {showSchedule ? "Cancel schedule" : "Schedule send"}
+            Cancel
           </button>
-          {showSchedule && (
-            <input
-              type="datetime-local"
-              value={scheduledFor}
-              onChange={(e) => setScheduledFor(e.target.value)}
-              min={new Date(Date.now() + 60000).toISOString().slice(0, 16)}
-              className="w-full sm:w-auto text-xs border border-gray-200 dark:border-stone-700 rounded-md px-2 py-2 min-h-[44px] focus:outline-none focus:ring-2 focus:ring-sky-400 bg-white dark:bg-stone-900 text-stone-900 dark:text-stone-100"
-            />
-          )}
         </div>
       )}
 
       {/* Rate limit banner */}
       {isRateLimited && (
-        <div className="flex items-center gap-2 px-3 py-2 text-sm text-amber-800 dark:text-amber-400 bg-amber-50 dark:bg-amber-950 border border-amber-200 dark:border-amber-800 rounded-md">
-          <Clock className="w-4 h-4 shrink-0" />
+        <div className="flex items-center gap-2 px-3 py-1.5 mt-2 text-xs text-amber-700 dark:text-amber-400 bg-amber-50 dark:bg-amber-950 border border-amber-200 dark:border-amber-800 rounded-md">
+          <Clock className="w-3.5 h-3.5 shrink-0" />
           Rate limited — retry in {rateLimitRemaining >= 60 ? `${Math.ceil(rateLimitRemaining / 60)}m` : `${rateLimitRemaining}s`}
         </div>
       )}
 
-      {/* Actions */}
-      <div className="flex items-center justify-between">
-        <button
-          onClick={handleRegenerate}
-          disabled={isRegenerating}
-          className="inline-flex items-center gap-1.5 px-3 py-1.5 min-h-[44px] text-sm rounded-md text-gray-600 dark:text-stone-300 border border-gray-200 dark:border-stone-700 hover:bg-gray-50 dark:hover:bg-stone-800 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-        >
-          <RefreshCw
-            className={cn("w-4 h-4", isRegenerating && "animate-spin")}
-          />
-          Regenerate
-        </button>
+      {/* Toolbar — Twitter-style: icons left, char count + send right */}
+      <div className="flex items-center justify-between mt-2 pt-2 border-t border-stone-100 dark:border-stone-800">
+        {/* Left: icon actions */}
+        <div className="flex items-center gap-1">
+          {/* Channel selector icons */}
+          {(Object.keys(channelConfig) as Channel[]).map((ch) => {
+            const cfg = channelConfig[ch];
+            const isSelected = channel === ch;
+            const disabledReason = disabledChannels[ch];
+            const isDisabled = Boolean(disabledReason);
+            return (
+              <button
+                key={ch}
+                onClick={() => !isDisabled && setChannel(ch)}
+                disabled={isDisabled}
+                title={isDisabled ? disabledReason : `Send via ${cfg.label}`}
+                className={cn(
+                  "p-1.5 rounded-md transition-colors",
+                  isDisabled
+                    ? "text-stone-300 dark:text-stone-700 cursor-not-allowed"
+                    : isSelected
+                      ? cn(cfg.activeColor, "bg-stone-100 dark:bg-stone-800")
+                      : "text-stone-400 dark:text-stone-500 hover:text-stone-600 dark:hover:text-stone-300 hover:bg-stone-50 dark:hover:bg-stone-800"
+                )}
+              >
+                {cfg.icon}
+              </button>
+            );
+          })}
 
-        <button
-          onClick={handleSend}
-          disabled={!message.trim() || isOverLimit || isSending || isRateLimited || (showSchedule && !scheduledFor)}
-          className={cn(
-            "inline-flex items-center gap-1.5 px-4 py-1.5 min-h-[44px] text-sm font-medium rounded-md disabled:opacity-50 disabled:cursor-not-allowed transition-colors",
-            showSchedule && scheduledFor
-              ? "bg-sky-600 text-white hover:bg-sky-700"
-              : "bg-green-600 text-white hover:bg-green-700"
+          {/* Divider */}
+          <div className="w-px h-4 bg-stone-200 dark:bg-stone-700 mx-1" />
+
+          {/* Regenerate */}
+          <button
+            onClick={handleRegenerate}
+            disabled={isRegenerating}
+            title="Regenerate message"
+            className="p-1.5 rounded-md text-stone-400 dark:text-stone-500 hover:text-stone-600 dark:hover:text-stone-300 hover:bg-stone-50 dark:hover:bg-stone-800 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+          >
+            <RefreshCw className={cn("w-4 h-4", isRegenerating && "animate-spin")} />
+          </button>
+
+          {/* Schedule (Telegram only) */}
+          {channel === "telegram" && (
+            <button
+              onClick={() => {
+                setShowSchedule((v) => !v);
+                if (showSchedule) setScheduledFor("");
+              }}
+              title={showSchedule ? "Cancel schedule" : "Schedule send"}
+              className={cn(
+                "p-1.5 rounded-md transition-colors",
+                showSchedule
+                  ? "text-sky-500 dark:text-sky-400 bg-sky-50 dark:bg-sky-950"
+                  : "text-stone-400 dark:text-stone-500 hover:text-stone-600 dark:hover:text-stone-300 hover:bg-stone-50 dark:hover:bg-stone-800"
+              )}
+            >
+              <Clock className="w-4 h-4" />
+            </button>
           )}
-        >
-          {isSending ? (
-            <><RefreshCw className="w-4 h-4 animate-spin" /> Sending…</>
-          ) : channel === "telegram" ? (
-            showSchedule && scheduledFor ? (
-              <><Clock className="w-4 h-4" /> Schedule</>
+        </div>
+
+        {/* Right: char count + send */}
+        <div className="flex items-center gap-2">
+          {charCount > 0 && (
+            <span
+              className={cn(
+                "text-xs tabular-nums",
+                isOverLimit ? "text-red-500 font-medium" : "text-stone-400 dark:text-stone-500"
+              )}
+            >
+              {charCount}/{config.maxChars}
+            </span>
+          )}
+          <button
+            onClick={handleSend}
+            disabled={!message.trim() || isOverLimit || isSending || isRateLimited || (showSchedule && !scheduledFor)}
+            className={cn(
+              "inline-flex items-center justify-center w-8 h-8 rounded-full transition-colors disabled:opacity-30 disabled:cursor-not-allowed",
+              message.trim() && !isOverLimit && !isSending
+                ? showSchedule && scheduledFor
+                  ? "bg-sky-500 text-white hover:bg-sky-600"
+                  : "bg-teal-500 text-white hover:bg-teal-600"
+                : "bg-stone-200 dark:bg-stone-700 text-stone-400 dark:text-stone-500"
+            )}
+            title={showSchedule && scheduledFor ? "Schedule" : "Send"}
+          >
+            {isSending ? (
+              <RefreshCw className="w-4 h-4 animate-spin" />
+            ) : showSchedule && scheduledFor ? (
+              <Clock className="w-4 h-4" />
             ) : (
-              <><Send className="w-4 h-4" /> Send</>
-            )
-          ) : channel === "email" ? (
-            <><Mail className="w-4 h-4" /> Send Email</>
-          ) : (
-            <><Twitter className="w-4 h-4" /> Send DM</>
-          )}
-        </button>
+              <Send className="w-4 h-4" />
+            )}
+          </button>
+        </div>
       </div>
     </div>
   );

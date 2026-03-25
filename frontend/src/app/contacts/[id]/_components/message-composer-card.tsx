@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useRef, useEffect } from "react";
-import { ChevronDown, Clock, Send, Sparkles, X } from "lucide-react";
+import { ChevronDown, Clock, Sparkles, Send, X } from "lucide-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { cn } from "@/lib/utils";
 import { MessageEditor } from "@/components/message-editor";
@@ -171,7 +171,7 @@ export function MessageComposerCard({
       {/* Expanded editor */}
       {expanded && (
         <div
-          className="px-4 pb-4 border-t border-stone-100 dark:border-stone-800 pt-3"
+          className="px-4 pb-3 border-t border-stone-100 dark:border-stone-800 pt-3"
           onClick={(e) => e.stopPropagation()}
         >
           {sent && (
@@ -193,12 +193,13 @@ export function MessageComposerCard({
             onSend={handleSend}
             autoFocus
           />
+          {/* Suggestion actions: snooze + dismiss — compact inline */}
           {hasSuggestion && (
-            <div className="flex items-center gap-2 mt-3">
+            <div className="flex items-center gap-2 mt-2 pt-2 border-t border-stone-100 dark:border-stone-800">
               <div className="relative" ref={snoozeRef}>
                 <button
                   onClick={() => setShowSnooze(!showSnooze)}
-                  className="inline-flex items-center gap-1 px-2.5 py-1.5 text-xs rounded-md text-amber-600 dark:text-amber-400 border border-amber-200 dark:border-amber-800 bg-amber-50 dark:bg-amber-950 hover:bg-amber-100 dark:hover:bg-amber-900 transition-colors"
+                  className="inline-flex items-center gap-1 px-2 py-1 text-xs rounded-md text-amber-600 dark:text-amber-400 hover:bg-amber-50 dark:hover:bg-amber-950 transition-colors"
                 >
                   <Clock className="w-3 h-3" /> Snooze <ChevronDown className="w-2.5 h-2.5" />
                 </button>
@@ -227,7 +228,7 @@ export function MessageComposerCard({
               </div>
               <button
                 onClick={handleDismiss}
-                className="inline-flex items-center gap-1 px-2.5 py-1.5 text-xs rounded-md text-stone-400 dark:text-stone-500 border border-stone-200 dark:border-stone-700 hover:bg-stone-50 dark:hover:bg-stone-800 transition-colors"
+                className="inline-flex items-center gap-1 px-2 py-1 text-xs rounded-md text-stone-400 dark:text-stone-500 hover:bg-stone-50 dark:hover:bg-stone-800 transition-colors"
               >
                 <X className="w-3 h-3" /> Dismiss
               </button>
