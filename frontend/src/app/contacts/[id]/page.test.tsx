@@ -399,7 +399,8 @@ describe("ContactDetailPage", () => {
     const archiveBtn = screen.getByTitle("Archive contact");
     fireEvent.click(archiveBtn);
     expect(mutate).toHaveBeenCalledWith(
-      expect.objectContaining({ input: { priority_level: "archived" } })
+      expect.objectContaining({ input: { priority_level: "archived" } }),
+      expect.objectContaining({ onSuccess: expect.any(Function) }),
     );
   });
 

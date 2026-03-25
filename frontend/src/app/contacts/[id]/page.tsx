@@ -101,8 +101,16 @@ export default function ContactDetailPage() {
     if (contact.priority_level === "archived") {
       ctrl.updateContact.mutate({ id, input: { priority_level: "medium" } });
     } else {
-      ctrl.updateContact.mutate({ id, input: { priority_level: "archived" } });
-      router.back();
+      ctrl.updateContact.mutate(
+        { id, input: { priority_level: "archived" } },
+        {
+          onSuccess: () => {
+            ctrl.queryClient.invalidateQueries({ queryKey: ["suggestions"] });
+            ctrl.queryClient.invalidateQueries({ queryKey: ["contacts"] });
+            router.back();
+          },
+        },
+      );
     }
   };
 
