@@ -183,7 +183,7 @@ def sync_google_contacts_for_user(self, user_id: str) -> dict:
                 notification_type="sync",
                 title="Google Contacts sync completed",
                 body=body,
-                link="/contacts",
+                link="/contacts?sort=recent",
             ))
             await db.commit()
 
@@ -268,7 +268,7 @@ def sync_google_calendar_for_user(self, user_id: str) -> dict:
                 notification_type="sync",
                 title="Google Calendar sync completed",
                 body=", ".join(parts) if parts else "No new events",
-                link="/contacts",
+                link="/contacts?sort=recent",
             ))
             await db.commit()
 

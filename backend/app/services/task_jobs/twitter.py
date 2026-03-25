@@ -171,7 +171,7 @@ def sync_twitter_dms_for_user(self, user_id: str) -> dict:
                 notification_type="sync",
                 title="Twitter sync completed",
                 body=", ".join(parts) if parts else "No new activity",
-                link="/contacts",
+                link="/settings",
             ))
             await db.commit()
 

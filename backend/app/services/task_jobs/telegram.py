@@ -341,7 +341,7 @@ def sync_telegram_notify(user_id: str, lock_token: str = "") -> dict:
                 notification_type="sync",
                 title="Telegram sync completed",
                 body=", ".join(parts) if parts else "No new activity",
-                link="/contacts",
+                link="/settings",
             ))
             await db.commit()
 
