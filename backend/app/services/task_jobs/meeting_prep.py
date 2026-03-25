@@ -1,6 +1,8 @@
 """Celery beat task: scan upcoming meetings and send prep emails."""
 from __future__ import annotations
 
+from collections import defaultdict
+
 import redis as _redis
 from celery import shared_task
 from datetime import UTC, datetime, timedelta
@@ -16,9 +18,12 @@ from app.models.user import User
 from app.services.task_jobs.common import _run, logger
 
 
-@shared_task(name="app.services.tasks.scan_meeting_preps")
-def scan_meeting_preps() -> dict:
+@shared_task(name="app.services.tasks.scan_meeting_preps", bind=True, max_retries=2)
+def scan_meeting_preps(self) -> dict:
     """Scan for meetings starting in ~30 minutes and email prep briefs."""
+
+    # Redis client created outside async function (sync context is correct here)
+    r = _redis.from_url(settings.REDIS_URL, decode_responses=True)
 
     async def _scan() -> dict:
         from app.integrations.gmail_send import send_email
@@ -29,8 +34,6 @@ def scan_meeting_preps() -> dict:
             get_upcoming_meetings,
         )
 
-        r = _redis.from_url(settings.REDIS_URL, decode_responses=True)
-
         now = datetime.now(UTC)
         window_start = now + timedelta(minutes=30)
         window_end = now + timedelta(minutes=40)
@@ -40,26 +43,36 @@ def scan_meeting_preps() -> dict:
         errors = 0
 
         async with task_session() as db:
-            # Get distinct user_ids from GoogleAccount table
+            # Bulk-fetch all Google-connected user IDs (2 queries, not N+1)
             ga_result = await db.execute(
                 select(GoogleAccount.user_id).distinct()
             )
             ga_user_ids = {row for row in ga_result.scalars().all()}
 
-            # Also get users with legacy google_refresh_token
             legacy_result = await db.execute(
                 select(User.id).where(User.google_refresh_token.isnot(None))
             )
             legacy_user_ids = {row for row in legacy_result.scalars().all()}
 
             all_user_ids = ga_user_ids | legacy_user_ids
+            if not all_user_ids:
+                return {"sent": 0, "skipped": 0, "errors": 0}
+
+            # Bulk-fetch all users and Google accounts in 2 queries (not per-user)
+            users_result = await db.execute(
+                select(User).where(User.id.in_(all_user_ids))
+            )
+            users_by_id = {u.id: u for u in users_result.scalars().all()}
+
+            ga_all_result = await db.execute(
+                select(GoogleAccount).where(GoogleAccount.user_id.in_(all_user_ids))
+            )
+            ga_by_user: dict[object, list] = defaultdict(list)
+            for ga in ga_all_result.scalars().all():
+                ga_by_user[ga.user_id].append(ga)
 
             for user_id in all_user_ids:
-                # Fetch user
-                user_result = await db.execute(
-                    select(User).where(User.id == user_id)
-                )
-                user = user_result.scalar_one_or_none()
+                user = users_by_id.get(user_id)
                 if user is None:
                     continue
 
@@ -70,13 +83,8 @@ def scan_meeting_preps() -> dict:
                     skipped += 1
                     continue
 
-                # Get GoogleAccount entries for this user
-                accounts_result = await db.execute(
-                    select(GoogleAccount).where(GoogleAccount.user_id == user_id)
-                )
-                google_accounts = list(accounts_result.scalars().all())
+                google_accounts = ga_by_user.get(user_id, [])
 
-                # Get upcoming meetings
                 meetings = await get_upcoming_meetings(
                     user_id, window_start, window_end, db
                 )
@@ -85,7 +93,7 @@ def scan_meeting_preps() -> dict:
                     event_id = meeting["event_id"]
                     dedup_key = f"meeting_prep:{user_id}:{event_id}"
 
-                    # Redis dedup check
+                    # Redis dedup check (sync call, OK in _run() context)
                     if r.exists(dedup_key):
                         skipped += 1
                         continue
@@ -132,8 +140,7 @@ def scan_meeting_preps() -> dict:
                             body="Your Gmail credentials have expired. Please re-connect Gmail in Settings to continue receiving meeting prep emails.",
                             link="/settings",
                         ))
-                        # Stop processing meetings for this user
-                        break
+                        break  # Stop for this user
                     else:
                         errors += 1
 
@@ -141,4 +148,8 @@ def scan_meeting_preps() -> dict:
 
         return {"sent": sent, "skipped": skipped, "errors": errors}
 
-    return _run(_scan())
+    try:
+        return _run(_scan())
+    except Exception as exc:
+        logger.exception("scan_meeting_preps failed, retrying")
+        raise self.retry(exc=exc, countdown=30) from exc

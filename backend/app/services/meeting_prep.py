@@ -109,7 +109,7 @@ async def build_prep_brief(
         return []
 
     # --- Fetch recent non-meeting interactions (up to 5 per contact) ---
-    max_rows = len(contact_ids) * 5
+    max_rows = len(contact_ids) * 20  # over-fetch to avoid starving low-activity contacts
     interactions_result = await db.execute(
         select(Interaction)
         .where(
@@ -242,7 +242,7 @@ Talking points:"""
     except Exception:
         logger.exception(
             "generate_talking_points: API call failed",
-            extra={"meeting_title": meeting_title},
+            extra={"provider": "anthropic", "meeting_title": meeting_title},
         )
         return ""
 
@@ -275,7 +275,9 @@ def compose_prep_email(
     esc = html_mod.escape
     base_url = getattr(settings, "FRONTEND_URL", "https://pingcrm.sawinyh.com")
     title = esc(meeting.get("title", "Untitled meeting"))
-    subject = f"Meeting prep: {meeting.get('title', 'Untitled meeting')} in 30 minutes"
+    raw_title = meeting.get("title", "Untitled meeting")
+    subject = f"Meeting prep: {raw_title} in 30 minutes"
+    subject = subject.replace("\r", "").replace("\n", " ")  # prevent CRLF header injection
 
     # --- Attendee cards ---
     attendee_cards = ""
@@ -317,6 +319,7 @@ def compose_prep_email(
         for bio_key, bio_label in [
             ("twitter_bio", "Twitter"),
             ("linkedin_headline", "LinkedIn"),
+            ("linkedin_bio", "LinkedIn about"),
             ("telegram_bio", "Telegram"),
         ]:
             val = b.get(bio_key)
