@@ -41,6 +41,7 @@ class User(Base):
     linkedin_extension_paired_at: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True), nullable=True
     )
+    mcp_api_key_hash: Mapped[str | None] = mapped_column(String(128), nullable=True)
     updated_at: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True), onupdate=func.now(), nullable=True
     )
