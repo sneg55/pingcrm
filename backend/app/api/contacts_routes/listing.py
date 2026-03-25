@@ -17,6 +17,8 @@ from app.api.contacts_routes.shared import (
     select,
     status,
 )
+from sqlalchemy import or_
+
 from app.schemas.contact import ContactListResponse, ContactResponse
 from app.schemas.responses import ContactStatsData
 
@@ -224,8 +226,12 @@ async def get_overdue_contacts(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ) -> dict:
-    """Return contacts that have exceeded their follow-up threshold, sorted by most overdue first."""
-    from datetime import UTC, datetime, timedelta
+    """Return high-priority contacts that have exceeded their follow-up threshold.
+
+    Only includes contacts with priority_level='high', at least one interaction,
+    and not tagged '2nd tier'. Sorted by most overdue first.
+    """
+    from datetime import UTC, datetime
 
     now = datetime.now(UTC)
     default_thresholds = {"high": 30, "medium": 60, "low": 180}
@@ -234,16 +240,17 @@ async def get_overdue_contacts(
     result = await db.execute(
         select(Contact).where(
             Contact.user_id == current_user.id,
-            Contact.priority_level != "archived",
+            Contact.priority_level == "high",
             Contact.last_interaction_at.isnot(None),
+            Contact.interaction_count > 0,
+            or_(Contact.tags.is_(None), ~Contact.tags.contains(["2nd tier"])),
         )
     )
     contacts = result.scalars().all()
 
     overdue: list[tuple[int, Contact]] = []
     for contact in contacts:
-        priority = contact.priority_level or "medium"
-        threshold_days = thresholds.get(priority, default_thresholds.get(priority, 60))
+        threshold_days = thresholds.get("high", 30)
         last = contact.last_interaction_at
         if last.tzinfo is None:
             last = last.replace(tzinfo=UTC)
