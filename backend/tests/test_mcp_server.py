@@ -64,3 +64,25 @@ class TestMcpKeyEndpoints:
         assert McpKeyData(key="pingcrm_test").key == "pingcrm_test"
         assert McpKeyRevokedData(revoked=True).revoked is True
         assert McpKeyStatusData(has_key=False).has_key is False
+
+
+class TestMcpServer:
+    """Tests for the MCP server setup."""
+
+    def test_server_module_importable(self):
+        import mcp_server.server
+        assert hasattr(mcp_server.server, "mcp_app")
+
+    def test_parse_args_defaults(self):
+        from mcp_server.server import parse_args
+        args = parse_args([])
+        assert args.sse is False
+        assert args.port == 8808
+        assert args.user_email is None
+
+    def test_parse_args_sse_mode(self):
+        from mcp_server.server import parse_args
+        args = parse_args(["--sse", "--port", "9000", "--user-email", "test@example.com"])
+        assert args.sse is True
+        assert args.port == 9000
+        assert args.user_email == "test@example.com"
