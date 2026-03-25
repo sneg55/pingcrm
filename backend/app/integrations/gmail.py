@@ -124,7 +124,7 @@ async def _find_contact_by_email(
         select(Contact).where(
             Contact.user_id == user_id,
             Contact.emails.contains([email_addr]),
-        )
+        ).limit(1)
     )
     return result.scalar_one_or_none()
 
@@ -148,7 +148,7 @@ async def _upsert_interaction(
             Interaction.raw_reference_id == thread_id,
             Interaction.contact_id == contact.id,
             Interaction.user_id == user_id,
-        )
+        ).limit(1)
     )
     existing = result.scalar_one_or_none()
     if existing:

@@ -126,7 +126,7 @@ async def _find_or_create_contact(
         select(Contact).where(
             Contact.user_id == user_id,
             Contact.emails.contains([email_addr]),
-        )
+        ).limit(1)
     )
     contact = result.scalar_one_or_none()
     if contact:
