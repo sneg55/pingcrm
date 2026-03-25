@@ -101,7 +101,7 @@ cd backend && celery -A worker.celery_app worker --loglevel=info
 
 See @.claude/rules/exception-handling.md for the full policy (logging requirements, typed exceptions per provider, re-raise vs sentinel rules).
 
-## Platform Integrations (MVP)
+## Platform Integrations
 1. **Gmail** - OAuth + Gmail API for email thread sync
 2. **Telegram** - MTProto client for chat history access
 3. **Twitter/X** - X API v2 for DMs, mentions, bio monitoring
