@@ -159,15 +159,18 @@ async def _upsert_interaction(
     )
     existing = result.scalar_one_or_none()
     if existing:
-        # Update if thread has newer messages since last sync
+        # Always update direction if it changed (e.g. thread now has both
+        # inbound and outbound messages → mutual)
+        if existing.direction != direction and direction == "mutual":
+            existing.direction = "mutual"
+
+        # Update timestamp and snippet if thread has newer messages
         if occurred_at > existing.occurred_at:
             existing.occurred_at = occurred_at
             if snippet:
                 existing.content_preview = snippet[:500]
-            # If direction changed (e.g. user replied to inbound), mark mutual
-            if existing.direction != direction:
-                existing.direction = "mutual"
-        elif not existing.content_preview and snippet:
+        elif snippet and (not existing.content_preview or existing.direction == "mutual"):
+            # Backfill snippet for mutual threads (show contact's message, not user's reply)
             existing.content_preview = snippet[:500]
         return existing
 
