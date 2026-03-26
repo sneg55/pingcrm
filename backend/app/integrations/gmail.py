@@ -251,6 +251,11 @@ async def _sync_thread_messages(
         # Regular emails: strip quoted reply text for cleaner previews.
         preview = meta["snippet"] if matched_via_bcc else _clean_snippet(meta["snippet"])
 
+        # Skip messages with very short or empty content (e.g. "-- Nick Sawinyh"
+        # signature-only messages from forwards)
+        if not preview or len(preview.strip()) < 20:
+            continue
+
         for contact in matched_contacts:
             # Check if already exists
             existing_result = await db.execute(
