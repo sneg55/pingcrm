@@ -288,9 +288,8 @@ export function Nav() {
     setMobileMenuOpen(false);
   }, [pathname]);
 
-  // Hide nav on auth and onboarding pages
-  const isPublicPage =
-    pathname.startsWith("/auth") || pathname.startsWith("/onboarding");
+  // Hide nav on auth pages
+  const isPublicPage = pathname.startsWith("/auth");
   if (isPublicPage) return null;
 
   return (

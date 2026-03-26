@@ -72,7 +72,7 @@ describe("RegisterPage", () => {
       );
     });
     await waitFor(() => {
-      expect(mockPush).toHaveBeenCalledWith("/onboarding");
+      expect(mockPush).toHaveBeenCalledWith("/dashboard");
     });
   });
 

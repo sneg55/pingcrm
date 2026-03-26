@@ -385,29 +385,56 @@ export default function DashboardPage() {
           </p>
         </div>
 
-        {/* Empty state */}
+        {/* Empty state — inline onboarding */}
         {isEmpty && (
-          <div className="bg-white dark:bg-stone-900 rounded-2xl border border-stone-200 dark:border-stone-700 p-12 text-center mb-8">
-            <div className="w-16 h-16 rounded-full bg-teal-50 dark:bg-teal-950 flex items-center justify-center mx-auto mb-4">
-              <Users className="w-8 h-8 text-teal-400" />
+          <div className="bg-white dark:bg-stone-900 rounded-2xl border border-stone-200 dark:border-stone-700 p-8 mb-8">
+            <div className="text-center mb-6">
+              <h2 className="text-lg font-display font-bold text-stone-900 dark:text-stone-100 mb-1">Connect your accounts to get started</h2>
+              <p className="text-sm text-stone-500 dark:text-stone-400">
+                Ping will sync your contacts and interactions automatically.
+              </p>
             </div>
-            <h2 className="text-lg font-display font-bold text-stone-900 dark:text-stone-100 mb-2">Welcome to Ping!</h2>
-            <p className="text-sm text-stone-500 dark:text-stone-400 mb-6 max-w-md mx-auto">
-              Get started by connecting your accounts or importing contacts.
-              Ping will help you stay on top of your relationships.
-            </p>
-            <div className="flex flex-wrap items-center justify-center gap-3">
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-4">
               <Link
                 href="/settings"
-                className="inline-flex items-center gap-1.5 px-4 py-2 text-sm font-medium rounded-lg bg-teal-600 text-white hover:bg-teal-700 transition-colors shadow-sm"
+                className="flex flex-col items-center gap-2 p-4 rounded-xl border border-stone-200 dark:border-stone-700 hover:border-teal-300 dark:hover:border-teal-700 hover:bg-teal-50 dark:hover:bg-teal-950 transition-colors"
               >
-                <Plug className="w-4 h-4" /> Connect accounts
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" className="w-7 h-7">
+                  <path fill="#4285F4" d="M46.5 24.5c0-1.6-.1-3.1-.4-4.5H24v8.5h12.7c-.6 3-2.3 5.5-4.9 7.2v6h7.9c4.6-4.3 7.8-10.6 7.8-17.2z" />
+                  <path fill="#34A853" d="M24 48c6.5 0 11.9-2.1 15.9-5.8l-7.9-6c-2.1 1.4-4.8 2.3-8 2.3-6.1 0-11.3-4.1-13.1-9.7H2.7v6.2C6.7 43.1 14.8 48 24 48z" />
+                  <path fill="#FBBC05" d="M10.9 28.8c-.5-1.4-.7-2.9-.7-4.8s.3-3.3.7-4.8v-6.2H2.7C1 16.4 0 20.1 0 24s1 7.6 2.7 11z" />
+                  <path fill="#EA4335" d="M24 9.5c3.4 0 6.5 1.2 8.9 3.5l6.6-6.6C35.9 2.4 30.4 0 24 0 14.8 0 6.7 4.9 2.7 13l8.2 6.2C12.7 13.6 17.9 9.5 24 9.5z" />
+                </svg>
+                <span className="text-xs font-medium text-stone-700 dark:text-stone-300">Google</span>
               </Link>
               <Link
                 href="/settings"
-                className="inline-flex items-center gap-1.5 px-4 py-2 text-sm font-medium rounded-lg border border-stone-200 dark:border-stone-700 text-stone-600 dark:text-stone-300 hover:bg-stone-50 dark:hover:bg-stone-800 transition-colors"
+                className="flex flex-col items-center gap-2 p-4 rounded-xl border border-stone-200 dark:border-stone-700 hover:border-sky-300 dark:hover:border-sky-700 hover:bg-sky-50 dark:hover:bg-sky-950 transition-colors"
               >
-                <FileDown className="w-4 h-4" /> Import CSV
+                <MessageCircle className="w-7 h-7 text-sky-500" />
+                <span className="text-xs font-medium text-stone-700 dark:text-stone-300">Telegram</span>
+              </Link>
+              <Link
+                href="/settings"
+                className="flex flex-col items-center gap-2 p-4 rounded-xl border border-stone-200 dark:border-stone-700 hover:border-stone-400 dark:hover:border-stone-500 hover:bg-stone-50 dark:hover:bg-stone-800 transition-colors"
+              >
+                <Twitter className="w-7 h-7 text-stone-600 dark:text-stone-400" />
+                <span className="text-xs font-medium text-stone-700 dark:text-stone-300">Twitter/X</span>
+              </Link>
+              <Link
+                href="/settings"
+                className="flex flex-col items-center gap-2 p-4 rounded-xl border border-stone-200 dark:border-stone-700 hover:border-blue-300 dark:hover:border-blue-700 hover:bg-blue-50 dark:hover:bg-blue-950 transition-colors"
+              >
+                <Plug className="w-7 h-7 text-blue-600 dark:text-blue-400" />
+                <span className="text-xs font-medium text-stone-700 dark:text-stone-300">LinkedIn</span>
+              </Link>
+            </div>
+            <div className="text-center">
+              <Link
+                href="/settings"
+                className="text-xs text-stone-400 dark:text-stone-500 hover:text-teal-600 dark:hover:text-teal-400"
+              >
+                or import a CSV file
               </Link>
             </div>
           </div>

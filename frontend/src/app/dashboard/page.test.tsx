@@ -86,31 +86,41 @@ describe("DashboardPage", () => {
 
   // --- Empty state ---------------------------------------------------------
 
-  it("shows empty state welcome message when there are no contacts", () => {
+  it("shows empty state with connect message when there are no contacts", () => {
     mockDashboard();
     renderPage();
-    expect(screen.getByText("Welcome to Ping!")).toBeInTheDocument();
+    expect(screen.getByText("Connect your accounts to get started")).toBeInTheDocument();
   });
 
-  it("shows empty state description text", () => {
+  it("shows platform connect buttons in empty state", () => {
     mockDashboard();
     renderPage();
-    expect(
-      screen.getByText(/Get started by connecting your accounts or importing contacts/i)
-    ).toBeInTheDocument();
+    expect(screen.getByText("Google")).toBeInTheDocument();
+    expect(screen.getByText("Telegram")).toBeInTheDocument();
+    expect(screen.getByText("Twitter/X")).toBeInTheDocument();
+    expect(screen.getByText("LinkedIn")).toBeInTheDocument();
   });
 
-  it("shows Connect accounts link in empty state pointing to /settings", () => {
+  it("shows CSV import link in empty state", () => {
     mockDashboard();
     renderPage();
-    const link = screen.getByRole("link", { name: /Connect accounts/i });
-    expect(link).toHaveAttribute("href", "/settings");
+    expect(screen.getByText("or import a CSV file")).toBeInTheDocument();
   });
 
-  it("shows Import CSV link in empty state pointing to /settings", () => {
+  it("platform buttons link to /settings", () => {
     mockDashboard();
     renderPage();
-    const link = screen.getByRole("link", { name: /Import CSV/i });
+    const links = screen.getAllByRole("link").filter(
+      (el) => el.getAttribute("href") === "/settings"
+    );
+    // 4 platform buttons + CSV link = 5 links to /settings
+    expect(links.length).toBeGreaterThanOrEqual(4);
+  });
+
+  it("shows CSV import option in empty state pointing to /settings", () => {
+    mockDashboard();
+    renderPage();
+    const link = screen.getByText("or import a CSV file").closest("a");
     expect(link).toHaveAttribute("href", "/settings");
   });
 

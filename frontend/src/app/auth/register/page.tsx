@@ -20,7 +20,7 @@ export default function RegisterPage() {
     setIsSubmitting(true);
     try {
       await register(email, password, fullName);
-      router.push("/onboarding");
+      router.push("/dashboard");
     } catch (err: unknown) {
       const message =
         err instanceof Error

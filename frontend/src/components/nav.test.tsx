@@ -144,10 +144,10 @@ describe("Nav", () => {
     expect(container.firstChild).toBeNull();
   });
 
-  it("Nav is hidden on onboarding pages", () => {
-    setupMocks({ pathname: "/onboarding/connect" });
+  it("Nav is visible on dashboard (no onboarding page)", () => {
+    setupMocks({ pathname: "/dashboard" });
     const { container } = render(<Nav />);
-    expect(container.firstChild).toBeNull();
+    expect(container.firstChild).not.toBeNull();
   });
 
   it("search button renders with Search contacts text", () => {
