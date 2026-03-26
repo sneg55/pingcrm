@@ -24,6 +24,25 @@ GMAIL_SCOPES = ["https://www.googleapis.com/auth/gmail.readonly"]
 MAX_RESULTS = 500  # threads per page
 GMAIL_LOOKBACK_QUERY = "newer_than:1y"  # sync last year of email
 
+# Patterns for stripping quoted email text from snippets
+_QUOTE_PATTERNS = [
+    re.compile(r"\s*On\s+\w+\s+\d+,\s+\d{4}\s+at\s+\d+:\d+.*wrote:.*", re.DOTALL),  # On March 23, 2026 at 12:41, Name wrote:
+    re.compile(r"\s*On\s+\d{4}-\d{2}-\d{2}.*wrote:.*", re.DOTALL),  # On 2026-03-23 ... wrote:
+    re.compile(r"\s*--\s*\n.*", re.DOTALL),  # -- signature separator
+    re.compile(r"\s*_{3,}.*", re.DOTALL),  # ___ separator
+    re.compile(r"\s*-{3,}\s*(Original Message|Forwarded).*", re.DOTALL | re.IGNORECASE),  # --- Original Message
+]
+
+
+def _clean_snippet(snippet: str) -> str:
+    """Strip quoted reply text and signatures from an email snippet."""
+    if not snippet:
+        return ""
+    text = snippet
+    for pat in _QUOTE_PATTERNS:
+        text = pat.split(text, 1)[0]
+    return text.strip()
+
 
 def _build_gmail_service(refresh_token: str) -> Any:
     """Build authenticated Gmail API service from a user's refresh token."""
@@ -226,10 +245,9 @@ async def _sync_thread_messages(
         if not matched_contacts:
             continue
 
-        # Build preview with subject prefix
-        preview = meta["snippet"]
-        if meta["subject"] and meta["subject"] != "(no subject)":
-            preview = f"{meta['subject']}: {preview}"
+        # Clean snippet: strip quoted reply text, don't prepend subject
+        # (subject is stored separately as part of the thread, not the message)
+        preview = _clean_snippet(meta["snippet"])
 
         for contact in matched_contacts:
             # Check if already exists

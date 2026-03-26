@@ -95,6 +95,14 @@ vi.mock("next/navigation", () => ({
   usePathname: vi.fn(() => "/contacts/test-id"),
 }));
 
+/* ── useAuth mock ── */
+vi.mock("@/hooks/use-auth", () => ({
+  useAuth: vi.fn(() => ({
+    user: { id: "u1", email: "test@example.com", full_name: "Test User" },
+    isLoading: false,
+  })),
+}));
+
 /* ── Helpers ── */
 
 function makeContact(overrides: Record<string, unknown> = {}) {
