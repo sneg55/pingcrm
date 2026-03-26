@@ -4,6 +4,7 @@ import { useState } from "react";
 import { format } from "date-fns";
 import {
   Calendar,
+  ChevronDown,
   Mail,
   MessageCircle,
   Pencil,
@@ -23,6 +24,35 @@ import {
   platformLabel,
 } from "../_lib/formatters";
 import { Linkify } from "./linkify";
+
+const MSG_TRUNCATE_LEN = 400;
+
+function CollapsibleText({
+  text,
+  linkClassName,
+}: {
+  text: string;
+  linkClassName?: string;
+}) {
+  const [expanded, setExpanded] = useState(false);
+  const needsTruncate = text.length > MSG_TRUNCATE_LEN;
+  const display = needsTruncate && !expanded ? text.slice(0, MSG_TRUNCATE_LEN) + "..." : text;
+
+  return (
+    <>
+      <Linkify text={display} className={linkClassName} />
+      {needsTruncate && (
+        <button
+          onClick={() => setExpanded(!expanded)}
+          className="flex items-center gap-0.5 mt-1 text-[11px] font-medium opacity-70 hover:opacity-100 transition-opacity"
+        >
+          <ChevronDown className={cn("w-3 h-3 transition-transform", expanded && "rotate-180")} />
+          {expanded ? "Show less" : "Show more"}
+        </button>
+      )}
+    </>
+  );
+}
 import type { InteractionResponse } from "../_hooks/use-contact-detail-controller";
 import { avatarColor, getInitials } from "../_lib/formatters";
 
@@ -286,9 +316,9 @@ export function ChatTimeline({
                     <div className="bg-teal-600 text-white rounded-2xl rounded-br-md px-3.5 py-2.5">
                       {item.content_preview && (
                         <p className="text-[13px] leading-relaxed">
-                          <Linkify
+                          <CollapsibleText
                             text={item.content_preview}
-                            className="text-teal-100 hover:text-white"
+                            linkClassName="text-teal-100 hover:text-white"
                           />
                         </p>
                       )}
@@ -330,9 +360,9 @@ export function ChatTimeline({
                     <div className="bg-stone-100 dark:bg-stone-800 rounded-2xl rounded-bl-md px-3.5 py-2.5">
                       {item.content_preview && (
                         <p className="text-[13px] text-stone-800 dark:text-stone-200 leading-relaxed">
-                          <Linkify
+                          <CollapsibleText
                             text={item.content_preview}
-                            className="text-teal-600 dark:text-teal-400 hover:text-teal-800 dark:hover:text-teal-300"
+                            linkClassName="text-teal-600 dark:text-teal-400 hover:text-teal-800 dark:hover:text-teal-300"
                           />
                         </p>
                       )}
