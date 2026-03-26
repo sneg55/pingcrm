@@ -104,11 +104,18 @@ def _thread_to_metadata(thread_data: dict) -> dict | None:
     # Fall back to the thread-level snippet which is always present.
     snippet = last_msg.get("snippet", "") or thread_data.get("snippet", "")
 
+    # For multi-message threads, also capture the first message snippet
+    # so we can show what the contact originally wrote (not just our reply).
+    first_snippet = ""
+    if len(messages) > 1:
+        first_snippet = first_msg.get("snippet", "") or ""
+
     return {
         "thread_id": thread_data.get("id", ""),
         "subject": subject,
         "participants": participants,
         "snippet": snippet,
+        "first_snippet": first_snippet,
         "occurred_at": occurred_at,
         "from_addresses": from_addresses,
         "to_addresses": to_addresses,
@@ -244,16 +251,30 @@ async def sync_gmail_for_user(user: User, db: AsyncSession) -> int:
         if not meta:
             continue
 
-        # Determine direction relative to the authenticated user
-        # "outbound" if user sent it; "inbound" otherwise
-        if user_email in meta["from_addresses"]:
+        # Determine direction relative to the authenticated user.
+        # Check ALL messages in the thread to detect mutual conversations.
+        user_sent = False
+        user_received = False
+        for msg in thread_data.get("messages", []):
+            msg_headers = msg.get("payload", {}).get("headers", [])
+            msg_from = _parse_email_addresses(_extract_header(msg_headers, "from"))
+            if user_email in msg_from:
+                user_sent = True
+            else:
+                user_received = True
+
+        if user_sent and user_received:
+            direction = "mutual"
+        elif user_sent:
             direction = "outbound"
-            # The contacts are the recipients
+        else:
+            direction = "inbound"
+
+        # Use last message to determine counterparts for contact matching
+        if user_email in meta["from_addresses"]:
             counterpart_emails = [e for e in (meta["to_addresses"] + meta["cc_addresses"])
                                   if e != user_email]
         else:
-            direction = "inbound"
-            # The contact is the sender
             counterpart_emails = [e for e in meta["from_addresses"] if e != user_email]
 
         # Match counterparts to contacts in the database
@@ -275,13 +296,19 @@ async def sync_gmail_for_user(user: User, db: AsyncSession) -> int:
         if not matched_contacts:
             continue
 
+        # For mutual threads, prefer the first inbound snippet (what the
+        # contact wrote) over the last outbound snippet (your reply).
+        display_snippet = meta["snippet"]
+        if direction == "mutual" and meta.get("first_snippet"):
+            display_snippet = meta["first_snippet"]
+
         for contact in matched_contacts:
             interaction = await _upsert_interaction(
                 contact=contact,
                 user_id=user.id,
                 thread_id=thread_id,
                 direction=direction,
-                snippet=meta["snippet"],
+                snippet=f"{meta['subject']}: {display_snippet}"[:500] if meta.get("subject") else display_snippet,
                 occurred_at=meta["occurred_at"],
                 db=db,
             )
