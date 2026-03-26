@@ -22,11 +22,12 @@ from app.models.user import User
 # ---------------------------------------------------------------------------
 
 def _make_thread(thread_id: str, from_addr: str, to_addr: str, snippet: str, ts_ms: int):
-    """Build a minimal Gmail API thread response."""
+    """Build a minimal Gmail API thread response with message IDs."""
     return {
         "id": thread_id,
         "messages": [
             {
+                "id": f"{thread_id}_msg1",
                 "payload": {
                     "headers": [
                         {"name": "From", "value": from_addr},

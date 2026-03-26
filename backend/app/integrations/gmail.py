@@ -1,4 +1,4 @@
-"""Gmail API integration for syncing email threads as Interactions."""
+"""Gmail API integration for syncing email messages as Interactions."""
 from __future__ import annotations
 
 import email.utils
@@ -58,71 +58,6 @@ def _parse_email_addresses(header_value: str) -> list[str]:
     return addresses
 
 
-def _thread_to_metadata(thread_data: dict) -> dict | None:
-    """
-    Extract metadata from a Gmail thread dict returned by the API.
-
-    Returns a dict with keys:
-        thread_id, subject, participants, snippet, occurred_at,
-        from_addresses, to_addresses, cc_addresses
-    or None if the thread cannot be parsed.
-    """
-    messages = thread_data.get("messages", [])
-    if not messages:
-        return None
-
-    # First message for subject, last message for direction/recency
-    first_msg = messages[0]
-    last_msg = messages[-1]
-
-    first_headers = first_msg.get("payload", {}).get("headers", [])
-    subject = _extract_header(first_headers, "subject") or "(no subject)"
-
-    # Use last message headers for direction (reflects most recent activity)
-    last_headers = last_msg.get("payload", {}).get("headers", [])
-    from_header = _extract_header(last_headers, "from")
-    to_header = _extract_header(last_headers, "to")
-    cc_header = _extract_header(last_headers, "cc")
-
-    from_addresses = _parse_email_addresses(from_header)
-    to_addresses = _parse_email_addresses(to_header)
-    cc_addresses = _parse_email_addresses(cc_header)
-
-    # Collect all participants across all messages for contact matching
-    all_participants: set[str] = set()
-    for msg in messages:
-        msg_headers = msg.get("payload", {}).get("headers", [])
-        for hdr in ("from", "to", "cc"):
-            all_participants.update(_parse_email_addresses(_extract_header(msg_headers, hdr)))
-    participants = list(all_participants)
-
-    # internalDate is Unix epoch in milliseconds
-    internal_date_ms = int(last_msg.get("internalDate", 0))
-    occurred_at = datetime.fromtimestamp(internal_date_ms / 1000, tz=UTC)
-
-    # With format="metadata", individual messages may lack a snippet.
-    # Fall back to the thread-level snippet which is always present.
-    snippet = last_msg.get("snippet", "") or thread_data.get("snippet", "")
-
-    # For multi-message threads, also capture the first message snippet
-    # so we can show what the contact originally wrote (not just our reply).
-    first_snippet = ""
-    if len(messages) > 1:
-        first_snippet = first_msg.get("snippet", "") or ""
-
-    return {
-        "thread_id": thread_data.get("id", ""),
-        "subject": subject,
-        "participants": participants,
-        "snippet": snippet,
-        "first_snippet": first_snippet,
-        "occurred_at": occurred_at,
-        "from_addresses": from_addresses,
-        "to_addresses": to_addresses,
-        "cc_addresses": cc_addresses,
-    }
-
-
 async def _find_contact_by_email(
     email_addr: str, user_id: uuid.UUID, db: AsyncSession
 ) -> Contact | None:
@@ -136,61 +71,176 @@ async def _find_contact_by_email(
     return result.scalar_one_or_none()
 
 
-async def _upsert_interaction(
-    *,
-    contact: Contact,
-    user_id: uuid.UUID,
-    thread_id: str,
-    direction: str,
-    snippet: str,
-    occurred_at: datetime,
+def _process_thread_messages(
+    thread_data: dict, user_email: str
+) -> list[dict]:
+    """Extract per-message metadata from a Gmail thread.
+
+    Returns a list of dicts, one per message:
+        {message_id, thread_id, subject, direction, snippet, occurred_at,
+         counterpart_emails, all_participants}
+    """
+    messages = thread_data.get("messages", [])
+    if not messages:
+        return []
+
+    thread_id = thread_data.get("id", "")
+
+    # Get subject from first message
+    first_headers = messages[0].get("payload", {}).get("headers", [])
+    subject = _extract_header(first_headers, "subject") or "(no subject)"
+
+    # Collect all participants for fallback contact matching
+    all_participants: set[str] = set()
+    for msg in messages:
+        msg_headers = msg.get("payload", {}).get("headers", [])
+        for hdr in ("from", "to", "cc"):
+            all_participants.update(_parse_email_addresses(_extract_header(msg_headers, hdr)))
+
+    results = []
+    for msg in messages:
+        msg_id = msg.get("id", "")
+        if not msg_id:
+            continue
+
+        msg_headers = msg.get("payload", {}).get("headers", [])
+        from_addrs = _parse_email_addresses(_extract_header(msg_headers, "from"))
+        to_addrs = _parse_email_addresses(_extract_header(msg_headers, "to"))
+        cc_addrs = _parse_email_addresses(_extract_header(msg_headers, "cc"))
+
+        # Direction: outbound if user sent it, inbound otherwise
+        if user_email in from_addrs:
+            direction = "outbound"
+            counterpart_emails = [e for e in (to_addrs + cc_addrs) if e != user_email]
+        else:
+            direction = "inbound"
+            counterpart_emails = [e for e in from_addrs if e != user_email]
+
+        # Timestamp
+        internal_date_ms = int(msg.get("internalDate", 0))
+        occurred_at = datetime.fromtimestamp(internal_date_ms / 1000, tz=UTC)
+
+        # Snippet
+        snippet = msg.get("snippet", "") or ""
+
+        results.append({
+            "message_id": msg_id,
+            "thread_id": thread_id,
+            "subject": subject,
+            "direction": direction,
+            "snippet": snippet,
+            "occurred_at": occurred_at,
+            "counterpart_emails": counterpart_emails,
+            "all_participants": list(all_participants),
+        })
+
+    return results
+
+
+async def _sync_thread_messages(
+    thread_data: dict,
+    user: User,
+    user_email: str,
     db: AsyncSession,
-) -> Interaction:
-    """
-    Create an Interaction for *thread_id* if one doesn't exist yet,
-    or return the existing one (idempotent on raw_reference_id).
-    """
-    result = await db.execute(
-        select(Interaction).where(
-            Interaction.raw_reference_id == thread_id,
-            Interaction.contact_id == contact.id,
-            Interaction.user_id == user_id,
-        ).limit(1)
-    )
-    existing = result.scalar_one_or_none()
-    if existing:
-        # Always update direction if it changed (e.g. thread now has both
-        # inbound and outbound messages → mutual)
-        if existing.direction != direction and direction == "mutual":
-            existing.direction = "mutual"
+) -> int:
+    """Sync individual messages from a thread as separate Interactions.
 
-        # Update timestamp and snippet if thread has newer messages
-        if occurred_at > existing.occurred_at:
-            existing.occurred_at = occurred_at
-            if snippet:
-                existing.content_preview = snippet[:500]
-        elif snippet and (not existing.content_preview or existing.direction == "mutual"):
-            # Backfill snippet for mutual threads (show contact's message, not user's reply)
-            existing.content_preview = snippet[:500]
-        return existing
+    Returns count of new interactions created.
+    """
+    msg_metas = _process_thread_messages(thread_data, user_email)
+    if not msg_metas:
+        return 0
 
-    interaction = Interaction(
-        id=uuid.uuid4(),
-        contact_id=contact.id,
-        user_id=user_id,
-        platform="email",
-        direction=direction,
-        content_preview=snippet[:500] if snippet else None,
-        raw_reference_id=thread_id,
-        occurred_at=occurred_at,
-    )
-    db.add(interaction)
-    return interaction
+    new_count = 0
+
+    for meta in msg_metas:
+        # Dedup by message ID (not thread ID)
+        ref_id = f"gmail:{meta['message_id']}"
+
+        # Match counterpart emails to contacts
+        matched_contacts: list[Contact] = []
+        for addr in meta["counterpart_emails"]:
+            contact = await _find_contact_by_email(addr, user.id, db)
+            if contact and contact not in matched_contacts:
+                matched_contacts.append(contact)
+
+        # Fallback: check all thread participants
+        if not matched_contacts:
+            for addr in meta["all_participants"]:
+                if addr == user_email:
+                    continue
+                contact = await _find_contact_by_email(addr, user.id, db)
+                if contact and contact not in matched_contacts:
+                    matched_contacts.append(contact)
+
+        if not matched_contacts:
+            continue
+
+        # Build preview with subject prefix
+        preview = meta["snippet"]
+        if meta["subject"] and meta["subject"] != "(no subject)":
+            preview = f"{meta['subject']}: {preview}"
+
+        for contact in matched_contacts:
+            # Check if already exists
+            existing_result = await db.execute(
+                select(Interaction).where(
+                    Interaction.raw_reference_id == ref_id,
+                    Interaction.contact_id == contact.id,
+                    Interaction.user_id == user.id,
+                ).limit(1)
+            )
+            if existing_result.scalar_one_or_none():
+                continue
+
+            # Also check old thread-level ref_id for backward compatibility
+            # (previous sync used thread_id as ref, not message_id)
+            old_ref = meta["thread_id"]
+            old_result = await db.execute(
+                select(Interaction).where(
+                    Interaction.raw_reference_id == old_ref,
+                    Interaction.contact_id == contact.id,
+                    Interaction.user_id == user.id,
+                ).limit(1)
+            )
+            old_existing = old_result.scalar_one_or_none()
+            if old_existing:
+                # Migrate: update ref_id to message-level, keep the record
+                old_existing.raw_reference_id = ref_id
+                old_existing.direction = meta["direction"]
+                old_existing.content_preview = preview[:500] if preview else None
+                old_existing.occurred_at = meta["occurred_at"]
+                # Don't count as new — it's a migration of existing record
+                continue
+
+            interaction = Interaction(
+                id=uuid.uuid4(),
+                contact_id=contact.id,
+                user_id=user.id,
+                platform="email",
+                direction=meta["direction"],
+                content_preview=preview[:500] if preview else None,
+                raw_reference_id=ref_id,
+                occurred_at=meta["occurred_at"],
+            )
+            db.add(interaction)
+            new_count += 1
+
+            # Update last_interaction_at on contact
+            if (
+                contact.last_interaction_at is None
+                or contact.last_interaction_at < meta["occurred_at"]
+            ):
+                contact.last_interaction_at = meta["occurred_at"]
+
+    return new_count
 
 
 async def sync_gmail_for_user(user: User, db: AsyncSession) -> int:
-    """
-    Sync Gmail threads for *user* and persist them as Interaction records.
+    """Sync Gmail messages for *user* as per-message Interaction records.
+
+    Each email message in a thread becomes its own Interaction with correct
+    direction (inbound/outbound) and snippet.
 
     Returns the number of new interactions created.
     """
@@ -237,7 +287,6 @@ async def sync_gmail_for_user(user: User, db: AsyncSession) -> int:
         if not thread_id:
             continue
 
-        # Fetch full thread with all messages and headers
         try:
             thread_data = (
                 service.users()
@@ -250,83 +299,7 @@ async def sync_gmail_for_user(user: User, db: AsyncSession) -> int:
             logger.exception("Failed to fetch thread %s for user %s.", thread_id, user.id)
             continue
 
-        meta = _thread_to_metadata(thread_data)
-        if not meta:
-            continue
-
-        # Determine direction relative to the authenticated user.
-        # Check ALL messages in the thread to detect mutual conversations.
-        user_sent = False
-        user_received = False
-        for msg in thread_data.get("messages", []):
-            msg_headers = msg.get("payload", {}).get("headers", [])
-            msg_from = _parse_email_addresses(_extract_header(msg_headers, "from"))
-            if user_email in msg_from:
-                user_sent = True
-            else:
-                user_received = True
-
-        if user_sent and user_received:
-            direction = "mutual"
-        elif user_sent:
-            direction = "outbound"
-        else:
-            direction = "inbound"
-
-        # Use last message to determine counterparts for contact matching
-        if user_email in meta["from_addresses"]:
-            counterpart_emails = [e for e in (meta["to_addresses"] + meta["cc_addresses"])
-                                  if e != user_email]
-        else:
-            counterpart_emails = [e for e in meta["from_addresses"] if e != user_email]
-
-        # Match counterparts to contacts in the database
-        matched_contacts: list[Contact] = []
-        for addr in counterpart_emails:
-            contact = await _find_contact_by_email(addr, user.id, db)
-            if contact and contact not in matched_contacts:
-                matched_contacts.append(contact)
-
-        # Fallback: check all thread participants if last message didn't match
-        if not matched_contacts:
-            for addr in meta["participants"]:
-                if addr == user_email:
-                    continue
-                contact = await _find_contact_by_email(addr, user.id, db)
-                if contact and contact not in matched_contacts:
-                    matched_contacts.append(contact)
-
-        if not matched_contacts:
-            continue
-
-        # For mutual threads, prefer the first inbound snippet (what the
-        # contact wrote) over the last outbound snippet (your reply).
-        display_snippet = meta["snippet"]
-        if direction == "mutual" and meta.get("first_snippet"):
-            display_snippet = meta["first_snippet"]
-
-        for contact in matched_contacts:
-            interaction = await _upsert_interaction(
-                contact=contact,
-                user_id=user.id,
-                thread_id=thread_id,
-                direction=direction,
-                snippet=f"{meta['subject']}: {display_snippet}"[:500] if meta.get("subject") else display_snippet,
-                occurred_at=meta["occurred_at"],
-                db=db,
-            )
-            # Check if this was newly added (no prior pk in identity map means new)
-            is_new = interaction.created_at is None  # True before flush
-            if is_new:
-                new_count += 1
-
-            # Update last_interaction_at on contact if this is more recent
-            occurred = meta["occurred_at"]
-            if (
-                contact.last_interaction_at is None
-                or contact.last_interaction_at < occurred
-            ):
-                contact.last_interaction_at = occurred
+        new_count += await _sync_thread_messages(thread_data, user, user_email, db)
 
     try:
         await db.flush()
@@ -405,31 +378,7 @@ async def sync_contact_emails(user: User, contact: Contact, db: AsyncSession) ->
             logger.exception("Failed to fetch thread %s for contact %s.", thread_id, contact.id)
             continue
 
-        meta = _thread_to_metadata(thread_data)
-        if not meta:
-            continue
-
-        if user_email in meta["from_addresses"]:
-            direction = "outbound"
-        else:
-            direction = "inbound"
-
-        interaction = await _upsert_interaction(
-            contact=contact,
-            user_id=user.id,
-            thread_id=thread_id,
-            direction=direction,
-            snippet=meta["snippet"],
-            occurred_at=meta["occurred_at"],
-            db=db,
-        )
-        is_new = interaction.created_at is None
-        if is_new:
-            new_count += 1
-
-        occurred = meta["occurred_at"]
-        if contact.last_interaction_at is None or contact.last_interaction_at < occurred:
-            contact.last_interaction_at = occurred
+        new_count += await _sync_thread_messages(thread_data, user, user_email, db)
 
     try:
         await db.flush()
