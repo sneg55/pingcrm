@@ -153,7 +153,10 @@ async def _refresh_and_retry(user: User, db: AsyncSession) -> dict[str, str] | N
     try:
         tokens = await refresh_twitter_token(user.twitter_refresh_token)
         store_tokens(user, tokens)
-        await db.flush()
+        # CRITICAL: commit immediately — Twitter rotates refresh tokens on each
+        # use. If we only flush and the caller's transaction later rolls back,
+        # the new refresh token is lost and the old one is already dead.
+        await db.commit()
         _r.delete(lock_key)
         return {"Authorization": f"Bearer {tokens['access_token']}"}
     except httpx.HTTPStatusError as e:
@@ -189,7 +192,7 @@ async def _refresh_and_retry(user: User, db: AsyncSession) -> dict[str, str] | N
                     body="Failed to refresh your Twitter token. Please reconnect in Settings to restore Twitter sync.",
                     link="/settings",
                 ))
-            await db.flush()
+            await db.commit()
         _r.delete(lock_key)
         return None
     except Exception:
