@@ -221,10 +221,12 @@ async def _sync_thread_messages(
 
         # Priority 1: Match via BCC hash (user+hash@domain → contact)
         matched_contacts: list[Contact] = []
+        matched_via_bcc = False
         for bcc_hash in meta.get("bcc_hashes", []):
             contact = await _find_contact_by_bcc_hash(bcc_hash, user.id, db)
             if contact and contact not in matched_contacts:
                 matched_contacts.append(contact)
+                matched_via_bcc = True
 
         # Priority 2: Match counterpart emails to contacts
         if not matched_contacts:
@@ -245,9 +247,9 @@ async def _sync_thread_messages(
         if not matched_contacts:
             continue
 
-        # Clean snippet: strip quoted reply text, don't prepend subject
-        # (subject is stored separately as part of the thread, not the message)
-        preview = _clean_snippet(meta["snippet"])
+        # BCC-logged emails are intentionally forwarded — keep full content.
+        # Regular emails: strip quoted reply text for cleaner previews.
+        preview = meta["snippet"] if matched_via_bcc else _clean_snippet(meta["snippet"])
 
         for contact in matched_contacts:
             # Check if already exists
