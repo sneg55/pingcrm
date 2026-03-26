@@ -20,6 +20,8 @@ from app.models.user import User
 
 logger = logging.getLogger(__name__)
 
+import base64
+
 GMAIL_SCOPES = ["https://www.googleapis.com/auth/gmail.readonly"]
 MAX_RESULTS = 500  # threads per page
 GMAIL_LOOKBACK_QUERY = "newer_than:1y"  # sync last year of email
@@ -42,6 +44,34 @@ def _clean_snippet(snippet: str) -> str:
     for pat in _QUOTE_PATTERNS:
         text = pat.split(text, 1)[0]
     return text.strip()
+
+
+def _extract_plain_body(payload: dict) -> str:
+    """Extract plain-text body from a Gmail message payload.
+
+    Handles both simple messages (body directly in payload) and multipart
+    messages (text/plain part nested under payload.parts).
+    Returns up to 2000 chars of plain text.
+    """
+    def _find_text_part(part: dict) -> str | None:
+        mime = part.get("mimeType", "")
+        if mime == "text/plain":
+            data = part.get("body", {}).get("data", "")
+            if data:
+                try:
+                    return base64.urlsafe_b64decode(data).decode("utf-8", errors="replace")
+                except Exception:
+                    return None
+        for sub in part.get("parts", []):
+            result = _find_text_part(sub)
+            if result:
+                return result
+        return None
+
+    body = _find_text_part(payload)
+    if body:
+        return body[:2000].strip()
+    return ""
 
 
 def _build_gmail_service(refresh_token: str) -> Any:
@@ -181,8 +211,9 @@ def _process_thread_messages(
         internal_date_ms = int(msg.get("internalDate", 0))
         occurred_at = datetime.fromtimestamp(internal_date_ms / 1000, tz=UTC)
 
-        # Snippet
-        snippet = msg.get("snippet", "") or ""
+        # Content: prefer full body (from format="full") over snippet
+        body = _extract_plain_body(msg.get("payload", {}))
+        snippet = body if body else (msg.get("snippet", "") or "")
 
         results.append({
             "message_id": msg_id,
@@ -204,12 +235,28 @@ async def _sync_thread_messages(
     user: User,
     user_email: str,
     db: AsyncSession,
+    service: Any = None,
 ) -> int:
     """Sync individual messages from a thread as separate Interactions.
 
     Returns count of new interactions created.
     """
     msg_metas = _process_thread_messages(thread_data, user_email)
+
+    # If any message has BCC hashes and service is available, re-fetch
+    # the thread with format="full" to get actual email body (not just snippet).
+    has_bcc = any(meta.get("bcc_hashes") for meta in msg_metas)
+    if has_bcc and service and not _extract_plain_body(thread_data.get("messages", [{}])[0].get("payload", {})):
+        try:
+            full_data = (
+                service.users()
+                .threads()
+                .get(userId="me", id=thread_data.get("id", ""), format="full")
+                .execute()
+            )
+            msg_metas = _process_thread_messages(full_data, user_email)
+        except Exception:
+            logger.warning("Failed to re-fetch thread %s with full format", thread_data.get("id"))
     if not msg_metas:
         return 0
 
@@ -251,9 +298,9 @@ async def _sync_thread_messages(
         # Regular emails: strip quoted reply text for cleaner previews.
         preview = meta["snippet"] if matched_via_bcc else _clean_snippet(meta["snippet"])
 
-        # Skip messages with very short or empty content (e.g. "-- Nick Sawinyh"
-        # signature-only messages from forwards)
-        if not preview or len(preview.strip()) < 20:
+        # Skip messages with empty content after cleaning (e.g. signature-only
+        # forward wrappers like "-- Nick Sawinyh")
+        if not preview.strip():
             continue
 
         for contact in matched_contacts:
@@ -374,7 +421,7 @@ async def sync_gmail_for_user(user: User, db: AsyncSession) -> int:
             logger.exception("Failed to fetch thread %s for user %s.", thread_id, user.id)
             continue
 
-        new_count += await _sync_thread_messages(thread_data, user, user_email, db)
+        new_count += await _sync_thread_messages(thread_data, user, user_email, db, service=service)
 
     try:
         await db.flush()
@@ -453,7 +500,7 @@ async def sync_contact_emails(user: User, contact: Contact, db: AsyncSession) ->
             logger.exception("Failed to fetch thread %s for contact %s.", thread_id, contact.id)
             continue
 
-        new_count += await _sync_thread_messages(thread_data, user, user_email, db)
+        new_count += await _sync_thread_messages(thread_data, user, user_email, db, service=service)
 
     try:
         await db.flush()
