@@ -13,16 +13,31 @@ The Gmail integration uses standard Google OAuth 2.0. After granting access on t
 
 ## Email Sync
 
-Email threads are imported as interactions. Each synced thread captures:
+Individual email messages are imported as interactions. Each message captures:
 
 - **Sender and recipients** -- mapped to existing contacts or used to create new ones.
-- **Subject line** -- stored as the interaction title.
-- **Timestamps** -- sent and received times for accurate timeline ordering.
-- **Body snippets** -- a preview of the email content for context without storing full message bodies.
+- **Direction** -- inbound (contact sent to you) or outbound (you sent to contact), per message.
+- **Subject line** -- prepended to the message snippet for context.
+- **Timestamps** -- sent times for accurate timeline ordering.
+- **Body snippets** -- a preview of the email content without storing full message bodies.
 
-Threads are deduplicated by Gmail thread ID, so re-syncing does not create duplicate interactions.
+Messages are deduplicated by Gmail message ID. Multi-message threads create separate interactions for each message, showing the full conversation flow in the timeline.
 
 **Schedule:** Email sync runs automatically every 6 hours.
+
+## BCC Email Logging
+
+Each contact has a unique BCC address. When you BCC that address on any email from any client (Gmail, Outlook, Apple Mail), PingCRM automatically logs the email to that contact's timeline.
+
+**Format:** `yourname+{hash}@gmail.com` (uses your connected Gmail address with a `+hash` suffix)
+
+**How it works:**
+1. Find the BCC address on the contact detail page (copy button next to the hash).
+2. When composing an email, add the BCC address.
+3. Gmail delivers the email to your inbox (the `+` suffix is ignored by Gmail).
+4. On next sync, PingCRM detects the `+hash` in the headers and links the interaction to the correct contact.
+
+**No custom domain or email infrastructure required** -- it uses Gmail's native `+` addressing.
 
 ## Google Contacts Sync
 

@@ -29,6 +29,7 @@ export interface Contact {
   last_followup_at: string | null;
   priority_level: string;
   source: string | null;
+  bcc_hash: string | null;
   created_at: string;
   updated_at: string | null;
 }

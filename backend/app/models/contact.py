@@ -1,3 +1,4 @@
+import hashlib
 import uuid
 from datetime import datetime
 
@@ -6,6 +7,11 @@ from sqlalchemy.dialects.postgresql import ARRAY, JSON, JSONB, UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.core.database import Base
+
+
+def _generate_bcc_hash() -> str:
+    """Generate a short hash for BCC email addressing."""
+    return hashlib.sha256(uuid.uuid4().bytes).hexdigest()[:7]
 
 
 class Contact(Base):
@@ -69,6 +75,7 @@ class Contact(Base):
     source: Mapped[str | None] = mapped_column(String, nullable=True)
     user_edited_fields: Mapped[list[str] | None] = mapped_column(JSONB, nullable=True)
     google_resource_name: Mapped[str | None] = mapped_column(String, nullable=True, index=True)
+    bcc_hash: Mapped[str | None] = mapped_column(String(8), nullable=True, index=True, default=_generate_bcc_hash)
 
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False

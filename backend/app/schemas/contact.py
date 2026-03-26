@@ -115,6 +115,7 @@ class ContactResponse(ContactBase):
     last_interaction_at: datetime | None = None
     last_followup_at: datetime | None = None
     user_edited_fields: list[str] = []
+    bcc_hash: str | None = None
     created_at: datetime
     updated_at: datetime | None = None
 

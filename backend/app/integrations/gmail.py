@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import email.utils
 import logging
+import re
 import uuid
 from datetime import UTC, datetime
 from typing import Any
@@ -58,6 +59,42 @@ def _parse_email_addresses(header_value: str) -> list[str]:
     return addresses
 
 
+_PLUS_ADDR_RE = re.compile(r"\+([a-f0-9]{7})@")
+
+
+def _extract_bcc_hashes(addresses: list[str], user_email: str) -> list[str]:
+    """Extract BCC hashes from +hash addresses matching the user's email domain.
+
+    E.g. 'nsawinyh+c7f3a2b@gmail.com' → ['c7f3a2b'] if user is nsawinyh@gmail.com
+    """
+    if not user_email:
+        return []
+    local, _, domain = user_email.partition("@")
+    if not domain:
+        return []
+    hashes = []
+    for addr in addresses:
+        if not addr.endswith(f"@{domain}"):
+            continue
+        m = _PLUS_ADDR_RE.search(addr)
+        if m and addr.startswith(f"{local}+"):
+            hashes.append(m.group(1))
+    return hashes
+
+
+async def _find_contact_by_bcc_hash(
+    bcc_hash: str, user_id: uuid.UUID, db: AsyncSession
+) -> Contact | None:
+    """Look up a Contact by its BCC hash."""
+    result = await db.execute(
+        select(Contact).where(
+            Contact.user_id == user_id,
+            Contact.bcc_hash == bcc_hash,
+        ).limit(1)
+    )
+    return result.scalar_one_or_none()
+
+
 async def _find_contact_by_email(
     email_addr: str, user_id: uuid.UUID, db: AsyncSession
 ) -> Contact | None:
@@ -78,7 +115,7 @@ def _process_thread_messages(
 
     Returns a list of dicts, one per message:
         {message_id, thread_id, subject, direction, snippet, occurred_at,
-         counterpart_emails, all_participants}
+         counterpart_emails, all_participants, bcc_hashes}
     """
     messages = thread_data.get("messages", [])
     if not messages:
@@ -107,11 +144,16 @@ def _process_thread_messages(
         from_addrs = _parse_email_addresses(_extract_header(msg_headers, "from"))
         to_addrs = _parse_email_addresses(_extract_header(msg_headers, "to"))
         cc_addrs = _parse_email_addresses(_extract_header(msg_headers, "cc"))
+        bcc_addrs = _parse_email_addresses(_extract_header(msg_headers, "bcc"))
+
+        # Extract BCC hashes from +hash addresses
+        all_addrs = to_addrs + cc_addrs + bcc_addrs
+        bcc_hashes = _extract_bcc_hashes(all_addrs, user_email)
 
         # Direction: outbound if user sent it, inbound otherwise
         if user_email in from_addrs:
             direction = "outbound"
-            counterpart_emails = [e for e in (to_addrs + cc_addrs) if e != user_email]
+            counterpart_emails = [e for e in (to_addrs + cc_addrs) if e != user_email and "+" not in e.split("@")[0]]
         else:
             direction = "inbound"
             counterpart_emails = [e for e in from_addrs if e != user_email]
@@ -132,6 +174,7 @@ def _process_thread_messages(
             "occurred_at": occurred_at,
             "counterpart_emails": counterpart_emails,
             "all_participants": list(all_participants),
+            "bcc_hashes": bcc_hashes,
         })
 
     return results
@@ -157,14 +200,21 @@ async def _sync_thread_messages(
         # Dedup by message ID (not thread ID)
         ref_id = f"gmail:{meta['message_id']}"
 
-        # Match counterpart emails to contacts
+        # Priority 1: Match via BCC hash (user+hash@domain → contact)
         matched_contacts: list[Contact] = []
-        for addr in meta["counterpart_emails"]:
-            contact = await _find_contact_by_email(addr, user.id, db)
+        for bcc_hash in meta.get("bcc_hashes", []):
+            contact = await _find_contact_by_bcc_hash(bcc_hash, user.id, db)
             if contact and contact not in matched_contacts:
                 matched_contacts.append(contact)
 
-        # Fallback: check all thread participants
+        # Priority 2: Match counterpart emails to contacts
+        if not matched_contacts:
+            for addr in meta["counterpart_emails"]:
+                contact = await _find_contact_by_email(addr, user.id, db)
+                if contact and contact not in matched_contacts:
+                    matched_contacts.append(contact)
+
+        # Priority 3: Fallback — check all thread participants
         if not matched_contacts:
             for addr in meta["all_participants"]:
                 if addr == user_email:
@@ -292,7 +342,7 @@ async def sync_gmail_for_user(user: User, db: AsyncSession) -> int:
                 service.users()
                 .threads()
                 .get(userId="me", id=thread_id, format="metadata",
-                     metadataHeaders=["From", "To", "Cc", "Subject", "Date"])
+                     metadataHeaders=["From", "To", "Cc", "Bcc", "Subject", "Date"])
                 .execute()
             )
         except Exception:
@@ -371,7 +421,7 @@ async def sync_contact_emails(user: User, contact: Contact, db: AsyncSession) ->
                 service.users()
                 .threads()
                 .get(userId="me", id=thread_id, format="metadata",
-                     metadataHeaders=["From", "To", "Cc", "Subject", "Date"])
+                     metadataHeaders=["From", "To", "Cc", "Bcc", "Subject", "Date"])
                 .execute()
             )
         except Exception:

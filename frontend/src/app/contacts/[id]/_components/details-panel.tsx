@@ -1,12 +1,13 @@
 "use client";
 
 import { useState, useRef, useEffect } from "react";
-import { Building2, Check, Pencil, Plus, Wand2 } from "lucide-react";
+import { Building2, Check, Copy, Pencil, Plus, Wand2 } from "lucide-react";
 import Link from "next/link";
 import { cn } from "@/lib/utils";
 import { InlineListField } from "@/components/inline-list-field";
 import { CompanyFavicon } from "@/components/company-favicon";
 import { client } from "@/lib/api-client";
+import { useAuth } from "@/hooks/use-auth";
 import { type Contact } from "@/hooks/use-contacts";
 
 /* ── Copy button ── */
@@ -329,6 +330,38 @@ function CompanyAutocompleteField({
   );
 }
 
+/* ── BCC Address Row ── */
+
+function BccAddressRow({ address }: { address: string }) {
+  const [copied, setCopied] = useState(false);
+  return (
+    <div className="group/row flex items-center justify-between py-1.5 px-1 -mx-1 rounded hover:bg-stone-50 dark:hover:bg-stone-800/50">
+      <span className="text-xs text-stone-400 dark:text-stone-500 w-24 shrink-0">BCC log</span>
+      <div className="flex items-center gap-1.5 min-w-0 flex-1">
+        <span className="text-xs text-stone-500 dark:text-stone-400 truncate" title={address}>
+          {address}
+        </span>
+        <button
+          onClick={() => {
+            void navigator.clipboard.writeText(address);
+            setCopied(true);
+            setTimeout(() => setCopied(false), 1500);
+          }}
+          className={cn(
+            "p-0.5 rounded transition-all shrink-0",
+            copied
+              ? "text-emerald-500"
+              : "text-stone-300 dark:text-stone-600 hover:text-stone-500 dark:hover:text-stone-400 opacity-0 group-hover/row:opacity-100"
+          )}
+          title="Copy BCC address"
+        >
+          {copied ? <Check className="w-3 h-3" /> : <Copy className="w-3 h-3" />}
+        </button>
+      </div>
+    </div>
+  );
+}
+
 /* ── Details Panel ── */
 
 export function DetailsPanel({
@@ -344,9 +377,18 @@ export function DetailsPanel({
   onExtractBio?: () => void;
   isExtracting?: boolean;
 }) {
+  const { user } = useAuth();
   const hasBios = Boolean(
     contact.twitter_bio || contact.telegram_bio || contact.full_name
   );
+
+  // Construct BCC address: user's email with +hash suffix
+  const bccAddress = (() => {
+    if (!contact.bcc_hash || !user?.email) return null;
+    const [local, domain] = user.email.split("@");
+    if (!local || !domain) return null;
+    return `${local}+${contact.bcc_hash}@${domain}`;
+  })();
 
   return (
     <div className="bg-white dark:bg-stone-900 rounded-xl border border-stone-200 dark:border-stone-700 p-5">
@@ -412,6 +454,7 @@ export function DetailsPanel({
           isLink
           linkPrefix="mailto:"
         />
+        {bccAddress && <BccAddressRow address={bccAddress} />}
         <InlineField
           label="Telegram"
           value={contact.telegram_username}

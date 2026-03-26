@@ -84,11 +84,16 @@ Send messages directly from the contact detail page. Supported channels:
 
 The composer uses AI to draft context-aware messages based on the contact's profile and interaction history.
 
+### BCC Email Logging
+
+Each contact has a unique BCC address (e.g., `you+c7f3a2b@gmail.com`). BCC this address when sending emails from any client to automatically log the email to this contact's timeline. See [Gmail Integration — BCC Email Logging](./gmail.md#bcc-email-logging) for details.
+
 ### Interaction Timeline
 
 A chronological timeline of all interactions with the contact, including:
 
 - Sent and received messages across all platforms.
+- Emails logged via BCC addressing.
 - Manually added notes.
 - Logged meetings.
 - Bio change events (detected from Twitter and Telegram).
