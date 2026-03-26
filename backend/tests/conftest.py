@@ -6,6 +6,7 @@ from datetime import UTC, datetime, timedelta
 import pytest
 import pytest_asyncio
 from httpx import ASGITransport, AsyncClient
+from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
 # Force test config before any app imports
@@ -29,16 +30,21 @@ from app.models.notification import Notification
 from app.models.contact_merge import ContactMerge
 from app.models.user import User
 
+# Pre-compute table names for fast TRUNCATE
+_ALL_TABLE_NAMES = ", ".join(t.name for t in reversed(Base.metadata.sorted_tables))
+
 
 @pytest_asyncio.fixture(autouse=True, loop_scope="function")
 async def setup_database():
-    """Create all tables before each test, drop after."""
+    """Create tables once, TRUNCATE data between tests (much faster than DDL per test)."""
     engine = create_async_engine(os.environ["DATABASE_URL"], echo=False)
+    # Ensure tables exist (idempotent — no-op if already created)
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
     yield engine
+    # Fast cleanup: TRUNCATE all data instead of DROP+CREATE
     async with engine.begin() as conn:
-        await conn.run_sync(Base.metadata.drop_all)
+        await conn.execute(text(f"TRUNCATE {_ALL_TABLE_NAMES} CASCADE"))
     await engine.dispose()
 
 
