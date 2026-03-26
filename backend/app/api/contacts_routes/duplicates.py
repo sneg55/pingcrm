@@ -30,7 +30,7 @@ async def find_contact_duplicates(
 ) -> Envelope[list[DuplicateContactData]]:
     """Find possible duplicates for a specific contact."""
     from app.models.identity_match import IdentityMatch
-    from app.services.identity_resolution import compute_adaptive_score, build_blocking_keys
+    from app.services.identity_resolution import compute_adaptive_score, build_blocking_keys, _same_source
 
     result = await db.execute(
         select(Contact).where(Contact.id == contact_id, Contact.user_id == current_user.id)
@@ -52,9 +52,13 @@ async def find_contact_duplicates(
         if other:
             rejected_ids.add(other)
 
-    # Get all other contacts for this user
+    # Get all other non-archived contacts for this user
     all_result = await db.execute(
-        select(Contact).where(Contact.user_id == current_user.id, Contact.id != contact_id)
+        select(Contact).where(
+            Contact.user_id == current_user.id,
+            Contact.id != contact_id,
+            Contact.priority_level != "archived",
+        )
     )
     others: list[Contact] = list(all_result.scalars().all())
 
@@ -64,6 +68,8 @@ async def find_contact_duplicates(
     duplicates = []
     for other in others:
         if other.id in rejected_ids:
+            continue
+        if _same_source(target, other):
             continue
         other_keys = set(build_blocking_keys(other))
         if not target_keys & other_keys:

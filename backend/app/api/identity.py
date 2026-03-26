@@ -116,14 +116,17 @@ async def list_pending_matches(
     current_user: User = Depends(get_current_user),
 ) -> Envelope[list[IdentityMatchData]]:
     """List all pending identity matches for the authenticated user's contacts."""
-    user_contacts_sq = select(Contact.id).where(Contact.user_id == current_user.id)
+    non_archived_sq = select(Contact.id).where(
+        Contact.user_id == current_user.id,
+        Contact.priority_level != "archived",
+    )
 
     result = await db.execute(
         select(IdentityMatch).where(
             IdentityMatch.status == "pending_review",
-            IdentityMatch.contact_a_id.in_(user_contacts_sq),
+            IdentityMatch.contact_a_id.in_(non_archived_sq),
             IdentityMatch.contact_b_id.isnot(None),
-            IdentityMatch.contact_b_id.in_(user_contacts_sq),
+            IdentityMatch.contact_b_id.in_(non_archived_sq),
         )
     )
     user_matches = result.scalars().all()

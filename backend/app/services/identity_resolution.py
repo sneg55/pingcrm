@@ -94,7 +94,12 @@ async def find_deterministic_matches(user_id: uuid.UUID, db: AsyncSession) -> li
 
     Returns a list of IdentityMatch records that were created (already merged).
     """
-    result = await db.execute(select(Contact).where(Contact.user_id == user_id))
+    result = await db.execute(
+        select(Contact).where(
+            Contact.user_id == user_id,
+            Contact.priority_level != "archived",
+        )
+    )
     contacts: list[Contact] = list(result.scalars().all())
 
     merged_records: list[IdentityMatch] = []
@@ -318,15 +323,59 @@ async def merge_contacts(
 # ---------------------------------------------------------------------------
 
 
+def _same_source(ca: Contact, cb: Contact) -> bool:
+    """Return True if both contacts originate from the same platform.
+
+    Two contacts from the same source (e.g. both Telegram, both LinkedIn)
+    have unique identifiers on that platform and are definitively different
+    people. Duplicates only occur across different sources.
+    """
+    # Check platform-specific identifiers: if both have an ID on the same
+    # platform, they were independently created from that platform.
+    if ca.telegram_user_id and cb.telegram_user_id:
+        return True
+    if ca.telegram_username and cb.telegram_username:
+        return True
+    if ca.linkedin_profile_id and cb.linkedin_profile_id:
+        return True
+    if ca.twitter_user_id and cb.twitter_user_id:
+        return True
+    if ca.twitter_handle and cb.twitter_handle:
+        return True
+    return False
+
+
 def _name_similarity(a: str, b: str) -> float:
-    """Return 0.0-1.0 name similarity score."""
+    """Return 0.0-1.0 name similarity score.
+
+    Special handling: when both names have 2+ tokens (first + last) and the
+    first tokens clearly differ, cap the score low. "Sam Bronstein" vs
+    "Max Bronstein" share a last name but are different people.
+    """
     na, nb = _normalize_name(a), _normalize_name(b)
     if not na or not nb:
         return 0.0
     max_len = max(len(na), len(nb))
     if max_len == 0:
         return 1.0
-    return 1.0 - _levenshtein(na, nb) / max_len
+
+    base_score = 1.0 - _levenshtein(na, nb) / max_len
+
+    # Guard: when both have first+last names, require BOTH to be similar.
+    # "Sam Bronstein" vs "Max Bronstein" (same last, diff first) → not same.
+    # "Stephen Yang" vs "Stephen Young" (same first, diff last) → not same.
+    tokens_a = na.split()
+    tokens_b = nb.split()
+    if len(tokens_a) >= 2 and len(tokens_b) >= 2:
+        first_a, last_a = tokens_a[0], tokens_a[-1]
+        first_b, last_b = tokens_b[0], tokens_b[-1]
+        first_sim = 1.0 - _levenshtein(first_a, first_b) / max(len(first_a), len(first_b))
+        last_sim = 1.0 - _levenshtein(last_a, last_b) / max(len(last_a), len(last_b))
+        # If either first or last name clearly differs, these are different people
+        if first_sim < 0.6 or last_sim < 0.6:
+            return min(base_score, 0.30)
+
+    return base_score
 
 
 def _email_domain_match(emails_a: list[str] | None, emails_b: list[str] | None) -> float:
@@ -459,18 +508,36 @@ def _compute_adaptive_score(ca: Contact, cb: Contact) -> float:
     if has_name and name_score < 0.5 and company_score == 1.0 and email_score == 0.0:
         total = min(total, 0.35)
 
-    # Penalty: short names (< 6 chars) are likely first-name-only collisions
-    # ("Alex", "David") — reduce confidence when name is the dominant signal.
-    # Use the longest available name (including email-derived) for the length check.
-    effective_name_len = max(len(name_a), len(name_b))
-    if has_name and effective_name_len < 6 and not has_email and not has_company:
-        total *= 0.5
+    # Guard: same email domain + different names = colleagues, not duplicates.
+    # "Josh" (josh@telco.in) vs "Rajesh" (rajesh@telco.in) share a domain but
+    # are clearly different people.
+    if has_email and email_score == 1.0 and has_name and name_score < 0.7:
+        total = min(total, 0.35)
 
-    # Cap: when name is the *only* signal, cap at 0.85 to force human review
+    # Penalty: single-token names (first name only, no last name) are very
+    # common collisions ("Michael", "Daniel", "Alex"). When name is the dominant
+    # signal, penalize heavily. A single first name match with different companies
+    # or handles is almost certainly not the same person.
+    name_a_tokens = len(name_a.split()) if name_a else 0
+    name_b_tokens = len(name_b.split()) if name_b else 0
+    is_single_token = name_a_tokens <= 1 or name_b_tokens <= 1
+
+    if has_name and is_single_token:
+        if not has_email and not has_company and not has_username:
+            # First-name-only with zero corroborating signals → very low confidence
+            total = min(total * 0.4, 0.50)
+        elif has_company and company_score == 0.0:
+            # Same first name but different companies → almost certainly different people
+            total = min(total, 0.35)
+        elif has_username and username_score < 0.3:
+            # Same first name but different handles → likely different people
+            total = min(total, 0.45)
+
+    # Cap: when name is the *only* signal, cap at 0.70 to force human review
     # instead of auto-merging (two different people can share a name).
     active_count = sum(1 for v in available.values() if v)
     if active_count == 1 and has_name:
-        total = min(total, 0.85)
+        total = min(total, 0.70)
 
     return total
 
@@ -552,7 +619,12 @@ async def find_probabilistic_matches(user_id: uuid.UUID, db: AsyncSession) -> li
     - Create pending_review if 0.70 < score <= 0.85
     - Ignore if score < 0.70
     """
-    result = await db.execute(select(Contact).where(Contact.user_id == user_id))
+    result = await db.execute(
+        select(Contact).where(
+            Contact.user_id == user_id,
+            Contact.priority_level != "archived",
+        )
+    )
     contacts: list[Contact] = list(result.scalars().all())
 
     # Scope existing pairs query to this user's contacts.
@@ -594,6 +666,11 @@ async def find_probabilistic_matches(user_id: uuid.UUID, db: AsyncSession) -> li
         if ca.id == cb.id:
             continue
         if ca.id in deleted_ids or cb.id in deleted_ids:
+            continue
+
+        # Skip same-source pairs: two contacts from the same platform have
+        # unique identifiers on that platform — they're different people.
+        if _same_source(ca, cb):
             continue
 
         pair = frozenset([ca.id, cb.id])
