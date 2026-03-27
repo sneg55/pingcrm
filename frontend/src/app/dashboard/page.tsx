@@ -348,13 +348,15 @@ function OverdueRow({ contact }: { contact: OverdueContact }) {
 // Dashboard Page
 // ---------------------------------------------------------------------------
 export default function DashboardPage() {
-  const { suggestions, stats, overdueContacts, recentActivity, isLoading } =
+  const { suggestions, stats, statsReady, overdueContacts, recentActivity, isLoading } =
     useDashboardStats();
 
   const allPending = suggestions.filter((s) => s.status === "pending");
   const pendingSuggestions = allPending.slice(0, 5);
 
-  const isEmpty = stats.total === 0 && !isLoading;
+  // Only show empty state when stats API has confirmed total=0.
+  // Without statsReady, a slow/failed stats fetch would flash the empty state.
+  const isEmpty = statsReady && stats.total === 0 && !isLoading;
 
   return (
     <div className="min-h-screen bg-stone-50 dark:bg-stone-950 overflow-x-hidden">

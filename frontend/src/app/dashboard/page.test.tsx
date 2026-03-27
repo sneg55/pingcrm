@@ -57,6 +57,7 @@ function mockDashboard(overrides: Partial<ReturnType<typeof useDashboardStats>> 
   (useDashboardStats as ReturnType<typeof vi.fn>).mockReturnValue({
     suggestions: [],
     stats: defaultStats,
+    statsReady: true,
     overdueContacts: [],
     recentActivity: [],
     isLoading: false,

@@ -89,12 +89,17 @@ export function useDashboardStats() {
     overdueQuery.isLoading ||
     activityQuery.isLoading;
 
+  // statsReady: true only when the stats API has returned data at least once.
+  // Prevents showing empty state while stats are still loading/refetching.
+  const statsReady = statsQuery.data?.data != null;
+
   const isError =
     suggestionsQuery.isError || statsQuery.isError ||
     overdueQuery.isError || activityQuery.isError;
 
   return {
     suggestions,
+    statsReady,
     stats: {
       total: stats?.total ?? 0,
       active: stats?.active ?? 0,
