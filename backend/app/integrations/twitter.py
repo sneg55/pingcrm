@@ -242,6 +242,15 @@ async def fetch_dm_conversations(
                 body = resp.json()
                 error_detail = body.get("detail") or body.get("title") or str(body)
                 logger.warning("fetch_dm_conversations: HTTP %s — %s", resp.status_code, error_detail)
+
+                # 400 with since_id: cursor may be stale — retry without it
+                if resp.status_code == 400 and since_id:
+                    logger.info("fetch_dm_conversations: retrying without since_id (stale cursor)")
+                    since_id = None
+                    pagination_token = None
+                    all_events.clear()
+                    continue
+
                 # Raise HTTPStatusError so the task's 401 handler can catch and refresh
                 raise httpx.HTTPStatusError(
                     message=f"Twitter DM API error ({resp.status_code}): {error_detail}",
