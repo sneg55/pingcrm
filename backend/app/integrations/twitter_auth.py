@@ -129,7 +129,7 @@ async def _refresh_and_retry(user: User, db: AsyncSession) -> dict[str, str] | N
             body="Your Twitter access token has expired and no refresh token is available. Please reconnect in Settings.",
             link="/settings",
         ))
-        await db.flush()
+        await db.commit()
         return None
 
     # Lock to prevent concurrent refresh race condition:

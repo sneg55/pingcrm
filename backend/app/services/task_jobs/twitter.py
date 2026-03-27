@@ -125,6 +125,8 @@ def sync_twitter_dms_for_user(self, user_id: str) -> dict:
                     # Token expired during call — refresh and retry once
                     headers = await _refresh_and_retry(user, db)
                     if not headers:
+                        await record_sync_failure(sync_event, "Token refresh failed (401)", db=db)
+                        await db.commit()
                         return {"status": "auth_failed", "new_interactions": 0}
                     id_map = await _build_twitter_id_to_contact_map(user, db, headers)
                     dm_result = await sync_twitter_dms(user, db, _id_map=id_map, _headers=headers)

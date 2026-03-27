@@ -326,6 +326,9 @@ async def sync_twitter_dms(
                 resp.raise_for_status()
                 user.twitter_user_id = resp.json()["data"]["id"]
                 await db.flush()
+        except httpx.HTTPStatusError:
+            # Re-raise HTTP errors (401/403) so the task's retry/refresh logic can handle them
+            raise
         except Exception:
             logger.exception("sync_twitter_dms: failed to get user's Twitter ID")
             return 0
