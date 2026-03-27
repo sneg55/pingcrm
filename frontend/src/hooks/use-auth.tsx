@@ -1,6 +1,13 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import {
+  createContext,
+  useContext,
+  useState,
+  useEffect,
+  useCallback,
+  type ReactNode,
+} from "react";
 import { client } from "@/lib/api-client";
 
 export interface User {
@@ -9,7 +16,17 @@ export interface User {
   full_name: string | null;
 }
 
-export function useAuth() {
+interface AuthContextValue {
+  user: User | null;
+  isLoading: boolean;
+  login: (email: string, password: string) => Promise<void>;
+  register: (email: string, password: string, full_name: string) => Promise<void>;
+  logout: () => void;
+}
+
+const AuthContext = createContext<AuthContextValue | null>(null);
+
+export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
@@ -52,7 +69,6 @@ export function useAuth() {
       headers: { "Content-Type": "application/x-www-form-urlencoded" },
     });
     if (!data) throw new Error("Login failed");
-    // Login returns Envelope[TokenData]: { data: { access_token, token_type } }
     const envelope = data as { data?: { access_token: string }; access_token?: string };
     const token = envelope.data?.access_token ?? envelope.access_token;
     if (!token) throw new Error("Login failed");
@@ -80,5 +96,25 @@ export function useAuth() {
     window.location.href = "/auth/login";
   }, []);
 
-  return { user, isLoading, login, register, logout };
+  return (
+    <AuthContext.Provider value={{ user, isLoading, login, register, logout }}>
+      {children}
+    </AuthContext.Provider>
+  );
+}
+
+export function useAuth(): AuthContextValue {
+  const ctx = useContext(AuthContext);
+  if (!ctx) {
+    // Fallback for components rendered outside provider (e.g. tests)
+    // Returns a safe no-op default
+    return {
+      user: null,
+      isLoading: true,
+      login: async () => {},
+      register: async () => {},
+      logout: () => {},
+    };
+  }
+  return ctx;
 }

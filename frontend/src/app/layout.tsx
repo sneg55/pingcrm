@@ -3,6 +3,7 @@ import { DM_Sans, Plus_Jakarta_Sans, JetBrains_Mono } from "next/font/google";
 import "./globals.css";
 import { QueryProvider } from "@/lib/query-provider";
 import { ThemeProvider } from "@/components/theme-provider";
+import { AuthProvider } from "@/hooks/use-auth";
 import { Nav } from "@/components/nav";
 import { ErrorReporter } from "@/components/error-reporter";
 
@@ -46,9 +47,11 @@ export default function RootLayout({
       >
         <ThemeProvider>
           <QueryProvider>
-            <ErrorReporter />
-            <Nav />
-            {children}
+            <AuthProvider>
+              <ErrorReporter />
+              <Nav />
+              {children}
+            </AuthProvider>
           </QueryProvider>
         </ThemeProvider>
       </body>
