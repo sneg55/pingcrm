@@ -15,7 +15,9 @@ import {
   Wand2,
   X,
 } from "lucide-react";
+import { useQuery } from "@tanstack/react-query";
 import { cn } from "@/lib/utils";
+import { client } from "@/lib/api-client";
 import { type Contact } from "@/hooks/use-contacts";
 import { scorePillClasses, avatarColor, getInitials } from "../_lib/formatters";
 
@@ -151,6 +153,17 @@ export function HeaderCard({
   const [menuOpen, setMenuOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
 
+  // Fetch follow-up intervals from settings for tooltip display
+  const { data: priorityData } = useQuery({
+    queryKey: ["settings", "priority"],
+    queryFn: async () => {
+      const { data } = await client.GET("/api/v1/settings/priority");
+      return (data as any)?.data as { high: number; medium: number; low: number } | undefined;
+    },
+    staleTime: 5 * 60 * 1000,
+  });
+  const intervals = { high: priorityData?.high ?? 30, medium: priorityData?.medium ?? 60, low: priorityData?.low ?? 180 };
+
   useEffect(() => {
     function handleClick(e: MouseEvent) {
       if (menuRef.current && !menuRef.current.contains(e.target as Node)) setMenuOpen(false);
@@ -250,10 +263,10 @@ export function HeaderCard({
           {/* Priority toggle */}
           <div className="flex items-center rounded-lg border border-stone-200 dark:border-stone-700 overflow-hidden">
             {[
-              { level: "high", emoji: "\u{1F525}", colors: "bg-red-50 dark:bg-red-950 text-red-600" },
-              { level: "medium", emoji: "\u26A1", colors: "bg-amber-50 dark:bg-amber-950 text-amber-600" },
-              { level: "low", emoji: "\u{1F4A4}", colors: "bg-sky-50 dark:bg-sky-950 text-sky-600" },
-            ].map(({ level, emoji, colors }, i) => (
+              { level: "high", emoji: "\u{1F525}", colors: "bg-red-50 dark:bg-red-950 text-red-600", tooltip: `High priority — follow up every ${intervals.high} days` },
+              { level: "medium", emoji: "\u26A1", colors: "bg-amber-50 dark:bg-amber-950 text-amber-600", tooltip: `Medium priority — follow up every ${intervals.medium} days` },
+              { level: "low", emoji: "\u{1F4A4}", colors: "bg-sky-50 dark:bg-sky-950 text-sky-600", tooltip: `Low priority — follow up every ${intervals.low} days` },
+            ].map(({ level, emoji, colors, tooltip }, i) => (
               <button
                 key={level}
                 onClick={() => onUpdateContact({ priority_level: level })}
@@ -262,7 +275,7 @@ export function HeaderCard({
                   i < 2 && "border-r border-stone-200 dark:border-stone-700",
                   activePriority === level ? colors : "text-stone-400 dark:text-stone-500 hover:bg-stone-50 dark:hover:bg-stone-800"
                 )}
-                title={level.charAt(0).toUpperCase() + level.slice(1)}
+                title={tooltip}
               >
                 {emoji}
               </button>
@@ -293,6 +306,7 @@ export function HeaderCard({
             <button
               onClick={() => setMenuOpen((v) => !v)}
               className="p-2 rounded-lg text-stone-400 dark:text-stone-500 hover:bg-stone-100 dark:hover:bg-stone-800 transition-colors"
+              title="More actions"
             >
               <MoreVertical className="w-4 h-4" />
             </button>

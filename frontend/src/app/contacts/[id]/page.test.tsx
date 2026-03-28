@@ -594,9 +594,9 @@ describe("ContactDetailPage", () => {
   /* 32 — Priority toggle */
   it("renders priority level buttons (high/medium/low)", () => {
     renderPage();
-    expect(screen.getByTitle("High")).toBeInTheDocument();
-    expect(screen.getByTitle("Medium")).toBeInTheDocument();
-    expect(screen.getByTitle("Low")).toBeInTheDocument();
+    expect(screen.getByTitle(/High priority/)).toBeInTheDocument();
+    expect(screen.getByTitle(/Medium priority/)).toBeInTheDocument();
+    expect(screen.getByTitle(/Low priority/)).toBeInTheDocument();
   });
 
   /* 33 — Priority: clicking calls updateContact */
@@ -604,7 +604,7 @@ describe("ContactDetailPage", () => {
     const mutate = vi.fn();
     mockUseUpdateContact.mockReturnValue({ ...noopMutation, mutate });
     renderPage();
-    fireEvent.click(screen.getByTitle("High"));
+    fireEvent.click(screen.getByTitle(/High priority/));
     expect(mutate).toHaveBeenCalledWith(
       expect.objectContaining({ input: { priority_level: "high" } })
     );

@@ -259,6 +259,10 @@ export function MessageEditor({
             <RefreshCw className={cn("w-4 h-4", isRegenerating && "animate-spin")} />
           </button>
 
+        </div>
+
+        {/* Right: schedule + char count + send */}
+        <div className="flex items-center gap-2">
           {/* Schedule (Telegram only) */}
           {channel === "telegram" && (
             <button
@@ -277,10 +281,6 @@ export function MessageEditor({
               <Clock className="w-4 h-4" />
             </button>
           )}
-        </div>
-
-        {/* Right: char count + send */}
-        <div className="flex items-center gap-2">
           {charCount > 0 && (
             <span
               className={cn(
