@@ -100,9 +100,12 @@ async def build_prep_brief(
     if not contact_ids:
         return []
 
-    # --- Fetch contacts ---
+    # --- Fetch contacts (exclude archived) ---
     contacts_result = await db.execute(
-        select(Contact).where(Contact.id.in_(contact_ids))
+        select(Contact).where(
+            Contact.id.in_(contact_ids),
+            Contact.priority_level != "archived",
+        )
     )
     contacts = {c.id: c for c in contacts_result.scalars().all()}
     if not contacts:
