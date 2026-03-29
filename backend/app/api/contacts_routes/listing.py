@@ -40,7 +40,7 @@ async def list_contacts(
     has_birthday: bool | None = Query(None, description="Filter to contacts with (true) or without (false) a birthday set"),
     priority: str | None = Query(None, description="Filter by priority level: high, medium, low"),
     archived_only: bool = Query(False, description="Return only archived contacts"),
-    sort: str = Query("score", pattern="^(score|created|interaction|birthday|company|activity|overdue)$"),
+    sort: str = Query("score", pattern="^(score|created|interaction|birthday|company|activity|overdue|priority)$"),
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ) -> ContactListResponse:

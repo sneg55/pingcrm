@@ -216,6 +216,15 @@ async def list_contacts_paginated(
         order_clause = [Contact.birthday.is_(None).asc(), days_proxy.asc()]
     elif sort_by == "overdue":
         order_clause = [Contact.last_interaction_at.asc().nullsfirst(), Contact.relationship_score.asc()]
+    elif sort_by == "priority":
+        from sqlalchemy import case as case_fn
+        priority_order = case_fn(
+            (Contact.priority_level == "high", 1),
+            (Contact.priority_level == "medium", 2),
+            (Contact.priority_level == "low", 3),
+            else_=4,
+        )
+        order_clause = [priority_order.asc(), Contact.relationship_score.desc()]
     else:
         order_clause = [Contact.relationship_score.desc(), Contact.created_at.desc()]
 
