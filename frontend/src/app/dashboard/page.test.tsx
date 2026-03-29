@@ -25,6 +25,12 @@ vi.mock("@/components/message-editor", () => ({
   MessageEditor: () => <div data-testid="message-editor" />,
 }));
 
+vi.mock("@/components/animated-number", () => ({
+  AnimatedNumber: ({ value, className }: { value: number; className?: string }) => (
+    <span className={className}>{value.toLocaleString()}</span>
+  ),
+}));
+
 import { useDashboardStats } from "@/hooks/use-dashboard";
 
 // ---------------------------------------------------------------------------
@@ -81,8 +87,8 @@ describe("DashboardPage", () => {
     renderPage();
     // Pulse skeletons are rendered via animate-pulse divs in Pending Follow-ups
     // and Needs Attention sections. Check that no stat values appear yet.
-    const pulseEls = document.querySelectorAll(".animate-pulse");
-    expect(pulseEls.length).toBeGreaterThan(0);
+    const shimmerEls = document.querySelectorAll(".shimmer, .animate-pulse");
+    expect(shimmerEls.length).toBeGreaterThan(0);
   });
 
   // --- Empty state ---------------------------------------------------------

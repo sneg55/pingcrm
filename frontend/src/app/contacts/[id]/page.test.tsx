@@ -212,7 +212,7 @@ describe("ContactDetailPage", () => {
   it("shows animated skeleton while contact is loading", () => {
     mockUseContact.mockReturnValue({ data: undefined, isLoading: true, isError: false });
     const { container } = renderPage();
-    expect(container.querySelector("[class*='animate-pulse']")).toBeTruthy();
+    expect(container.querySelector("[class*='shimmer'], [class*='animate-pulse']")).toBeTruthy();
   });
 
   /* 2 — Error / not found */

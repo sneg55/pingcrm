@@ -222,7 +222,7 @@ function MatchCard({
   const isLowConfidence = score < 0.65;
 
   return (
-    <div className="bg-white dark:bg-stone-900 rounded-xl border border-stone-200 dark:border-stone-700 overflow-hidden">
+    <div className="card-hover bg-white dark:bg-stone-900 rounded-xl border border-stone-200 dark:border-stone-700 overflow-hidden">
       <div className="p-5">
         {/* Card header */}
         <div className="flex items-center justify-between mb-4">
@@ -388,7 +388,7 @@ export default function IdentityPage() {
     <div className="min-h-screen bg-stone-50 dark:bg-stone-950">
       <main className="max-w-6xl mx-auto px-4 py-8">
         {/* Header */}
-        <div className="mb-6 flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
+        <div className="animate-in stagger-1 mb-6 flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
           <div>
             <h1 className="text-2xl font-bold text-stone-900 dark:text-stone-100">Identity Resolution</h1>
             <p className="text-sm text-stone-500 dark:text-stone-400 mt-1">Review and merge duplicate contacts</p>
@@ -483,7 +483,7 @@ export default function IdentityPage() {
             </button>
           </div>
         ) : (
-          <div className="space-y-4">
+          <div className="animate-in stagger-2 space-y-4">
             {pendingMatches.map((match) => (
               <MatchCard
                 key={match.id}

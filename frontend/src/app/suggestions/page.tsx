@@ -184,7 +184,7 @@ function SuggestionCard({
   return (
     <div
       className={cn(
-        "bg-white dark:bg-stone-900 rounded-xl border border-stone-200 dark:border-stone-700 p-4 transition-all duration-200",
+        "card-hover bg-white dark:bg-stone-900 rounded-xl border border-stone-200 dark:border-stone-700 p-4 transition-all duration-200",
         expanded
           ? "border-teal-200 dark:border-teal-800 shadow-[0_2px_16px_rgba(13,148,136,0.08)]"
           : "cursor-pointer hover:shadow-[0_2px_12px_rgba(0,0,0,0.06)] hover:border-stone-300 dark:hover:border-stone-600"
@@ -355,7 +355,7 @@ export default function SuggestionsPage() {
 
       <main className="max-w-6xl mx-auto px-4 py-8">
         {/* Header */}
-        <div className="flex flex-wrap items-start justify-between gap-3 mb-6">
+        <div className="animate-in stagger-1 flex flex-wrap items-start justify-between gap-3 mb-6">
           <div>
             <h1 className="text-2xl font-bold text-stone-900 dark:text-stone-100 flex items-center gap-2.5">
               Suggestions Digest
@@ -428,7 +428,7 @@ export default function SuggestionsPage() {
           </div>
         ) : (
           /* Suggestion cards */
-          <div className="space-y-3">
+          <div className="animate-in stagger-2 space-y-3">
             {pendingSuggestions.map((suggestion) => (
               <SuggestionCard
                 key={suggestion.id}

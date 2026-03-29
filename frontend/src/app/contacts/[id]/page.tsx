@@ -28,7 +28,7 @@ export default function ContactDetailPage() {
     return (
       <div className="min-h-screen bg-stone-50 dark:bg-stone-950">
         <main className="max-w-6xl mx-auto px-4 py-8">
-          <div className="bg-white dark:bg-stone-900 rounded-xl border border-stone-200 dark:border-stone-700 p-6 mb-6 animate-pulse">
+          <div className="bg-white dark:bg-stone-900 rounded-xl border border-stone-200 dark:border-stone-700 p-6 mb-6 shimmer">
             <div className="flex items-start gap-6">
               <div className="w-20 h-20 rounded-full bg-stone-200 dark:bg-stone-800" />
               <div className="flex-1 space-y-3">
@@ -144,6 +144,7 @@ export default function ContactDetailPage() {
         )}
 
         {/* Header */}
+        <div className="animate-in stagger-1">
         <HeaderCard
           contact={contact}
           allTags={ctrl.allTags}
@@ -160,6 +161,7 @@ export default function ContactDetailPage() {
           onPromote={ctrl.handlePromote}
           isPromoting={ctrl.isPromoting}
         />
+        </div>
 
         {/* Delete confirmation modal */}
         {showDeleteConfirm && (
@@ -196,7 +198,7 @@ export default function ContactDetailPage() {
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
 
           {/* Main column (2/3) — DOM order 2, visual order 2 on desktop */}
-          <div className="lg:col-span-2 lg:order-2 space-y-4">
+          <div className="animate-in stagger-2 lg:col-span-2 lg:order-2 space-y-4">
             <MessageComposerCard contact={contact} contactId={id} />
             <AddNoteInput onSave={(content) => ctrl.addNoteMutation.mutate(content)} />
             <ChatTimeline
@@ -208,7 +210,7 @@ export default function ContactDetailPage() {
           </div>
 
           {/* Sidebar (1/3) — DOM order 1, visual order 1 on desktop */}
-          <div className="lg:col-span-1 lg:order-1 space-y-4">
+          <div className="animate-in stagger-3 lg:col-span-1 lg:order-1 space-y-4">
             {/* Mobile toggle — hidden on lg+ */}
             <button
               onClick={() => setSidebarOpen((v) => !v)}
@@ -233,7 +235,7 @@ export default function ContactDetailPage() {
 
               {/* Relationship Health */}
               {ctrl.activityLoading ? (
-                <div className="bg-white dark:bg-stone-900 rounded-xl border border-stone-200 dark:border-stone-700 p-5 animate-pulse">
+                <div className="bg-white dark:bg-stone-900 rounded-xl border border-stone-200 dark:border-stone-700 p-5 shimmer">
                   <div className="h-4 w-40 bg-stone-200 dark:bg-stone-800 rounded mb-4" />
                   <div className="space-y-3">
                     {[1, 2, 3, 4].map((i) => (

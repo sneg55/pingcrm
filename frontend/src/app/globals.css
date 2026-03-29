@@ -80,3 +80,81 @@
   font-family: var(--font-mono), ui-monospace, monospace;
   font-variant-numeric: tabular-nums;
 }
+
+/* ── Microinteractions ── */
+
+/* Staggered entrance animation (reuses existing fade-in-up keyframe) */
+.animate-in {
+  animation: fade-in-up 0.4s ease-out both;
+  opacity: 0;
+}
+.stagger-1 { animation-delay: 50ms; }
+.stagger-2 { animation-delay: 100ms; }
+.stagger-3 { animation-delay: 150ms; }
+.stagger-4 { animation-delay: 200ms; }
+.stagger-5 { animation-delay: 250ms; }
+.stagger-6 { animation-delay: 300ms; }
+.stagger-7 { animation-delay: 350ms; }
+.stagger-8 { animation-delay: 400ms; }
+
+/* Menu/dropdown entrance */
+@keyframes menu-in {
+  from { opacity: 0; transform: scale(0.95) translateY(-4px); }
+  to { opacity: 1; transform: scale(1) translateY(0); }
+}
+.menu-enter {
+  animation: menu-in 150ms ease-out;
+  transform-origin: top right;
+}
+
+/* Success pulse ring (send/save buttons) */
+@keyframes success-pulse {
+  0% { box-shadow: 0 0 0 0 rgba(20,184,166,0.4); }
+  100% { box-shadow: 0 0 0 12px transparent; }
+}
+.btn-success-pulse {
+  animation: success-pulse 0.6s ease-out;
+}
+
+/* Success flash border (cards) */
+@keyframes flash-success {
+  0% { box-shadow: 0 0 0 2px rgba(20,184,166,0.5); }
+  100% { box-shadow: 0 0 0 0 transparent; }
+}
+.flash-success {
+  animation: flash-success 1s ease-out;
+}
+
+/* Toast slide in from right */
+@keyframes slide-in-right {
+  from { transform: translateX(100%); opacity: 0; }
+  to { transform: translateX(0); opacity: 1; }
+}
+.toast-enter {
+  animation: slide-in-right 300ms ease-out;
+}
+
+/* Shimmer loading (replaces animate-pulse) */
+@keyframes shimmer {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+.shimmer {
+  background: linear-gradient(
+    90deg,
+    transparent 25%,
+    rgba(255,255,255,0.05) 50%,
+    transparent 75%
+  );
+  background-size: 200% 100%;
+  animation: shimmer 1.5s linear infinite;
+}
+
+/* Accessibility: respect reduced motion preference */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}

@@ -271,7 +271,7 @@ export function HeaderCard({
                 key={level}
                 onClick={() => onUpdateContact({ priority_level: level })}
                 className={cn(
-                  "px-2.5 py-1.5 text-xs transition-colors",
+                  "btn-press px-2.5 py-1.5 text-xs transition-colors",
                   i < 2 && "border-r border-stone-200 dark:border-stone-700",
                   activePriority === level ? colors : "text-stone-400 dark:text-stone-500 hover:bg-stone-50 dark:hover:bg-stone-800"
                 )}
@@ -286,7 +286,7 @@ export function HeaderCard({
           {contact.priority_level === "archived" ? (
             <button
               onClick={onArchive}
-              className="p-2 rounded-lg text-amber-500 bg-amber-50 dark:bg-amber-950 hover:text-amber-600 hover:bg-amber-100 dark:hover:bg-amber-900 transition-colors"
+              className="btn-press p-2 rounded-lg text-amber-500 bg-amber-50 dark:bg-amber-950 hover:text-amber-600 hover:bg-amber-100 dark:hover:bg-amber-900 transition-colors"
               title="Unarchive contact"
             >
               <ArchiveRestore className="w-4 h-4" />
@@ -294,7 +294,7 @@ export function HeaderCard({
           ) : (
             <button
               onClick={onArchive}
-              className="p-2 rounded-lg text-stone-400 dark:text-stone-500 hover:text-amber-600 hover:bg-amber-50 dark:hover:bg-amber-950 transition-colors"
+              className="btn-press p-2 rounded-lg text-stone-400 dark:text-stone-500 hover:text-amber-600 hover:bg-amber-50 dark:hover:bg-amber-950 transition-colors"
               title="Archive contact"
             >
               <Archive className="w-4 h-4" />
@@ -305,13 +305,13 @@ export function HeaderCard({
           <div className="relative" ref={menuRef}>
             <button
               onClick={() => setMenuOpen((v) => !v)}
-              className="p-2 rounded-lg text-stone-400 dark:text-stone-500 hover:bg-stone-100 dark:hover:bg-stone-800 transition-colors"
+              className="btn-press p-2 rounded-lg text-stone-400 dark:text-stone-500 hover:bg-stone-100 dark:hover:bg-stone-800 transition-colors"
               title="More actions"
             >
               <MoreVertical className="w-4 h-4" />
             </button>
             {menuOpen && (
-              <div className="absolute right-0 top-full mt-1 w-52 bg-white dark:bg-stone-900 rounded-lg border border-stone-200 dark:border-stone-700 shadow-lg py-1 z-50">
+              <div className="menu-enter absolute right-0 top-full mt-1 w-52 bg-white dark:bg-stone-900 rounded-lg border border-stone-200 dark:border-stone-700 shadow-lg py-1 z-50">
                 <button
                   onClick={() => {
                     setMenuOpen(false);

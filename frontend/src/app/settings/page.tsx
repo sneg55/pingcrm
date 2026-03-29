@@ -117,7 +117,7 @@ function SettingsContent() {
         <TabBar activeTab={ctrl.activeTab} onChange={ctrl.setTab} />
 
         {ctrl.activeTab === "integrations" && (
-          <IntegrationsTab
+          <div className="animate-in stagger-1"><IntegrationsTab
             connected={ctrl.connected}
             googleConnect={ctrl.googleConnect}
             googleSync={ctrl.googleSync}
@@ -135,11 +135,12 @@ function SettingsContent() {
             handleTwitterConnect={ctrl.handleTwitterConnect}
             handleTwitterSync={ctrl.handleTwitterSync}
           />
+          </div>
         )}
-        {ctrl.activeTab === "import" && <ImportTab />}
-        {ctrl.activeTab === "followup" && <FollowUpRulesTab />}
-        {ctrl.activeTab === "tags" && <TagsTab />}
-        {ctrl.activeTab === "account" && <AccountTab />}
+        {ctrl.activeTab === "import" && <div className="animate-in stagger-1"><ImportTab /></div>}
+        {ctrl.activeTab === "followup" && <div className="animate-in stagger-1"><FollowUpRulesTab /></div>}
+        {ctrl.activeTab === "tags" && <div className="animate-in stagger-1"><TagsTab /></div>}
+        {ctrl.activeTab === "account" && <div className="animate-in stagger-1"><AccountTab /></div>}
       </div>
 
       {ctrl.successPlatform && (

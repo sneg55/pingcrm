@@ -27,6 +27,7 @@ export function MessageComposerCard({
   const [expanded, setExpanded] = useState(false);
   const [sent, setSent] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [flashSuccess, setFlashSuccess] = useState(false);
   const [showSnooze, setShowSnooze] = useState(false);
   const snoozeRef = useRef<HTMLDivElement>(null);
 
@@ -109,6 +110,8 @@ export function MessageComposerCard({
           },
         });
       }
+      setFlashSuccess(true);
+      setTimeout(() => setFlashSuccess(false), 1000);
       setExpanded(false);
       void queryClient.invalidateQueries({ queryKey: ["interactions", contactId] });
       void queryClient.invalidateQueries({ queryKey: ["contacts", contactId] });
@@ -129,7 +132,8 @@ export function MessageComposerCard({
           ? hasSuggestion
             ? "border-amber-200 dark:border-amber-800 shadow-sm"
             : "border-teal-200 dark:border-teal-800 shadow-sm"
-          : "border-stone-200 dark:border-stone-700"
+          : "border-stone-200 dark:border-stone-700",
+        flashSuccess && "flash-success"
       )}
     >
       {/* Collapsed header */}
@@ -204,7 +208,7 @@ export function MessageComposerCard({
                   <Clock className="w-3 h-3" /> Snooze <ChevronDown className="w-2.5 h-2.5" />
                 </button>
                 {showSnooze && (
-                  <div className="absolute left-0 bottom-full mb-1 w-32 bg-white dark:bg-stone-900 rounded-lg border border-stone-200 dark:border-stone-700 shadow-lg py-1 z-50">
+                  <div className="menu-enter absolute left-0 bottom-full mb-1 w-32 bg-white dark:bg-stone-900 rounded-lg border border-stone-200 dark:border-stone-700 shadow-lg py-1 z-50">
                     <button
                       onClick={() => handleSnooze(14)}
                       className="w-full flex items-center gap-2 px-3 py-1.5 text-xs text-stone-700 dark:text-stone-300 hover:bg-stone-50 dark:hover:bg-stone-800"

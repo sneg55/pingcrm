@@ -19,6 +19,7 @@ import {
 import { useQueryClient } from "@tanstack/react-query";
 import { formatDistanceToNow } from "date-fns";
 import { ContactAvatar } from "@/components/contact-avatar";
+import { AnimatedNumber } from "@/components/animated-number";
 import { ScoreBadge } from "@/components/score-badge";
 import { MessageEditor } from "@/components/message-editor";
 import {
@@ -276,7 +277,7 @@ function ActivityItem({ event }: { event: ActivityEvent }) {
   return (
     <Link
       href={`/contacts/${event.contact_id}`}
-      className="flex items-center gap-3 bg-white dark:bg-stone-900 rounded-xl border border-stone-200 dark:border-stone-700 p-3.5 hover:border-stone-300 dark:hover:border-stone-600 transition-colors overflow-hidden"
+      className="card-hover flex items-center gap-3 bg-white dark:bg-stone-900 rounded-xl border border-stone-200 dark:border-stone-700 p-3.5 hover:border-stone-300 dark:hover:border-stone-600 transition-colors overflow-hidden"
     >
       <ContactAvatar
         avatarUrl={event.contact_avatar_url}
@@ -319,7 +320,7 @@ function OverdueRow({ contact }: { contact: OverdueContact }) {
   return (
     <Link
       href={`/contacts/${contact.id}`}
-      className="flex items-center gap-3 hover:bg-stone-50 dark:hover:bg-stone-800 rounded-md p-1 -mx-1 transition-colors"
+      className="card-hover flex items-center gap-3 hover:bg-stone-50 dark:hover:bg-stone-800 rounded-md p-1 -mx-1 transition-colors"
     >
       <ContactAvatar
         avatarUrl={contact.avatar_url}
@@ -444,7 +445,7 @@ export default function DashboardPage() {
 
         {/* Stat cards */}
         {!isEmpty && (
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-8">
+          <div className="animate-in stagger-1 grid grid-cols-1 sm:grid-cols-3 gap-4 mb-8">
             <StatCard
               icon={<Users className="w-4 h-4 text-teal-600 dark:text-teal-400" />}
               iconBg="bg-teal-50 dark:bg-teal-950"
@@ -479,7 +480,7 @@ export default function DashboardPage() {
             {/* LEFT 3/5: Pending Follow-ups + Recent Activity */}
             <div className="lg:col-span-3 space-y-6">
               {/* Pending Follow-ups */}
-              <div>
+              <div className="animate-in stagger-2">
                 <div className="flex items-center justify-between mb-3">
                   <h2 className="text-sm font-display font-semibold text-stone-900 dark:text-stone-100">
                     Pending Follow-ups
@@ -492,7 +493,7 @@ export default function DashboardPage() {
                 {isLoading ? (
                   <div className="space-y-3">
                     {[1, 2, 3].map((n) => (
-                      <div key={n} className="h-20 rounded-xl bg-white dark:bg-stone-900 border border-stone-200 dark:border-stone-700 animate-pulse" />
+                      <div key={n} className="h-20 rounded-xl bg-white dark:bg-stone-900 border border-stone-200 dark:border-stone-700 shimmer" />
                     ))}
                   </div>
                 ) : pendingSuggestions.length === 0 ? (
@@ -515,7 +516,7 @@ export default function DashboardPage() {
               </div>
 
               {/* Recent Activity */}
-              <div>
+              <div className="animate-in stagger-3">
                 <div className="flex items-center justify-between mb-3">
                   <h2 className="text-sm font-display font-semibold text-stone-900 dark:text-stone-100">
                     Recent Activity
@@ -527,7 +528,7 @@ export default function DashboardPage() {
                 {isLoading ? (
                   <div className="space-y-3">
                     {[1, 2, 3].map((n) => (
-                      <div key={n} className="h-16 rounded-xl bg-white dark:bg-stone-900 border border-stone-200 dark:border-stone-700 animate-pulse" />
+                      <div key={n} className="h-16 rounded-xl bg-white dark:bg-stone-900 border border-stone-200 dark:border-stone-700 shimmer" />
                     ))}
                   </div>
                 ) : recentActivity.length === 0 ? (
@@ -546,7 +547,7 @@ export default function DashboardPage() {
             </div>
 
             {/* RIGHT 2/5: Needs Attention */}
-            <div className="lg:col-span-2 space-y-6">
+            <div className="lg:col-span-2 space-y-6 animate-in stagger-2">
               <div className="bg-white dark:bg-stone-900 rounded-xl border border-stone-200 dark:border-stone-700 p-5">
                 <div className="flex items-center justify-between mb-4">
                   <h2 className="text-sm font-display font-semibold text-stone-900 dark:text-stone-100">
@@ -562,7 +563,7 @@ export default function DashboardPage() {
                 {isLoading ? (
                   <div className="space-y-3">
                     {[1, 2, 3].map((n) => (
-                      <div key={n} className="h-10 rounded-md bg-stone-100 dark:bg-stone-800 animate-pulse" />
+                      <div key={n} className="h-10 rounded-md bg-stone-100 dark:bg-stone-800 shimmer" />
                     ))}
                   </div>
                 ) : overdueContacts.length === 0 ? (
@@ -650,9 +651,9 @@ function StatCard({
       </div>
       <p className="font-mono-data text-2xl font-medium text-stone-900 dark:text-stone-100 tracking-tight">
         {isLoading ? (
-          <span className="inline-block w-12 h-7 bg-stone-100 dark:bg-stone-800 rounded animate-pulse" />
+          <span className="inline-block w-12 h-7 bg-stone-100 dark:bg-stone-800 rounded shimmer" />
         ) : (
-          value.toLocaleString()
+          <AnimatedNumber value={value} className="font-mono-data text-2xl font-medium text-stone-900 dark:text-stone-100 tracking-tight" />
         )}
       </p>
       <p className="text-xs text-stone-500 dark:text-stone-400 mt-0.5">{label}</p>

@@ -383,7 +383,7 @@ export function Nav() {
                 </button>
 
                 {menuOpen && (
-                  <div className="absolute right-0 mt-1 w-48 bg-white dark:bg-stone-900 rounded-lg border border-stone-200 dark:border-stone-700 shadow-md py-1 z-50">
+                  <div className="menu-enter absolute right-0 mt-1 w-48 bg-white dark:bg-stone-900 rounded-lg border border-stone-200 dark:border-stone-700 shadow-md py-1 z-50">
                     <div className="px-3 py-2 border-b border-stone-100 dark:border-stone-800">
                       <p className="text-xs font-medium text-stone-900 dark:text-stone-100 truncate">
                         {user.full_name ?? ""}

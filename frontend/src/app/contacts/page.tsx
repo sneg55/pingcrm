@@ -450,6 +450,7 @@ function ContactsPageContent() {
         </div>
 
         {/* Search + Filter bar */}
+        <div className="animate-in stagger-1">
         <ContactsToolbar
           searchInput={searchInput}
           setSearchInput={setSearchInput}
@@ -467,6 +468,7 @@ function ContactsPageContent() {
           allTags={allTags}
           meta={meta}
         />
+        </div>
 
         {/* Empty state */}
         {!isLoading && !isError && contacts.length === 0 && (
@@ -527,7 +529,7 @@ function ContactsPageContent() {
 
         {/* Table */}
         {contacts.length > 0 && (
-          <div className="bg-white dark:bg-stone-900 rounded-xl border border-stone-200 dark:border-stone-700 overflow-hidden">
+          <div className="animate-in stagger-2 bg-white dark:bg-stone-900 rounded-xl border border-stone-200 dark:border-stone-700 overflow-hidden">
             {/* Header row — desktop only */}
             <div className="hidden lg:grid grid-cols-[40px_1fr_120px_70px_70px_60px_100px] gap-2 px-4 py-3 bg-stone-50 dark:bg-stone-800 border-b border-stone-200 dark:border-stone-700 items-center">
               <div>
@@ -574,7 +576,7 @@ function ContactsPageContent() {
               return (
                 <div
                   key={contact.id}
-                  className={`hidden lg:grid grid-cols-[40px_1fr_120px_70px_70px_60px_100px] gap-2 px-4 py-3 border-b border-stone-100 dark:border-stone-800 items-center transition-colors ${
+                  className={`card-hover hidden lg:grid grid-cols-[40px_1fr_120px_70px_70px_60px_100px] gap-2 px-4 py-3 border-b border-stone-100 dark:border-stone-800 items-center transition-colors ${
                     isSelected ? "bg-teal-50 dark:bg-teal-950" : "hover:bg-stone-50/50 dark:hover:bg-stone-800/50"
                   }`}
                 >
@@ -656,7 +658,7 @@ function ContactsPageContent() {
                   <Link
                     key={contact.id}
                     href={`/contacts/${contact.id}`}
-                    className="flex items-center gap-3 px-4 py-3 hover:bg-stone-50 dark:hover:bg-stone-800/50 transition-colors"
+                    className="card-hover flex items-center gap-3 px-4 py-3 hover:bg-stone-50 dark:hover:bg-stone-800/50 transition-colors"
                   >
                     <ContactAvatar avatarUrl={contact.avatar_url} name={name} size="sm" />
                     <div className="flex-1 min-w-0">

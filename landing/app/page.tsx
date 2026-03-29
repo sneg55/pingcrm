@@ -1,6 +1,7 @@
 import WaitlistForm from "./waitlist-form";
 import DashboardPreview from "./dashboard-preview";
 import { Nav, Footer } from "./nav";
+import ScrollRevealInit from "./scroll-reveal-init";
 
 const GITHUB_URL = "https://github.com/sneg55/pingcrm";
 
@@ -154,6 +155,7 @@ function GitHubIcon({ size = 20 }: { size?: number }) {
 export default function LandingPage() {
   return (
     <div className="relative overflow-hidden">
+      <ScrollRevealInit />
       <Nav />
 
       {/* ──── Hero ──── */}
@@ -244,7 +246,7 @@ export default function LandingPage() {
       <div className="glow-line mx-auto max-w-4xl" />
 
       {/* ──── Features ──── */}
-      <section className="py-24 px-6">
+      <section className="scroll-reveal py-24 px-6">
         <div className="max-w-6xl mx-auto">
           <div className="text-center mb-16">
             <p
@@ -282,7 +284,7 @@ export default function LandingPage() {
       </section>
 
       {/* ──── How It Works ──── */}
-      <section className="py-24 px-6" style={{ background: "var(--bg-elevated)" }}>
+      <section className="scroll-reveal py-24 px-6" style={{ background: "var(--bg-elevated)" }}>
         <div className="max-w-5xl mx-auto">
           <div className="text-center mb-16">
             <p
@@ -344,7 +346,7 @@ export default function LandingPage() {
       </section>
 
       {/* ──── Open Source ──── */}
-      <section className="py-24 px-6 relative">
+      <section className="scroll-reveal py-24 px-6 relative">
         <div className="absolute inset-0 grid-bg grid-bg-fade opacity-20" />
         <div className="relative max-w-3xl mx-auto text-center">
           <div className="inline-flex mb-6">
@@ -402,7 +404,7 @@ export default function LandingPage() {
       <div className="glow-line mx-auto max-w-4xl" />
 
       {/* ──── Waitlist ──── */}
-      <section id="waitlist" className="py-24 px-6">
+      <section id="waitlist" className="scroll-reveal py-24 px-6">
         <div className="max-w-2xl mx-auto text-center">
           <p
             className="text-xs tracking-[0.2em] uppercase mb-3"

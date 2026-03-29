@@ -288,7 +288,7 @@ function OrganizationsPageContent() {
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
       <div className="max-w-6xl mx-auto px-4 py-8">
-        <div className="flex items-center justify-between mb-6">
+        <div className="animate-in stagger-1 flex items-center justify-between mb-6">
           <div>
             <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100">Organizations</h1>
             {meta && (
@@ -359,7 +359,7 @@ function OrganizationsPageContent() {
         )}
 
         {organizations.length > 0 && (
-          <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 overflow-hidden">
+          <div className="animate-in stagger-2 bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 overflow-hidden">
             <table className="w-full">
               <thead>
                 <tr className="border-b border-gray-100 dark:border-gray-700 text-left text-xs text-gray-500 dark:text-gray-400">
@@ -404,7 +404,7 @@ function OrganizationsPageContent() {
                 {sortedOrganizations.map((org) => {
                   const isSelected = selectedOrgIds.has(org.id);
                   return (
-                    <tr key={org.id} className={`hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors ${isSelected ? "bg-blue-50/50 dark:bg-blue-950/30" : ""}`}>
+                    <tr key={org.id} className={`card-hover hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors ${isSelected ? "bg-blue-50/50 dark:bg-blue-950/30" : ""}`}>
                       <td className="px-4 py-3">
                         <input
                           type="checkbox"
