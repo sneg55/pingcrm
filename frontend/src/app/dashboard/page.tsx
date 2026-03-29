@@ -516,9 +516,14 @@ export default function DashboardPage() {
 
               {/* Recent Activity */}
               <div>
-                <h2 className="text-sm font-display font-semibold text-stone-900 dark:text-stone-100 mb-3">
-                  Recent Activity
-                </h2>
+                <div className="flex items-center justify-between mb-3">
+                  <h2 className="text-sm font-display font-semibold text-stone-900 dark:text-stone-100">
+                    Recent Activity
+                  </h2>
+                  <Link href="/contacts?sort=interaction" className="text-xs font-medium text-teal-600 dark:text-teal-400 hover:text-teal-700 dark:hover:text-teal-300">
+                    View all &rarr;
+                  </Link>
+                </div>
                 {isLoading ? (
                   <div className="space-y-3">
                     {[1, 2, 3].map((n) => (
