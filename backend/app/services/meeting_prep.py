@@ -290,7 +290,6 @@ def compose_prep_email(
         company = esc(b.get("company") or "")
         score = b.get("score", 0)
         score_label = esc(b.get("score_label", "Cold"))
-        avatar = b.get("avatar_url") or ""
 
         # Score badge colour
         if score >= 7:
@@ -300,37 +299,18 @@ def compose_prep_email(
         else:
             badge_color = "#6b7280"  # gray
 
-        # Avatar or initials
-        if avatar:
-            avatar_html = (
-                f'<img src="{esc(avatar)}" alt="{name}" '
-                f'style="width:48px;height:48px;border-radius:50%;object-fit:cover;" />'
-            )
-        else:
-            initials = "".join(
-                word[0].upper() for word in (b.get("name") or "?").split()[:2]
-            )
-            avatar_html = (
-                f'<div style="width:48px;height:48px;border-radius:50%;'
-                f'background:#e0e7ff;color:#4f46e5;display:flex;align-items:center;'
-                f'justify-content:center;font-weight:bold;font-size:18px;">'
-                f'{esc(initials)}</div>'
-            )
+        # Subtitle line
+        subtitle_parts = [p for p in [job_title, company] if p]
+        subtitle = " at ".join(subtitle_parts) if subtitle_parts else ""
 
-        # Bio lines
+        # Bio lines — only show platform-specific bios with correct labels
         bio_lines_html = ""
-        for bio_key, bio_label in [
-            ("twitter_bio", "Twitter"),
-            ("linkedin_headline", "LinkedIn"),
-            ("linkedin_bio", "LinkedIn about"),
-            ("telegram_bio", "Telegram"),
-        ]:
-            val = b.get(bio_key)
-            if val:
-                bio_lines_html += (
-                    f'<p style="margin:4px 0;font-size:13px;color:#6b7280;">'
-                    f'<strong>{esc(bio_label)}:</strong> {esc(val)}</p>'
-                )
+        if b.get("twitter_bio"):
+            bio_lines_html += f'<p style="margin:4px 0;font-size:13px;color:#6b7280;"><strong>Twitter:</strong> {esc(b["twitter_bio"][:200])}</p>'
+        if b.get("linkedin_headline"):
+            bio_lines_html += f'<p style="margin:4px 0;font-size:13px;color:#6b7280;"><strong>LinkedIn:</strong> {esc(b["linkedin_headline"][:200])}</p>'
+        if b.get("telegram_bio"):
+            bio_lines_html += f'<p style="margin:4px 0;font-size:13px;color:#6b7280;"><strong>Telegram:</strong> {esc(b["telegram_bio"][:200])}</p>'
 
         # Recent interactions
         recent_html = ""
@@ -344,8 +324,8 @@ def compose_prep_email(
                 date_str = str(date_val)[:10] if date_val else ""
             recent_html += (
                 f'<tr>'
-                f'<td style="padding:4px 8px;font-size:12px;color:#9ca3af;">{esc(date_str)}</td>'
-                f'<td style="padding:4px 8px;font-size:12px;color:#9ca3af;">{platform}</td>'
+                f'<td style="padding:4px 8px;font-size:12px;color:#9ca3af;white-space:nowrap;">{esc(date_str)}</td>'
+                f'<td style="padding:4px 8px;font-size:12px;color:#9ca3af;white-space:nowrap;">{platform}</td>'
                 f'<td style="padding:4px 8px;font-size:13px;color:#374151;">{preview}</td>'
                 f'</tr>'
             )
@@ -353,7 +333,7 @@ def compose_prep_email(
         recent_table = ""
         if recent_html:
             recent_table = (
-                f'<table style="width:100%;border-collapse:collapse;margin-top:8px;">'
+                f'<table style="width:100%;border-collapse:collapse;margin-top:12px;">'
                 f'<tr style="border-bottom:1px solid #e5e7eb;">'
                 f'<th style="text-align:left;padding:4px 8px;font-size:11px;color:#9ca3af;font-weight:600;">Date</th>'
                 f'<th style="text-align:left;padding:4px 8px;font-size:11px;color:#9ca3af;font-weight:600;">Channel</th>'
@@ -363,21 +343,12 @@ def compose_prep_email(
                 f'</table>'
             )
 
-        # Subtitle line
-        subtitle_parts = [p for p in [job_title, company] if p]
-        subtitle = " at ".join(subtitle_parts) if subtitle_parts else ""
-
         attendee_cards += f"""
         <div style="background:#ffffff;border:1px solid #e5e7eb;border-radius:8px;padding:16px;margin-bottom:12px;">
-          <table style="width:100%;border-collapse:collapse;"><tr>
-            <td style="width:56px;vertical-align:top;">{avatar_html}</td>
-            <td style="padding-left:12px;vertical-align:top;">
-              <p style="margin:0;font-size:16px;font-weight:600;color:#111827;">{name}</p>
-              {'<p style="margin:2px 0 0;font-size:13px;color:#6b7280;">' + esc(subtitle) + '</p>' if subtitle else ''}
-              <span style="display:inline-block;margin-top:4px;padding:2px 8px;border-radius:12px;font-size:12px;font-weight:600;color:#ffffff;background:{badge_color};">{score_label} ({score}/10)</span>
-            </td>
-          </tr></table>
-          {bio_lines_html}
+          <p style="margin:0;font-size:18px;font-weight:600;color:#111827;">{name}</p>
+          {'<p style="margin:2px 0 0;font-size:13px;color:#6b7280;">' + esc(subtitle) + '</p>' if subtitle else ''}
+          <span style="display:inline-block;margin-top:6px;padding:2px 10px;border-radius:12px;font-size:12px;font-weight:600;color:#ffffff;background:{badge_color};">{score_label} ({score}/10)</span>
+          {('<div style="margin-top:10px;">' + bio_lines_html + '</div>') if bio_lines_html else ''}
           {recent_table}
         </div>
         """
@@ -385,12 +356,28 @@ def compose_prep_email(
     # --- Talking points section ---
     talking_points_section = ""
     if talking_points:
-        talking_points_section = f"""
-        <div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:8px;padding:16px;margin-bottom:20px;">
-          <h2 style="margin:0 0 8px;font-size:16px;color:#166534;">Suggested Talking Points</h2>
-          <div style="font-size:14px;color:#374151;white-space:pre-wrap;">{esc(talking_points)}</div>
-        </div>
-        """
+        # Convert markdown **bold** to <strong> and bullet points to <li>
+        tp_html = ""
+        for line in talking_points.strip().split("\n"):
+            line = line.strip()
+            if not line:
+                continue
+            # Strip leading bullet markers
+            clean = line.lstrip("•-* ").strip()
+            if not clean:
+                continue
+            # Convert **bold** to <strong>
+            import re
+            clean = re.sub(r'\*\*(.+?)\*\*', r'<strong>\1</strong>', clean)
+            tp_html += f'<li style="margin-bottom:8px;">{clean}</li>'
+
+        if tp_html:
+            talking_points_section = f"""
+            <div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:8px;padding:16px;margin-bottom:20px;">
+              <h2 style="margin:0 0 12px;font-size:16px;color:#166534;">Suggested Talking Points</h2>
+              <ul style="margin:0;padding-left:20px;font-size:14px;color:#374151;line-height:1.5;">{tp_html}</ul>
+            </div>
+            """
 
     # --- Full HTML ---
     html_body = f"""<!DOCTYPE html>
