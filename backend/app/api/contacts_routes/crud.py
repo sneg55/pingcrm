@@ -214,6 +214,11 @@ async def update_contact(
         "telegram_username" in update_data
         and update_data["telegram_username"] != contact.telegram_username
     )
+    twitter_handle_changed = (
+        "twitter_handle" in update_data
+        and update_data["twitter_handle"] != contact.twitter_handle
+        and update_data["twitter_handle"]  # not clearing
+    )
 
     # Check telegram_username uniqueness
     if telegram_username_changed and update_data["telegram_username"]:
@@ -282,8 +287,21 @@ async def update_contact(
         for suggestion in pending_result.scalars().all():
             suggestion.status = "dismissed"
 
+    # Clear stale twitter_user_id when handle changes
+    if twitter_handle_changed:
+        contact.twitter_user_id = None
+        contact.twitter_bio = None
+
     await db.flush()
     await db.refresh(contact)
+
+    # Trigger background refresh when Twitter handle is added/changed
+    if twitter_handle_changed:
+        try:
+            from app.services.task_jobs.twitter import poll_twitter_activity
+            poll_twitter_activity.delay(str(current_user.id))
+        except Exception:
+            pass  # non-critical — sync will pick it up on next scheduled run
     return envelope(ContactResponse.model_validate(contact).model_dump())
 
 
