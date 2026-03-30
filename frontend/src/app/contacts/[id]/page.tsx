@@ -143,8 +143,8 @@ export default function ContactDetailPage() {
           </div>
         )}
 
-        {/* Header */}
-        <div className="animate-in stagger-1">
+        {/* Header — relative z-10 so kebab dropdown overlaps cards below */}
+        <div className="animate-in stagger-1 relative z-10">
         <HeaderCard
           contact={contact}
           allTags={ctrl.allTags}
