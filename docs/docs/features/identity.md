@@ -35,9 +35,14 @@ When no exact identifier overlap exists, PingCRM computes a weighted similarity 
 
 A combined score **above 85%** triggers an automatic merge. Scores below that threshold are surfaced for manual review.
 
-### Colleague Guard
+### Guards
 
-The colleague guard prevents false merges between coworkers. When two contacts share the same company but have clearly different names, the score is capped below the auto-merge threshold. This ensures that, for example, two employees at the same company with similar usernames are not incorrectly merged.
+Several guards prevent false positive matches:
+
+- **Colleague guard** — two contacts at the same company with different names are capped below auto-merge. Same email domain with different names is also capped.
+- **Same-source skip** — contacts from the same platform (e.g., both Telegram, both LinkedIn) are never compared. They have unique platform IDs and are definitively different people.
+- **Name guards** — same last name + different first name (e.g., "Sam Bronstein" vs "Max Bronstein") or same first name + different last name are capped at 30%. Single first-name-only matches with no corroborating signals are heavily penalized.
+- **Archived exclusion** — archived contacts are excluded from all identity resolution scans and the pending matches list.
 
 ## Manual Review Queue
 

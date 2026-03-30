@@ -54,6 +54,16 @@ Configure the follow-up intervals per priority level. These control how often th
 
 Manage the tag taxonomy used for organizing contacts. Tags can be generated automatically via LLM or applied manually. The taxonomy supports hierarchical categories.
 
+## MCP Access
+
+Generate an API key for the [MCP Server](../setup.md) (Model Context Protocol). This allows AI clients like Claude Desktop, Cursor, and VS Code to query your CRM data.
+
+- **Generate API Key** — creates a new key (shown once, copy it). Uses HMAC-SHA256 hashing for secure storage.
+- **Revoke** — invalidates the key immediately.
+- **Status** — shows whether a key is active.
+
+See `backend/mcp_server/README.md` for client setup instructions.
+
 ## Connection Status Badges
 
 Each integration section shows a badge indicating its current state:

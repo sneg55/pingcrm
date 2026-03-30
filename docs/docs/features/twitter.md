@@ -15,7 +15,13 @@ Twitter uses the OAuth 2.0 Authorization Code flow with PKCE (Proof Key for Code
 
 Direct message conversations are imported as interactions. Each conversation captures participants, message content, and timestamps. Conversations are deduplicated by Twitter conversation ID. Per-contact sync uses the targeted `/dm_conversations/with/:participant_id` endpoint for efficiency.
 
-DM sync uses **delta sync** via a `since_id` cursor stored on the user record (`twitter_dm_cursor`). After each sync, the cursor advances to the newest event ID, so subsequent runs only fetch new DMs.
+DM sync uses **delta sync** via a `since_id` cursor stored on the user record (`twitter_dm_cursor`). After each sync, the cursor advances to the newest event ID, so subsequent runs only fetch new DMs. If the cursor becomes stale (e.g., after re-authorization), the API returns 400 — PingCRM automatically retries without the cursor (full fetch) and sets a fresh cursor.
+
+### Handle Updates
+
+When you update a contact's Twitter handle in the UI, PingCRM automatically:
+- Clears the old `twitter_user_id` and `twitter_bio` (stale data)
+- Dispatches a background task to fetch the new profile's bio and avatar via bird CLI
 
 ## Mention & Reply Sync
 

@@ -99,6 +99,8 @@ A chronological timeline of all interactions with the contact, including:
 - Bio change events (detected from Twitter and Telegram).
 - Read receipts for Telegram messages (single check = delivered, double check = read).
 
+Messages longer than 400 characters are truncated with a "Show more" button to keep the timeline compact. Click to expand the full message.
+
 Notes added manually can be edited or deleted directly from the timeline by hovering over the entry to reveal inline action buttons.
 
 When new interactions are synced for a contact, any pending follow-up suggestions for that contact are automatically dismissed, since the sync itself represents a recent touchpoint.
