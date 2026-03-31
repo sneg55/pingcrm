@@ -200,6 +200,12 @@ export function useUpdateContact() {
           queryKey: ["sync-telegram", variables.id],
         });
       }
+      // Re-trigger bio refresh when Twitter handle changes
+      if ("twitter_handle" in variables.input) {
+        void queryClient.invalidateQueries({
+          queryKey: ["refresh-bios", variables.id],
+        });
+      }
     },
   });
 }

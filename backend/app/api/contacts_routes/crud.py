@@ -295,13 +295,24 @@ async def update_contact(
     await db.flush()
     await db.refresh(contact)
 
+    # Clear bio-refresh rate-limit so the frontend can immediately re-fetch
+    if twitter_handle_changed:
+        try:
+            import redis.asyncio as aioredis
+            from app.core.config import settings
+            r = aioredis.from_url(settings.REDIS_URL)
+            await r.delete(f"bio_refresh:{contact_id}")
+            await r.aclose()
+        except Exception:
+            logger.warning("Failed to clear bio_refresh cache for contact %s", contact_id, exc_info=True)
+
     # Trigger background refresh when Twitter handle is added/changed
     if twitter_handle_changed:
         try:
             from app.services.task_jobs.twitter import poll_twitter_activity
-            poll_twitter_activity.delay(str(current_user.id))
+            poll_twitter_activity.apply_async(args=[str(current_user.id)], countdown=3)
         except Exception:
-            pass  # non-critical — sync will pick it up on next scheduled run
+            logger.warning("Failed to dispatch poll_twitter_activity for user %s", current_user.id, exc_info=True)
     return envelope(ContactResponse.model_validate(contact).model_dump())
 
 
