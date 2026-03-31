@@ -40,6 +40,12 @@ export default function RootLayout({
       <head>
         <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
         <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
+        <script async src="https://www.googletagmanager.com/gtag/js?id=G-WVR19X9096" />
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `window.dataLayer=window.dataLayer||[];function gtag(){dataLayer.push(arguments)}gtag('js',new Date());gtag('config','G-WVR19X9096');`,
+          }}
+        />
       </head>
       <body className="antialiased min-h-screen">{children}</body>
     </html>
