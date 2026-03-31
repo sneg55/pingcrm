@@ -24,10 +24,24 @@ function _encodeUrn(urn) {
 }
 
 /**
+ * Find an active LinkedIn tab to proxy requests through.
+ * Returns the tab ID or null if no LinkedIn tab is open.
+ */
+async function _findLinkedInTab() {
+  const tabs = await chrome.tabs.query({ url: "https://www.linkedin.com/*" });
+  // Prefer active/visible tabs, fall back to any LinkedIn tab
+  return tabs.find(t => t.active)?.id ?? tabs[0]?.id ?? null;
+}
+
+/**
  * Core fetch wrapper for Voyager endpoints.
  *
+ * Routes requests through a LinkedIn content script (same-origin) so
+ * cookies are included automatically.  MV3 service workers cannot
+ * reliably set Cookie headers or use credentials:"include" cross-origin.
+ *
  * @param {string} path - API path, e.g. "/messaging/conversations"
- * @param {string} liAt - Value of the li_at cookie (session token)
+ * @param {string} liAt - (unused, kept for call-site compat)
  * @param {string} jsessionid - Value of the JSESSIONID cookie (CSRF token)
  * @param {Object} [params] - Query string parameters
  * @returns {Promise<Object>} Parsed JSON response
@@ -44,35 +58,46 @@ async function voyagerFetch(path, liAt, jsessionid, params = {}, { graphql = fal
     urlStr += "?" + paramParts.join("&");
   }
 
-  const fetchOpts = {
-    method,
-    headers: _voyagerHeaders(jsessionid, { graphql }),
-    // Let Chrome attach li_at + JSESSIONID from the cookie jar automatically.
-    // This is the only reliable way in MV3 service workers — explicit Cookie
-    // headers are silently stripped as "forbidden" even with host_permissions.
-    credentials: "include",
-  };
+  const headers = _voyagerHeaders(jsessionid, { graphql });
   if (body) {
-    fetchOpts.body = typeof body === "string" ? body : JSON.stringify(body);
-    fetchOpts.headers["Content-Type"] = "application/json; charset=UTF-8";
+    headers["Content-Type"] = "application/json; charset=UTF-8";
   }
 
-  const resp = await fetch(urlStr, fetchOpts);
+  // Route through LinkedIn tab's content script (same-origin = cookies work)
+  const tabId = await _findLinkedInTab();
+  if (!tabId) {
+    throw new Error("NO_LINKEDIN_TAB");
+  }
 
-  if (resp.status === 429) {
+  const proxyResult = await chrome.tabs.sendMessage(tabId, {
+    type: "VOYAGER_PROXY",
+    url: urlStr,
+    options: {
+      method,
+      headers,
+      body: body ? (typeof body === "string" ? body : JSON.stringify(body)) : undefined,
+    },
+  });
+
+  if (!proxyResult) {
+    throw new Error("PROXY_NO_RESPONSE");
+  }
+
+  const { status } = proxyResult;
+
+  if (status === 429) {
     const error = new Error("RATE_LIMITED");
-    error.retryAfter = parseInt(resp.headers.get("Retry-After") || "900", 10);
+    error.retryAfter = 900;
     throw error;
   }
-  if (resp.status === 401 || resp.status === 403) throw new Error("AUTH_EXPIRED");
-  if (!resp.ok) {
-    const errBody = await resp.text().catch(() => "");
-    console.error(`[Voyager] ${resp.status} ${method} ${urlStr}`);
-    console.error(`[Voyager] Response: ${errBody.substring(0, 500)}`);
-    throw new Error(`VOYAGER_ERROR:${resp.status}`);
+  if (status === 401 || status === 403) throw new Error("AUTH_EXPIRED");
+  if (!proxyResult.ok) {
+    console.error(`[Voyager] ${status} ${method} ${urlStr}`);
+    console.error(`[Voyager] Response: ${(proxyResult.body || "").substring(0, 500)}`);
+    throw new Error(`VOYAGER_ERROR:${status}`);
   }
 
-  return resp.json();
+  return proxyResult.data;
 }
 
 /**

@@ -268,7 +268,9 @@
         console.warn("[PingCRM Popup] Sync failed:", response?.error);
         const label = syncNowBtn.querySelector(".btn-label");
         const original = label.textContent;
-        if (response?.error === "VOYAGER_AUTH_REJECTED") {
+        if (response?.error === "NO_LINKEDIN_TAB" || response?.error === "PROXY_NO_RESPONSE") {
+          label.textContent = "Open linkedin.com first";
+        } else if (response?.error === "VOYAGER_AUTH_REJECTED") {
           label.textContent = "LinkedIn API rejected — try again later";
         } else if (response?.error === "RATE_LIMITED") {
           label.textContent = "Rate limited — try later";

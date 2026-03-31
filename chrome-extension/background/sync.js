@@ -602,6 +602,8 @@ async function _handleSyncError(e, result) {
     const waitMs = (e.retryAfter ?? 900) * 1000;
     const nextRetryAt = new Date(Date.now() + waitMs).toISOString();
     await chrome.storage.local.set({ nextRetryAt });
+  } else if (e.message === "NO_LINKEDIN_TAB" || e.message === "PROXY_NO_RESPONSE") {
+    console.warn("[Sync] No LinkedIn tab open — open linkedin.com and try again");
   } else if (e.message === "AUTH_EXPIRED") {
     // Verify cookies are actually gone before marking session expired.
     // A 401/403 from LinkedIn can happen for reasons other than session expiry
