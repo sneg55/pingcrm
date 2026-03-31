@@ -118,6 +118,14 @@ async def push_linkedin_data(
             profile_id_map[c.linkedin_profile_id] = c
         if c.linkedin_url:
             url_map[c.linkedin_url.rstrip("/")] = c
+            # Backfill missing linkedin_profile_id from URL slug
+            if not c.linkedin_profile_id:
+                import re
+                slug_match = re.search(r"/in/([^/?]+)", c.linkedin_url)
+                if slug_match:
+                    slug = slug_match.group(1)
+                    c.linkedin_profile_id = slug
+                    profile_id_map[slug] = c
         if c.full_name:
             name_map[c.full_name.lower()] = c
 
