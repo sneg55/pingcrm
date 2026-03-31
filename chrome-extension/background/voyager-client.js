@@ -8,11 +8,12 @@ const VOYAGER_BASE = "https://www.linkedin.com/voyager/api";
 // eslint-disable-next-line no-unused-vars
 const VOYAGER_SCHEMA_VERSION = "2026-03-v1";
 
-// Build Voyager request headers.  Cookies are attached automatically via
-// credentials:"include" (works in Chrome 116+ with host_permissions).
-// We still need the JSESSIONID value for the Csrf-Token header.
-function _voyagerHeaders(jsessionid, { graphql = false } = {}) {
+// Build headers including Cookie. Service workers can't rely on
+// credentials:"include" for cross-origin requests — we must set
+// the Cookie header explicitly (same pattern as avatar download).
+function _voyagerHeaders(liAt, jsessionid, { graphql = false } = {}) {
   return {
+    "Cookie": `li_at=${liAt}; JSESSIONID="${jsessionid.replace(/"/g, "")}"`,
     "Csrf-Token": jsessionid.replace(/"/g, ""),
     "X-Restli-Protocol-Version": "2.0.0",
     "Accept": graphql ? "application/graphql" : "application/vnd.linkedin.normalized+json+2.1",
@@ -24,24 +25,10 @@ function _encodeUrn(urn) {
 }
 
 /**
- * Find an active LinkedIn tab to proxy requests through.
- * Returns the tab ID or null if no LinkedIn tab is open.
- */
-async function _findLinkedInTab() {
-  const tabs = await chrome.tabs.query({ url: "https://www.linkedin.com/*" });
-  // Prefer active/visible tabs, fall back to any LinkedIn tab
-  return tabs.find(t => t.active)?.id ?? tabs[0]?.id ?? null;
-}
-
-/**
  * Core fetch wrapper for Voyager endpoints.
  *
- * Routes requests through a LinkedIn content script (same-origin) so
- * cookies are included automatically.  MV3 service workers cannot
- * reliably set Cookie headers or use credentials:"include" cross-origin.
- *
  * @param {string} path - API path, e.g. "/messaging/conversations"
- * @param {string} liAt - (unused, kept for call-site compat)
+ * @param {string} liAt - Value of the li_at cookie (session token)
  * @param {string} jsessionid - Value of the JSESSIONID cookie (CSRF token)
  * @param {Object} [params] - Query string parameters
  * @returns {Promise<Object>} Parsed JSON response
@@ -58,46 +45,39 @@ async function voyagerFetch(path, liAt, jsessionid, params = {}, { graphql = fal
     urlStr += "?" + paramParts.join("&");
   }
 
-  const headers = _voyagerHeaders(jsessionid, { graphql });
+  const fetchOpts = {
+    method,
+    headers: _voyagerHeaders(liAt, jsessionid, { graphql }),
+  };
   if (body) {
-    headers["Content-Type"] = "application/json; charset=UTF-8";
+    fetchOpts.body = typeof body === "string" ? body : JSON.stringify(body);
+    fetchOpts.headers["Content-Type"] = "application/json; charset=UTF-8";
   }
 
-  // Route through LinkedIn tab's content script (same-origin = cookies work)
-  const tabId = await _findLinkedInTab();
-  if (!tabId) {
-    throw new Error("NO_LINKEDIN_TAB");
-  }
+  const resp = await fetch(urlStr, fetchOpts);
 
-  const proxyResult = await chrome.tabs.sendMessage(tabId, {
-    type: "VOYAGER_PROXY",
-    url: urlStr,
-    options: {
-      method,
-      headers,
-      body: body ? (typeof body === "string" ? body : JSON.stringify(body)) : undefined,
-    },
-  });
-
-  if (!proxyResult) {
-    throw new Error("PROXY_NO_RESPONSE");
-  }
-
-  const { status } = proxyResult;
-
-  if (status === 429) {
+  if (resp.status === 429) {
     const error = new Error("RATE_LIMITED");
-    error.retryAfter = 900;
+    error.retryAfter = parseInt(resp.headers.get("Retry-After") || "900", 10);
     throw error;
   }
-  if (status === 401 || status === 403) throw new Error("AUTH_EXPIRED");
-  if (!proxyResult.ok) {
-    console.error(`[Voyager] ${status} ${method} ${urlStr}`);
-    console.error(`[Voyager] Response: ${(proxyResult.body || "").substring(0, 500)}`);
-    throw new Error(`VOYAGER_ERROR:${status}`);
+  if (resp.status === 401 || resp.status === 403) {
+    const errBody = await resp.text().catch(() => "");
+    console.error(`[Voyager] AUTH ${resp.status} ${method} ${path}`);
+    console.error(`[Voyager] Response headers:`, Object.fromEntries(resp.headers.entries()));
+    console.error(`[Voyager] Response body: ${errBody.substring(0, 500)}`);
+    console.error(`[Voyager] li_at present: ${!!liAt} (${(liAt || "").length} chars)`);
+    console.error(`[Voyager] JSESSIONID present: ${!!jsessionid} (value: ${(jsessionid || "").substring(0, 20)}...)`);
+    throw new Error("AUTH_EXPIRED");
+  }
+  if (!resp.ok) {
+    const errBody = await resp.text().catch(() => "");
+    console.error(`[Voyager] ${resp.status} ${method} ${urlStr}`);
+    console.error(`[Voyager] Response: ${errBody.substring(0, 500)}`);
+    throw new Error(`VOYAGER_ERROR:${resp.status}`);
   }
 
-  return proxyResult.data;
+  return resp.json();
 }
 
 /**
