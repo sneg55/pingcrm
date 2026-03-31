@@ -266,6 +266,16 @@
       const response = await chrome.runtime.sendMessage({ type: "SYNC_NOW" });
       if (!response || !response.ok) {
         console.warn("[PingCRM Popup] Sync failed:", response?.error);
+        const label = syncNowBtn.querySelector(".btn-label");
+        const original = label.textContent;
+        if (response?.error === "VOYAGER_AUTH_REJECTED") {
+          label.textContent = "LinkedIn API rejected — try again later";
+        } else if (response?.error === "RATE_LIMITED") {
+          label.textContent = "Rate limited — try later";
+        } else {
+          label.textContent = "Sync failed";
+        }
+        setTimeout(() => { label.textContent = original; }, 4000);
       }
     } catch (e) {
       console.error("[PingCRM Popup] SYNC_NOW error:", e.message);

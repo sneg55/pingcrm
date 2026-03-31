@@ -8,12 +8,11 @@ const VOYAGER_BASE = "https://www.linkedin.com/voyager/api";
 // eslint-disable-next-line no-unused-vars
 const VOYAGER_SCHEMA_VERSION = "2026-03-v1";
 
-// Build headers including Cookie. Service workers can't rely on
-// credentials:"include" for cross-origin requests — we must set
-// the Cookie header explicitly (same pattern as avatar download).
-function _voyagerHeaders(liAt, jsessionid, { graphql = false } = {}) {
+// Build Voyager request headers.  Cookies are attached automatically via
+// credentials:"include" (works in Chrome 116+ with host_permissions).
+// We still need the JSESSIONID value for the Csrf-Token header.
+function _voyagerHeaders(jsessionid, { graphql = false } = {}) {
   return {
-    "Cookie": `li_at=${liAt}; JSESSIONID="${jsessionid.replace(/"/g, "")}"`,
     "Csrf-Token": jsessionid.replace(/"/g, ""),
     "X-Restli-Protocol-Version": "2.0.0",
     "Accept": graphql ? "application/graphql" : "application/vnd.linkedin.normalized+json+2.1",
@@ -47,7 +46,11 @@ async function voyagerFetch(path, liAt, jsessionid, params = {}, { graphql = fal
 
   const fetchOpts = {
     method,
-    headers: _voyagerHeaders(liAt, jsessionid, { graphql }),
+    headers: _voyagerHeaders(jsessionid, { graphql }),
+    // Let Chrome attach li_at + JSESSIONID from the cookie jar automatically.
+    // This is the only reliable way in MV3 service workers — explicit Cookie
+    // headers are silently stripped as "forbidden" even with host_permissions.
+    credentials: "include",
   };
   if (body) {
     fetchOpts.body = typeof body === "string" ? body : JSON.stringify(body);

@@ -603,7 +603,18 @@ async function _handleSyncError(e, result) {
     const nextRetryAt = new Date(Date.now() + waitMs).toISOString();
     await chrome.storage.local.set({ nextRetryAt });
   } else if (e.message === "AUTH_EXPIRED") {
-    await chrome.storage.local.set({ cookiesValid: false });
+    // Verify cookies are actually gone before marking session expired.
+    // A 401/403 from LinkedIn can happen for reasons other than session expiry
+    // (API changes, CSRF mismatch, rate-limiting disguised as 403).
+    try {
+      await _readLinkedInCookies();
+      // Cookies still exist — this is an API error, not a session expiry
+      console.warn("[Sync] Voyager returned 401/403 but cookies are still present — not marking session expired");
+      result.error = "VOYAGER_AUTH_REJECTED";
+    } catch {
+      // Cookies are actually gone — mark session as expired
+      await chrome.storage.local.set({ cookiesValid: false });
+    }
   }
 
   return result;
