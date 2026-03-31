@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { AlertTriangle, Camera, Check, Download, Trash2 } from "lucide-react";
+import { AlertTriangle, Camera, Check, Copy, Download, Key, Trash2 } from "lucide-react";
 import { client } from "@/lib/api-client";
 import { cn } from "@/lib/utils";
 
@@ -20,6 +20,12 @@ export function AccountTab() {
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [deleting, setDeleting] = useState(false);
 
+  // MCP API key
+  const [mcpHasKey, setMcpHasKey] = useState(false);
+  const [mcpKey, setMcpKey] = useState<string | null>(null);
+  const [mcpLoading, setMcpLoading] = useState(false);
+  const [mcpCopied, setMcpCopied] = useState(false);
+
   useEffect(() => {
     (async () => {
       try {
@@ -29,6 +35,10 @@ export function AccountTab() {
           setDisplayName(user.full_name || "");
           setEmail(user.email || "");
         }
+      } catch {}
+      try {
+        const { data } = await client.GET("/api/v1/settings/mcp-key" as any, {});
+        setMcpHasKey(!!(data as any)?.data?.has_key);
       } catch {}
     })();
   }, []);
@@ -187,6 +197,87 @@ export function AccountTab() {
             {savingPw ? "Updating..." : "Update password"}
           </button>
         </div>
+      </div>
+
+      {/* MCP Access */}
+      <div className="bg-white dark:bg-stone-900 rounded-xl border border-stone-200 dark:border-stone-700 p-5">
+        <div className="flex items-center gap-2 mb-1">
+          <Key className="w-4 h-4 text-teal-600 dark:text-teal-400" />
+          <h3 className="text-sm font-semibold text-stone-900 dark:text-stone-100">MCP Access</h3>
+        </div>
+        <p className="text-xs text-stone-500 dark:text-stone-400 mb-4">
+          Connect AI clients (Claude Desktop, Cursor, VS Code) to your CRM via the Model Context Protocol.
+        </p>
+
+        {mcpKey ? (
+          <div className="space-y-3">
+            <div className="flex items-center gap-2">
+              <code className="flex-1 text-xs bg-stone-100 dark:bg-stone-800 text-stone-700 dark:text-stone-300 px-3 py-2 rounded-lg font-mono truncate">
+                {mcpKey}
+              </code>
+              <button
+                onClick={() => {
+                  void navigator.clipboard.writeText(mcpKey);
+                  setMcpCopied(true);
+                  setTimeout(() => setMcpCopied(false), 2000);
+                }}
+                className="shrink-0 inline-flex items-center gap-1 px-3 py-2 text-xs font-medium rounded-lg border border-stone-200 dark:border-stone-700 text-stone-600 dark:text-stone-300 hover:bg-stone-50 dark:hover:bg-stone-800 transition-colors"
+              >
+                {mcpCopied ? <><Check className="w-3.5 h-3.5 text-emerald-500" /> Copied</> : <><Copy className="w-3.5 h-3.5" /> Copy</>}
+              </button>
+            </div>
+            <p className="text-xs text-amber-600 dark:text-amber-400">
+              This key is shown only once. Copy it now and store it securely.
+            </p>
+          </div>
+        ) : (
+          <div className="flex items-center justify-between p-4 border border-stone-200 dark:border-stone-700 rounded-lg">
+            <div>
+              <p className="text-sm font-medium text-stone-700 dark:text-stone-300">
+                {mcpHasKey ? "API key active" : "No API key"}
+              </p>
+              <p className="text-xs text-stone-400 dark:text-stone-500">
+                {mcpHasKey ? "Revoke to generate a new one" : "Generate a key to connect AI clients"}
+              </p>
+            </div>
+            <div className="flex gap-2">
+              {mcpHasKey && (
+                <button
+                  onClick={async () => {
+                    setMcpLoading(true);
+                    try {
+                      await client.DELETE("/api/v1/settings/mcp-key" as any, {});
+                      setMcpHasKey(false);
+                      setMcpKey(null);
+                    } catch {} finally { setMcpLoading(false); }
+                  }}
+                  disabled={mcpLoading}
+                  className="inline-flex items-center gap-1 px-3 py-2 text-xs font-medium rounded-lg border border-red-200 dark:border-red-800 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-950 transition-colors disabled:opacity-50"
+                >
+                  Revoke
+                </button>
+              )}
+              <button
+                onClick={async () => {
+                  setMcpLoading(true);
+                  try {
+                    const { data } = await client.POST("/api/v1/settings/mcp-key" as any, {});
+                    const key = (data as any)?.data?.key;
+                    if (key) {
+                      setMcpKey(key);
+                      setMcpHasKey(true);
+                    }
+                  } catch {} finally { setMcpLoading(false); }
+                }}
+                disabled={mcpLoading}
+                className="inline-flex items-center gap-1.5 px-3 py-2 text-xs font-medium rounded-lg bg-teal-600 text-white hover:bg-teal-700 transition-colors shadow-sm disabled:opacity-50"
+              >
+                <Key className="w-3.5 h-3.5" />
+                {mcpLoading ? "..." : mcpHasKey ? "Regenerate" : "Generate key"}
+              </button>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Danger Zone */}
