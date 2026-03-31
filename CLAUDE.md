@@ -101,8 +101,18 @@ cd backend && celery -A worker.celery_app worker --loglevel=info
 
 See @.claude/rules/exception-handling.md for the full policy (logging requirements, typed exceptions per provider, re-raise vs sentinel rules).
 
+## Development Rules
+- **Never skip pre-push tests** — always run tests before pushing, never use `--no-verify` unless the user explicitly asks
+- **No debug endpoints in prod** — never add debug/temporary endpoints unless the user explicitly asks
+- **Twitter polling strategy** — cron only polls bios via bird CLI; tweet fetching + LLM classification is on-demand for suggestion generation (not daily)
+
 ## Platform Integrations
-1. **Gmail** - OAuth + Gmail API for email thread sync
-2. **Telegram** - MTProto client for chat history access
-3. **Twitter/X** - X API v2 for DMs, mentions, bio monitoring
+1. **Gmail** - OAuth + Gmail API for per-message email sync + BCC logging
+2. **Telegram** - MTProto client (Telethon) for chat history, group members, bios
+3. **Twitter/X** - OAuth 2.0 PKCE for DMs; bird CLI (cookies) for mentions, replies, bios
 4. **LinkedIn** - Chrome extension with client-side Voyager API (cookies stay in browser). Pairing code auth, GraphQL messaging sync, DOM profile scraping.
+5. **MCP Server** - Model Context Protocol server for AI clients (Claude Desktop, Cursor). 6 read-only tools. Lives at `backend/mcp_server/`.
+
+## Production Access
+
+See `CLAUDE.local.md` for SSH credentials and server details (not committed to repo).

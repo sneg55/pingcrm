@@ -63,3 +63,5 @@ docs/superpowers/
 # Claude Code
 .claude/
 **/.claude/
+CLAUDE.local.md
+.superpowers/
