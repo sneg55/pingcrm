@@ -1,42 +1,45 @@
 /**
  * LinkedIn Voyager API client for Chrome extension service worker.
- * All calls happen from the user's browser — cookies never leave.
+ *
+ * Voyager requests are executed inside a LinkedIn tab via
+ * chrome.scripting.executeScript — the only reliable way to include
+ * cookies in MV3.  Service-worker fetch() silently strips the Cookie
+ * header (even with host_permissions), causing "CSRF check failed."
  */
 
 const VOYAGER_BASE = "https://www.linkedin.com/voyager/api";
-// Reserved for future schema-version negotiation with LinkedIn's API versioning.
 // eslint-disable-next-line no-unused-vars
 const VOYAGER_SCHEMA_VERSION = "2026-03-v1";
-
-// Build headers including Cookie. Service workers can't rely on
-// credentials:"include" for cross-origin requests — we must set
-// the Cookie header explicitly (same pattern as avatar download).
-function _voyagerHeaders(liAt, jsessionid, { graphql = false } = {}) {
-  return {
-    "Cookie": `li_at=${liAt}; JSESSIONID="${jsessionid.replace(/"/g, "")}"`,
-    "Csrf-Token": jsessionid.replace(/"/g, ""),
-    "X-Restli-Protocol-Version": "2.0.0",
-    "Accept": graphql ? "application/graphql" : "application/vnd.linkedin.normalized+json+2.1",
-  };
-}
 
 function _encodeUrn(urn) {
   return encodeURIComponent(urn);
 }
 
 /**
+ * Find a LinkedIn tab to execute requests in.
+ * @returns {Promise<number>} Tab ID
+ * @throws {Error} "NO_LINKEDIN_TAB" if none found
+ */
+async function _requireLinkedInTab() {
+  const tabs = await chrome.tabs.query({ url: "https://www.linkedin.com/*" });
+  const tabId = tabs.find(t => t.active)?.id ?? tabs[0]?.id;
+  if (!tabId) throw new Error("NO_LINKEDIN_TAB");
+  return tabId;
+}
+
+/**
  * Core fetch wrapper for Voyager endpoints.
  *
+ * Executes the fetch inside a LinkedIn tab so cookies are attached
+ * automatically by the browser (same-origin context).
+ *
  * @param {string} path - API path, e.g. "/messaging/conversations"
- * @param {string} liAt - Value of the li_at cookie (session token)
- * @param {string} jsessionid - Value of the JSESSIONID cookie (CSRF token)
+ * @param {string} _liAt - Unused (cookies come from the page context)
+ * @param {string} jsessionid - JSESSIONID value for the Csrf-Token header
  * @param {Object} [params] - Query string parameters
  * @returns {Promise<Object>} Parsed JSON response
- * @throws {Error} "RATE_LIMITED" (with .retryAfter), "AUTH_EXPIRED", or "VOYAGER_ERROR:<status>"
  */
-async function voyagerFetch(path, liAt, jsessionid, params = {}, { graphql = false, method = "GET", body = null } = {}) {
-  // Build URL manually to avoid double-encoding of pre-encoded values
-  // (LinkedIn's variables format uses pre-encoded URNs)
+async function voyagerFetch(path, _liAt, jsessionid, params = {}, { graphql = false, method = "GET", body = null } = {}) {
   let urlStr = VOYAGER_BASE + path;
   const paramParts = Object.entries(params)
     .filter(([, v]) => v !== null && v !== undefined)
@@ -45,92 +48,86 @@ async function voyagerFetch(path, liAt, jsessionid, params = {}, { graphql = fal
     urlStr += "?" + paramParts.join("&");
   }
 
-  const fetchOpts = {
-    method,
-    headers: _voyagerHeaders(liAt, jsessionid, { graphql }),
-  };
-  if (body) {
-    fetchOpts.body = typeof body === "string" ? body : JSON.stringify(body);
-    fetchOpts.headers["Content-Type"] = "application/json; charset=UTF-8";
-  }
+  const csrfToken = jsessionid.replace(/"/g, "");
+  const accept = graphql
+    ? "application/graphql"
+    : "application/vnd.linkedin.normalized+json+2.1";
+  const serializedBody = body
+    ? (typeof body === "string" ? body : JSON.stringify(body))
+    : null;
 
-  const resp = await fetch(urlStr, fetchOpts);
+  const tabId = await _requireLinkedInTab();
 
-  if (resp.status === 429) {
+  // Execute fetch inside the LinkedIn tab (same-origin → cookies included)
+  const results = await chrome.scripting.executeScript({
+    target: { tabId },
+    // This function runs in the LinkedIn page context
+    func: async (url, method, csrfToken, accept, serializedBody) => {
+      try {
+        const headers = {
+          "Csrf-Token": csrfToken,
+          "X-Restli-Protocol-Version": "2.0.0",
+          "Accept": accept,
+        };
+        const opts = { method, headers, credentials: "same-origin" };
+        if (serializedBody) {
+          opts.body = serializedBody;
+          headers["Content-Type"] = "application/json; charset=UTF-8";
+        }
+        const resp = await fetch(url, opts);
+        if (!resp.ok) {
+          const text = await resp.text().catch(() => "");
+          return { ok: false, status: resp.status, body: text.substring(0, 1000) };
+        }
+        return { ok: true, status: resp.status, data: await resp.json() };
+      } catch (e) {
+        return { ok: false, status: 0, body: e.message };
+      }
+    },
+    args: [urlStr, method, csrfToken, accept, serializedBody],
+    world: "MAIN",
+  });
+
+  const result = results?.[0]?.result;
+  if (!result) throw new Error("SCRIPT_EXEC_FAILED");
+
+  if (result.status === 429) {
     const error = new Error("RATE_LIMITED");
-    error.retryAfter = parseInt(resp.headers.get("Retry-After") || "900", 10);
+    error.retryAfter = 900;
     throw error;
   }
-  if (resp.status === 401 || resp.status === 403) {
-    const errBody = await resp.text().catch(() => "");
-    console.error(`[Voyager] AUTH ${resp.status} ${method} ${path}`);
-    console.error(`[Voyager] Response headers:`, Object.fromEntries(resp.headers.entries()));
-    console.error(`[Voyager] Response body: ${errBody.substring(0, 500)}`);
-    console.error(`[Voyager] li_at present: ${!!liAt} (${(liAt || "").length} chars)`);
-    console.error(`[Voyager] JSESSIONID present: ${!!jsessionid} (value: ${(jsessionid || "").substring(0, 20)}...)`);
+  if (result.status === 401 || result.status === 403) {
+    console.error(`[Voyager] AUTH ${result.status} ${method} ${path}: ${result.body}`);
     throw new Error("AUTH_EXPIRED");
   }
-  if (!resp.ok) {
-    const errBody = await resp.text().catch(() => "");
-    console.error(`[Voyager] ${resp.status} ${method} ${urlStr}`);
-    console.error(`[Voyager] Response: ${errBody.substring(0, 500)}`);
-    throw new Error(`VOYAGER_ERROR:${resp.status}`);
+  if (!result.ok) {
+    console.error(`[Voyager] ${result.status} ${method} ${path}: ${result.body}`);
+    throw new Error(`VOYAGER_ERROR:${result.status}`);
   }
 
-  return resp.json();
+  return result.data;
 }
 
-/**
- * Fetch conversation list via the Dash messaging endpoint.
- * LinkedIn migrated from REST /messaging/conversations (now returns 500)
- * to /voyagerMessagingDashMessengerConversations (2025+).
- *
- * @param {string} liAt
- * @param {string} jsessionid
- * @param {number} [count=20] - Number of conversations to fetch
- * @param {number|null} [lastUpdatedBefore] - Unix ms timestamp for pagination
- * @returns {Promise<Object>} Normalized Voyager response
- */
-/**
- * Fetch the authenticated user's profile URN (needed for conversation list).
- * @returns {Promise<string>} e.g. "urn:li:fsd_profile:ACoAAB..."
- */
+// ── Public API (unchanged signatures for call-site compat) ───────────────────
+
 async function voyagerGetSelfUrn(liAt, jsessionid) {
   const data = await voyagerFetch("/me", liAt, jsessionid);
-  // The /me response returns fs_miniProfile URN but GraphQL needs fsd_profile.
-  // Extract the member ID (ACoAAA...) and construct the correct URN type.
   const miniProfile = data?.included?.find(i => i?.$type?.includes("MiniProfile"))
     ?? data?.data ?? data;
   let urn = miniProfile?.entityUrn
     ?? miniProfile?.["*profile"]
     ?? "";
 
-  // Convert fs_miniProfile → fsd_profile (GraphQL requires fsd_profile)
   if (urn.includes("fs_miniProfile")) {
     urn = urn.replace("fs_miniProfile", "fsd_profile");
   }
-
-  // Fallback: construct from plainId
   if (!urn || !urn.includes("fsd_profile")) {
     const memberId = urn.split(":").pop() || miniProfile?.publicIdentifier || "";
     urn = `urn:li:fsd_profile:${memberId}`;
   }
-
   return urn;
 }
 
-/**
- * Fetch conversation list via GraphQL (March 2026+).
- * Uses messengerConversations queryId with mailboxUrn variable.
- * Source: github.com/eracle/OpenOutreach
- *
- * @param {string} liAt
- * @param {string} jsessionid
- * @param {string} mailboxUrn - The authenticated user's profile URN
- * @param {number|null} [lastUpdatedBefore=null] - Unix ms timestamp cursor for pagination;
- *   when provided, fetches conversations last-updated before this timestamp.
- * @returns {Promise<Object>} GraphQL response with conversations
- */
 async function voyagerGetConversations(liAt, jsessionid, mailboxUrn, lastUpdatedBefore = null) {
   const queryId = "messengerConversations.0d5e6781bbee71c3e51c8843c6519f48";
   const variablesParts = [`mailboxUrn:${_encodeUrn(mailboxUrn)}`];
@@ -144,15 +141,6 @@ async function voyagerGetConversations(liAt, jsessionid, mailboxUrn, lastUpdated
   );
 }
 
-/**
- * Fetch messages for a specific conversation via GraphQL.
- * Uses messengerMessages queryId with conversationUrn variable.
- *
- * @param {string} liAt
- * @param {string} jsessionid
- * @param {string} conversationUrn - Conversation URN
- * @returns {Promise<Object>} GraphQL response with messages
- */
 async function voyagerGetConversationMessages(liAt, jsessionid, conversationUrn) {
   const queryId = "messengerMessages.5846eeb71c981f11e0134cb6626cc314";
   const variables = `(conversationUrn:${_encodeUrn(conversationUrn)})`;
@@ -162,14 +150,6 @@ async function voyagerGetConversationMessages(liAt, jsessionid, conversationUrn)
   );
 }
 
-/**
- * Fetch a LinkedIn profile by public identifier (slug).
- *
- * @param {string} liAt
- * @param {string} jsessionid
- * @param {string} publicId - LinkedIn public profile slug, e.g. "john-doe-123"
- * @returns {Promise<Object>} Normalized Voyager response
- */
 async function voyagerGetProfile(liAt, jsessionid, publicId) {
   return voyagerFetch("/identity/dash/profiles", liAt, jsessionid, {
     q: "memberIdentity",
