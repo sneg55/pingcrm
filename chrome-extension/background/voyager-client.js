@@ -58,14 +58,22 @@ async function voyagerFetch(path, _liAt, jsessionid, params = {}, { graphql = fa
 
   const tabId = await _requireLinkedInTab();
 
-  // Execute fetch inside the LinkedIn tab (same-origin → cookies included)
+  // Execute fetch inside the LinkedIn tab (same-origin → cookies included).
+  // Read the CSRF token from document.cookie inside the page context so it
+  // matches exactly what the browser sends — chrome.cookies.getAll() may
+  // return a different JSESSIONID (multiple cookies, different paths).
   const results = await chrome.scripting.executeScript({
     target: { tabId },
-    // This function runs in the LinkedIn page context
-    func: async (url, method, csrfToken, accept, serializedBody) => {
+    func: async (url, method, accept, serializedBody) => {
       try {
+        // Extract JSESSIONID from the page's own cookies
+        const cookieStr = document.cookie;
+        const jsMatch = cookieStr.match(/JSESSIONID="?([^";]+)"?/);
+        const csrf = jsMatch ? jsMatch[1] : "";
+        if (!csrf) return { ok: false, status: 0, body: "NO_JSESSIONID_IN_PAGE_COOKIES" };
+
         const headers = {
-          "Csrf-Token": csrfToken,
+          "Csrf-Token": csrf,
           "X-Restli-Protocol-Version": "2.0.0",
           "Accept": accept,
         };
@@ -84,7 +92,7 @@ async function voyagerFetch(path, _liAt, jsessionid, params = {}, { graphql = fa
         return { ok: false, status: 0, body: e.message };
       }
     },
-    args: [urlStr, method, csrfToken, accept, serializedBody],
+    args: [urlStr, method, accept, serializedBody],
     world: "MAIN",
   });
 
