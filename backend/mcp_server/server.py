@@ -66,11 +66,13 @@ async def run_stdio(user_email: str | None = None):
 
 
 async def run_sse(port: int):
-    """Run in SSE mode (remote HTTP)."""
+    """Run in SSE mode (remote HTTP — standalone, no auth)."""
+    import uvicorn
     _register_tools()
     logger.info("Starting PingCRM MCP server (SSE mode on port %d)", port)
-    # SSE transport implementation will be completed in Task 11
-    raise NotImplementedError("SSE transport not yet wired")
+    config = uvicorn.Config(mcp_app.sse_app(), host="0.0.0.0", port=port)
+    server = uvicorn.Server(config)
+    await server.serve()
 
 
 def main():

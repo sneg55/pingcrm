@@ -96,6 +96,12 @@ app.include_router(activity_router)
 app.include_router(extension_router)
 app.include_router(sync_history_router)
 
+# MCP SSE endpoint — authenticated via Bearer API key
+from mcp_server.server import mcp_app, _register_tools  # noqa: E402
+from mcp_server.asgi import MCPAuthMiddleware  # noqa: E402
+_register_tools()
+app.mount("/mcp", MCPAuthMiddleware(mcp_app.sse_app()))
+
 # Serve uploaded avatars
 _static_dir = Path(__file__).resolve().parent.parent / "static"
 _avatars_dir = _static_dir / "avatars"
