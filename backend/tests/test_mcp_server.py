@@ -430,3 +430,103 @@ class TestDashboardTools:
 
         result = await _get_dashboard_stats(uuid.uuid4(), db)
         assert "No interactions" in result
+
+
+class TestMcpKeyApi:
+    """Integration tests for POST/GET/DELETE /api/v1/settings/mcp-key."""
+
+    @pytest.mark.asyncio
+    async def test_get_key_status_no_key(self, client, auth_headers):
+        """GET /settings/mcp-key returns has_key=false when no key exists."""
+        resp = await client.get("/api/v1/settings/mcp-key", headers=auth_headers)
+        assert resp.status_code == 200
+        assert resp.json()["data"]["has_key"] is False
+
+    @pytest.mark.asyncio
+    async def test_generate_key_returns_pingcrm_prefix(self, client, auth_headers):
+        """POST /settings/mcp-key returns a key starting with pingcrm_."""
+        resp = await client.post("/api/v1/settings/mcp-key", headers=auth_headers)
+        assert resp.status_code == 200
+        key = resp.json()["data"]["key"]
+        assert key.startswith("pingcrm_")
+        assert len(key) > 40
+
+    @pytest.mark.asyncio
+    async def test_get_key_status_after_generate(self, client, auth_headers):
+        """GET returns has_key=true after generating a key."""
+        await client.post("/api/v1/settings/mcp-key", headers=auth_headers)
+        resp = await client.get("/api/v1/settings/mcp-key", headers=auth_headers)
+        assert resp.json()["data"]["has_key"] is True
+
+    @pytest.mark.asyncio
+    async def test_revoke_key(self, client, auth_headers):
+        """DELETE /settings/mcp-key revokes the key."""
+        await client.post("/api/v1/settings/mcp-key", headers=auth_headers)
+        resp = await client.delete("/api/v1/settings/mcp-key", headers=auth_headers)
+        assert resp.status_code == 200
+        assert resp.json()["data"]["revoked"] is True
+        # Verify key is gone
+        status = await client.get("/api/v1/settings/mcp-key", headers=auth_headers)
+        assert status.json()["data"]["has_key"] is False
+
+    @pytest.mark.asyncio
+    async def test_generate_key_overwrites_existing(self, client, auth_headers):
+        """Generating a new key replaces the old one."""
+        resp1 = await client.post("/api/v1/settings/mcp-key", headers=auth_headers)
+        key1 = resp1.json()["data"]["key"]
+        resp2 = await client.post("/api/v1/settings/mcp-key", headers=auth_headers)
+        key2 = resp2.json()["data"]["key"]
+        assert key1 != key2
+
+    @pytest.mark.asyncio
+    async def test_key_endpoints_require_auth(self, client):
+        """All MCP key endpoints return 401 without auth."""
+        for method, path in [
+            (client.get, "/api/v1/settings/mcp-key"),
+            (client.post, "/api/v1/settings/mcp-key"),
+            (client.delete, "/api/v1/settings/mcp-key"),
+        ]:
+            resp = await method(path)
+            assert resp.status_code == 401
+
+
+class TestMcpKeyVerification:
+    """Test that generated keys verify correctly via auth module."""
+
+    @pytest.mark.asyncio
+    async def test_generated_key_verifies(self, client, auth_headers, db, test_user):
+        """A key generated via API can be verified via auth.verify_api_key."""
+        from mcp_server.auth import verify_api_key
+
+        resp = await client.post("/api/v1/settings/mcp-key", headers=auth_headers)
+        key = resp.json()["data"]["key"]
+        user = await verify_api_key(key, db)
+        assert user is not None
+        assert user.id == test_user.id
+
+    @pytest.mark.asyncio
+    async def test_revoked_key_does_not_verify(self, client, auth_headers, db):
+        """After revocation, the key no longer verifies."""
+        from mcp_server.auth import verify_api_key
+
+        resp = await client.post("/api/v1/settings/mcp-key", headers=auth_headers)
+        key = resp.json()["data"]["key"]
+        await client.delete("/api/v1/settings/mcp-key", headers=auth_headers)
+        user = await verify_api_key(key, db)
+        assert user is None
+
+
+class TestScoreTierMapping:
+    """Test score tier name mapping in contacts tool."""
+
+    def test_score_map_values(self):
+        from mcp_server.tools.contacts import _SCORE_MAP
+
+        assert _SCORE_MAP["strong"] == "strong"
+        assert _SCORE_MAP["warm"] == "active"
+        assert _SCORE_MAP["cold"] == "dormant"
+
+    def test_unknown_score_returns_none(self):
+        from mcp_server.tools.contacts import _SCORE_MAP
+
+        assert _SCORE_MAP.get("invalid") is None
