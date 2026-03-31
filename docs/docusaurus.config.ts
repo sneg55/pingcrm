@@ -31,6 +31,10 @@ const config: Config = {
           routeBasePath: '/',
         },
         blog: false,
+        gtag: {
+          trackingID: 'G-WVR19X9096',
+          anonymizeIP: true,
+        },
         theme: {
           customCss: './src/css/custom.css',
         },
