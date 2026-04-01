@@ -1,5 +1,4 @@
 """MCP tools for contact search and lookup."""
-from __future__ import annotations
 
 import uuid as _uuid
 

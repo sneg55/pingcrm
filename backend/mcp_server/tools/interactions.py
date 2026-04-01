@@ -1,5 +1,4 @@
 """MCP tools for interaction history."""
-from __future__ import annotations
 
 import uuid as _uuid
 

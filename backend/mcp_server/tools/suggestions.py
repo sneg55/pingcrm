@@ -1,5 +1,4 @@
 """MCP tools for follow-up suggestions."""
-from __future__ import annotations
 
 import uuid as _uuid
 
