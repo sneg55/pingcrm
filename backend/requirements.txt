@@ -21,4 +21,4 @@ telethon==1.37.0
 cryptography==44.0.0
 email-validator>=2.0.0
 python-json-logger>=3.0.0
-mcp>=1.6.0,<2.0.0
+mcp>=1.6.0,<1.26.0
