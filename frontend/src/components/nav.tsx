@@ -8,8 +8,20 @@ import { useUnreadCount } from "@/hooks/use-notifications";
 import { useContacts } from "@/hooks/use-contacts";
 import { useTelegramSyncProgress } from "@/hooks/use-telegram-sync";
 import { useState, useRef, useEffect, useCallback } from "react";
+import { useQuery } from "@tanstack/react-query";
+import { client } from "@/lib/api-client";
 import { cn } from "@/lib/utils";
 import { ThemeToggle } from "@/components/theme-toggle";
+
+interface OrgSearchResult {
+  id: string;
+  name: string;
+  contact_count: number;
+}
+
+type SearchResult =
+  | { type: "contact"; id: string; name: string; subtitle: string | null; avatarInitial: string }
+  | { type: "org"; id: string; name: string; subtitle: string };
 
 const navLinks = [
   { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
@@ -142,14 +154,70 @@ function NavSearch() {
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
+  const [tab, setTab] = useState<"all" | "contacts" | "companies">("all");
   const inputRef = useRef<HTMLInputElement>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
   const { data } = useContacts({
     search: query || undefined,
-    page_size: 6,
+    page_size: tab === "all" ? 4 : 6,
   });
   const results = query.length >= 2 ? (data?.data ?? []) : [];
+
+  const orgQuery = useQuery({
+    queryKey: ["organizations", "nav-search", query],
+    queryFn: async () => {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { data } = await client.GET("/api/v1/organizations" as any, {
+        params: { query: { search: query, page_size: tab === "all" ? "4" : "6" } },
+      });
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      return ((data as any)?.data as OrgSearchResult[]) ?? [];
+    },
+    enabled: query.length >= 2 && tab !== "contacts",
+  });
+  const orgResults = query.length >= 2 ? (orgQuery.data ?? []) : [];
+
+  const combinedResults: SearchResult[] = (() => {
+    if (tab === "contacts") {
+      return results.map((c) => ({
+        type: "contact" as const,
+        id: c.id,
+        name: c.full_name || c.emails?.[0] || "Unnamed",
+        subtitle: c.company || null,
+        avatarInitial: (c.full_name || c.emails?.[0] || "?")[0].toUpperCase(),
+      }));
+    }
+    if (tab === "companies") {
+      return orgResults.map((o) => ({
+        type: "org" as const,
+        id: o.id,
+        name: o.name,
+        subtitle: `${o.contact_count} contact${o.contact_count !== 1 ? "s" : ""}`,
+      }));
+    }
+    // "all" tab: interleave contacts and orgs
+    const merged: SearchResult[] = [];
+    const contacts = results.map((c) => ({
+      type: "contact" as const,
+      id: c.id,
+      name: c.full_name || c.emails?.[0] || "Unnamed",
+      subtitle: c.company || null,
+      avatarInitial: (c.full_name || c.emails?.[0] || "?")[0].toUpperCase(),
+    }));
+    const orgs = orgResults.map((o) => ({
+      type: "org" as const,
+      id: o.id,
+      name: o.name,
+      subtitle: `${o.contact_count} contact${o.contact_count !== 1 ? "s" : ""}`,
+    }));
+    const maxLen = Math.max(contacts.length, orgs.length);
+    for (let i = 0; i < maxLen && merged.length < 6; i++) {
+      if (i < contacts.length) merged.push(contacts[i]);
+      if (i < orgs.length && merged.length < 6) merged.push(orgs[i]);
+    }
+    return merged;
+  })();
 
   // Cmd+K / Ctrl+K shortcut
   useEffect(() => {
@@ -162,6 +230,7 @@ function NavSearch() {
       if (e.key === "Escape") {
         setOpen(false);
         setQuery("");
+        setTab("all");
       }
     };
     document.addEventListener("keydown", handler);
@@ -174,16 +243,18 @@ function NavSearch() {
       if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node)) {
         setOpen(false);
         setQuery("");
+        setTab("all");
       }
     };
     if (open) document.addEventListener("mousedown", handler);
     return () => document.removeEventListener("mousedown", handler);
   }, [open]);
 
-  const navigate = useCallback((id: string) => {
+  const navigate = useCallback((path: string) => {
     setOpen(false);
     setQuery("");
-    router.push(`/contacts/${id}`);
+    setTab("all");
+    router.push(path);
   }, [router]);
 
   if (!open) {
@@ -196,7 +267,7 @@ function NavSearch() {
         className="flex items-center gap-2 px-3 py-1.5 rounded-md text-sm text-stone-400 border border-stone-200 hover:border-stone-300 hover:text-stone-500 dark:text-stone-500 dark:border-stone-700 dark:hover:border-stone-600 dark:hover:text-stone-400 transition-colors whitespace-nowrap"
       >
         <Search className="w-3.5 h-3.5 shrink-0" />
-        <span className="hidden sm:inline">Search contacts</span>
+        <span className="hidden sm:inline">Search</span>
         <kbd className="hidden sm:inline-flex items-center gap-0.5 px-1.5 py-0.5 text-[10px] font-mono bg-stone-100 dark:bg-stone-800 rounded text-stone-400 dark:text-stone-500">
           ⌘K
         </kbd>
@@ -214,37 +285,70 @@ function NavSearch() {
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           onKeyDown={(e) => {
-            if (e.key === "Enter" && results.length > 0) {
-              navigate(results[0].id);
+            if (e.key === "Enter" && combinedResults.length > 0) {
+              const first = combinedResults[0];
+              navigate(first.type === "contact" ? `/contacts/${first.id}` : `/organizations/${first.id}`);
             }
           }}
-          placeholder="Search contacts..."
+          placeholder="Search..."
           className="w-40 sm:w-56 text-sm bg-transparent outline-none placeholder:text-stone-400 dark:placeholder:text-stone-500 dark:text-stone-100"
         />
       </div>
       {query.length >= 2 && (
         <div className="absolute top-full left-0 right-0 mt-1 bg-white dark:bg-stone-900 rounded-lg border border-stone-200 dark:border-stone-700 shadow-lg z-50 flex flex-col">
+          {/* Tab bar */}
+          <div className="flex items-center gap-1 px-3 pt-2 pb-1 border-b border-stone-100 dark:border-stone-800">
+            {(["all", "contacts", "companies"] as const).map((t) => (
+              <button
+                key={t}
+                role="button"
+                aria-label={t === "all" ? "All" : t === "contacts" ? "Contacts" : "Companies"}
+                onClick={() => setTab(t)}
+                className={cn(
+                  "px-2 py-1 text-xs font-medium rounded transition-colors",
+                  tab === t
+                    ? "text-teal-700 dark:text-teal-400 bg-teal-50 dark:bg-teal-950"
+                    : "text-stone-400 dark:text-stone-500 hover:text-stone-600 dark:hover:text-stone-300"
+                )}
+              >
+                {t === "all" ? "All" : t === "contacts" ? "Contacts" : "Companies"}
+              </button>
+            ))}
+          </div>
           <div className="max-h-72 overflow-auto">
-            {results.length === 0 ? (
-              <p className="px-3 py-4 text-sm text-stone-400 dark:text-stone-500 text-center">No contacts found</p>
+            {combinedResults.length === 0 ? (
+              <p className="px-3 py-4 text-sm text-stone-400 dark:text-stone-500 text-center">
+                {tab === "companies" ? "No companies found" : tab === "contacts" ? "No contacts found" : "No results found"}
+              </p>
             ) : (
-              results.map((c) => (
+              combinedResults.map((r) => (
                 <button
-                  key={c.id}
-                  onClick={() => navigate(c.id)}
+                  key={`${r.type}-${r.id}`}
+                  onClick={() => navigate(r.type === "contact" ? `/contacts/${r.id}` : `/organizations/${r.id}`)}
                   className="w-full flex items-center gap-3 px-3 py-2.5 text-left hover:bg-stone-50 dark:hover:bg-stone-800 transition-colors"
                 >
-                  <div className="w-8 h-8 rounded-full bg-teal-100 dark:bg-teal-900 text-teal-700 dark:text-teal-300 flex items-center justify-center text-xs font-medium shrink-0">
-                    {(c.full_name || c.emails?.[0] || "?")[0].toUpperCase()}
-                  </div>
-                  <div className="min-w-0">
+                  {r.type === "contact" ? (
+                    <div className="w-8 h-8 rounded-full bg-teal-100 dark:bg-teal-900 text-teal-700 dark:text-teal-300 flex items-center justify-center text-xs font-medium shrink-0">
+                      {r.avatarInitial}
+                    </div>
+                  ) : (
+                    <div className="w-8 h-8 rounded-full bg-stone-100 dark:bg-stone-800 text-stone-500 dark:text-stone-400 flex items-center justify-center shrink-0">
+                      <Building2 className="w-4 h-4" />
+                    </div>
+                  )}
+                  <div className="min-w-0 flex-1">
                     <p className="text-sm font-medium text-stone-900 dark:text-stone-100 truncate">
-                      {c.full_name || c.emails?.[0] || "Unnamed"}
+                      {r.name}
                     </p>
-                    {c.company && (
-                      <p className="text-xs text-stone-400 dark:text-stone-500 truncate">{c.company}</p>
+                    {r.subtitle && (
+                      <p className="text-xs text-stone-400 dark:text-stone-500 truncate">{r.subtitle}</p>
                     )}
                   </div>
+                  {tab === "all" && (
+                    <span className="text-[10px] text-stone-400 dark:text-stone-500 shrink-0">
+                      {r.type === "contact" ? "Contact" : "Company"}
+                    </span>
+                  )}
                 </button>
               ))
             )}
@@ -252,9 +356,10 @@ function NavSearch() {
           {query && (
             <button
               onClick={() => {
-                setOpen(false);
-                setQuery("");
-                router.push(`/contacts?q=${encodeURIComponent(query)}`);
+                const dest = tab === "companies"
+                  ? `/organizations?q=${encodeURIComponent(query)}`
+                  : `/contacts?q=${encodeURIComponent(query)}`;
+                navigate(dest);
               }}
               className="shrink-0 w-full px-3 py-2 text-xs text-teal-600 dark:text-teal-400 hover:bg-teal-50 dark:hover:bg-teal-950 border-t border-stone-100 dark:border-stone-800 transition-colors rounded-b-lg"
             >
