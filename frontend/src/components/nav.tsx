@@ -159,13 +159,13 @@ function NavSearch() {
   const dropdownRef = useRef<HTMLDivElement>(null);
 
   const { data } = useContacts({
-    search: query || undefined,
+    search: tab === "companies" ? undefined : (query || undefined),
     page_size: tab === "all" ? 4 : 6,
   });
   const results = query.length >= 2 ? (data?.data ?? []) : [];
 
   const orgQuery = useQuery({
-    queryKey: ["organizations", "nav-search", query],
+    queryKey: ["organizations", "nav-search", query, tab],
     queryFn: async () => {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const { data } = await client.GET("/api/v1/organizations" as any, {
@@ -283,7 +283,10 @@ function NavSearch() {
           ref={inputRef}
           type="text"
           value={query}
-          onChange={(e) => setQuery(e.target.value)}
+          onChange={(e) => {
+              setQuery(e.target.value);
+              if (e.target.value.length < 2) setTab("all");
+            }}
           onKeyDown={(e) => {
             if (e.key === "Enter" && combinedResults.length > 0) {
               const first = combinedResults[0];
