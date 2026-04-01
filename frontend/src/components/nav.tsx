@@ -7,17 +7,11 @@ import { LayoutDashboard, Users, Building2, Sparkles, GitMerge, Settings, Bell, 
 import { useUnreadCount } from "@/hooks/use-notifications";
 import { useContacts } from "@/hooks/use-contacts";
 import { useTelegramSyncProgress } from "@/hooks/use-telegram-sync";
-import { useState, useRef, useEffect, useCallback } from "react";
+import { useState, useRef, useEffect, useCallback, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { client } from "@/lib/api-client";
 import { cn } from "@/lib/utils";
 import { ThemeToggle } from "@/components/theme-toggle";
-
-interface OrgSearchResult {
-  id: string;
-  name: string;
-  contact_count: number;
-}
 
 type SearchResult =
   | { type: "contact"; id: string; name: string; subtitle: string | null; avatarInitial: string }
@@ -167,18 +161,16 @@ function NavSearch() {
   const orgQuery = useQuery({
     queryKey: ["organizations", "nav-search", query, tab],
     queryFn: async () => {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const { data } = await client.GET("/api/v1/organizations" as any, {
-        params: { query: { search: query, page_size: tab === "all" ? "4" : "6" } },
+      const { data } = await client.GET("/api/v1/organizations", {
+        params: { query: { search: query, page_size: tab === "all" ? 4 : 6 } },
       });
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      return ((data as any)?.data as OrgSearchResult[]) ?? [];
+      return (data?.data ?? []) as Array<{ id: string; name: string; contact_count: number }>;
     },
     enabled: query.length >= 2 && tab !== "contacts",
   });
   const orgResults = query.length >= 2 ? (orgQuery.data ?? []) : [];
 
-  const combinedResults: SearchResult[] = (() => {
+  const combinedResults = useMemo<SearchResult[]>(() => {
     if (tab === "contacts") {
       return results.map((c) => ({
         type: "contact" as const,
@@ -217,7 +209,7 @@ function NavSearch() {
       if (i < orgs.length && merged.length < 6) merged.push(orgs[i]);
     }
     return merged;
-  })();
+  }, [tab, results, orgResults]);
 
   // Cmd+K / Ctrl+K shortcut
   useEffect(() => {
@@ -304,7 +296,6 @@ function NavSearch() {
             {(["all", "contacts", "companies"] as const).map((t) => (
               <button
                 key={t}
-                role="button"
                 aria-label={t === "all" ? "All" : t === "contacts" ? "Contacts" : "Companies"}
                 onClick={() => setTab(t)}
                 className={cn(
