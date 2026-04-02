@@ -8,6 +8,7 @@ import { InlineListField } from "@/components/inline-list-field";
 import { CompanyFavicon } from "@/components/company-favicon";
 import { client } from "@/lib/api-client";
 import { useAuth } from "@/hooks/use-auth";
+import { formatDistanceToNow } from "date-fns";
 import { type Contact } from "@/hooks/use-contacts";
 
 /* ── Copy button ── */
@@ -463,6 +464,12 @@ export function DetailsPanel({
           isLink
           linkPrefix="https://t.me/"
         />
+        {contact.telegram_last_seen_at && (
+          <div className="flex items-center justify-between py-1.5 px-1 text-xs text-stone-400 dark:text-stone-500 -mt-1">
+            <span>Last seen</span>
+            <span>{formatDistanceToNow(new Date(contact.telegram_last_seen_at), { addSuffix: true })}</span>
+          </div>
+        )}
         <InlineField
           label="Twitter"
           value={contact.twitter_handle}
