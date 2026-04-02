@@ -153,24 +153,6 @@ async def unhandled_exception_handler(request: Request, exc: Exception) -> JSONR
         content={"detail": "Internal server error"},
     )
 
-# Wrap FastAPI with raw ASGI router for MCP SSE (must be after all
-# app.mount / @app.exception_handler registrations)
-_fastapi_asgi = app
-
-
-async def _root_asgi(scope, receive, send):
-    """Route /mcp/* to the MCP SSE app, everything else to FastAPI."""
-    path = scope.get("path", "")
-    if path.startswith("/mcp"):
-        scope = dict(scope, path=path[4:] or "/", root_path=scope.get("root_path", "") + "/mcp")
-        await _mcp_asgi(scope, receive, send)
-    else:
-        await _fastapi_asgi(scope, receive, send)
-
-
-app = _root_asgi  # type: ignore[assignment]
-
-
 class FrontendErrorReport(BaseModel):
     message: str = Field(max_length=1000)
     source: str | None = Field(default=None, max_length=500)
@@ -218,3 +200,21 @@ async def report_frontend_error(report: FrontendErrorReport, request: Request) -
 @app.get("/api/health", tags=["health"])
 async def health_check() -> dict:
     return {"status": "ok", "service": "pingcrm-api"}
+
+
+# ── ASGI wrapper for MCP SSE ──────────────────────────────────────────────────
+# MUST be the last thing in this file — everything above uses `app` as FastAPI.
+_fastapi_asgi = app
+
+
+async def _root_asgi(scope, receive, send):
+    """Route /mcp/* to the MCP SSE app, everything else to FastAPI."""
+    path = scope.get("path", "")
+    if path.startswith("/mcp"):
+        scope = dict(scope, path=path[4:] or "/", root_path=scope.get("root_path", "") + "/mcp")
+        await _mcp_asgi(scope, receive, send)
+    else:
+        await _fastapi_asgi(scope, receive, send)
+
+
+app = _root_asgi  # type: ignore[assignment]
