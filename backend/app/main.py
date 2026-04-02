@@ -96,11 +96,27 @@ app.include_router(activity_router)
 app.include_router(extension_router)
 app.include_router(sync_history_router)
 
-# MCP SSE endpoint — authenticated via Bearer API key
+# MCP SSE endpoint — authenticated via Bearer API key.
+# Mounted as a raw ASGI sub-app to bypass Starlette's error middleware
+# which asserts http.response.body and breaks SSE streams.
 from mcp_server.server import mcp_app, _register_tools  # noqa: E402
 from mcp_server.asgi import MCPAuthMiddleware  # noqa: E402
 _register_tools()
-app.mount("/mcp", MCPAuthMiddleware(mcp_app.sse_app()))
+_mcp_asgi = MCPAuthMiddleware(mcp_app.sse_app())
+_fastapi_asgi = app  # save ref before wrapping
+
+
+async def _root_asgi(scope, receive, send):
+    """Route /mcp/* to the MCP SSE app, everything else to FastAPI."""
+    path = scope.get("path", "")
+    if path.startswith("/mcp"):
+        scope = dict(scope, path=path[4:] or "/", root_path=scope.get("root_path", "") + "/mcp")
+        await _mcp_asgi(scope, receive, send)
+    else:
+        await _fastapi_asgi(scope, receive, send)
+
+
+app = _root_asgi  # type: ignore[assignment]
 
 # Serve uploaded avatars
 _static_dir = Path(__file__).resolve().parent.parent / "static"
