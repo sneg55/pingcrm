@@ -1,7 +1,7 @@
 import logging
 from datetime import timedelta
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 from fastapi.security import OAuth2PasswordRequestForm
 from google.auth.transport import requests as google_requests
 from google.oauth2 import id_token as google_id_token
@@ -66,8 +66,12 @@ async def register(
     return {"data": UserResponse.model_validate(user).model_dump(), "error": None}
 
 
+REMEMBER_ME_EXPIRE_MINUTES = 60 * 24 * 30  # 30 days
+
+
 @router.post("/login", response_model=Envelope[TokenData])
 async def login(
+    request: Request,
     form_data: OAuth2PasswordRequestForm = Depends(),
     db: AsyncSession = Depends(get_db),
 ) -> Envelope[TokenData]:
@@ -81,9 +85,14 @@ async def login(
             headers={"WWW-Authenticate": "Bearer"},
         )
 
+    # Check remember_me from form body (sent as extra form field)
+    body = await request.form()
+    remember_me = body.get("remember_me") == "true"
+    expire_minutes = REMEMBER_ME_EXPIRE_MINUTES if remember_me else settings.ACCESS_TOKEN_EXPIRE_MINUTES
+
     access_token = create_access_token(
         data={"sub": str(user.id)},
-        expires_delta=timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES),
+        expires_delta=timedelta(minutes=expire_minutes),
     )
     return Envelope(data=TokenData(access_token=access_token, token_type="bearer"))
 

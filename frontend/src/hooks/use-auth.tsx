@@ -19,7 +19,7 @@ export interface User {
 interface AuthContextValue {
   user: User | null;
   isLoading: boolean;
-  login: (email: string, password: string) => Promise<void>;
+  login: (email: string, password: string, rememberMe?: boolean) => Promise<void>;
   register: (email: string, password: string, full_name: string) => Promise<void>;
   logout: () => void;
 }
@@ -57,10 +57,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     void fetchUser();
   }, [fetchUser]);
 
-  const login = useCallback(async (email: string, password: string) => {
+  const login = useCallback(async (email: string, password: string, rememberMe?: boolean) => {
     const params = new URLSearchParams();
     params.set("username", email);
     params.set("password", password);
+    if (rememberMe) params.set("remember_me", "true");
 
     const { data } = await client.POST("/api/v1/auth/login", {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
