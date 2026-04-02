@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useRef, useEffect } from "react";
+import { createPortal } from "react-dom";
 import {
   Archive,
   ArchiveRestore,
@@ -163,6 +164,16 @@ export function HeaderCard({
   const [menuOpen, setMenuOpen] = useState(false);
   const [showAvatarModal, setShowAvatarModal] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
+
+  // Close avatar modal on Escape
+  useEffect(() => {
+    if (!showAvatarModal) return;
+    const handler = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setShowAvatarModal(false);
+    };
+    document.addEventListener("keydown", handler);
+    return () => document.removeEventListener("keydown", handler);
+  }, [showAvatarModal]);
 
   // Fetch follow-up intervals from settings for tooltip display
   const { data: priorityData } = useQuery({
@@ -399,12 +410,11 @@ export function HeaderCard({
       </div>
     </div>
 
-    {/* Full-size avatar modal */}
-    {showAvatarModal && contact.avatar_url && (
+    {/* Full-size avatar modal — portal to body so it's above the sticky navbar */}
+    {showAvatarModal && contact.avatar_url && createPortal(
       <div
-        className="fixed inset-0 z-50 flex items-center justify-center bg-black/60"
+        className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60"
         onClick={() => setShowAvatarModal(false)}
-        onKeyDown={(e) => { if (e.key === "Escape") setShowAvatarModal(false); }}
       >
         <div
           className="relative bg-white dark:bg-stone-900 rounded-2xl shadow-2xl p-6 max-w-lg w-full mx-4"
@@ -423,7 +433,9 @@ export function HeaderCard({
           />
           <p className="text-center text-sm font-medium text-stone-700 dark:text-stone-300 mt-3">{displayName}</p>
         </div>
-      </div>
+      </div>,
+      document.body
+
     )}
     </>
   );
