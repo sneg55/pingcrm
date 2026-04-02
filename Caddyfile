@@ -4,6 +4,13 @@ pingcrm.sawinyh.com {
         reverse_proxy backend:8000
     }
     
+    # MCP Server (SSE transport — disable buffering for streaming)
+    handle /mcp/* {
+        reverse_proxy backend:8000 {
+            flush_interval -1
+        }
+    }
+
     # WebSocket support
     handle /ws/* {
         reverse_proxy backend:8000
