@@ -103,28 +103,14 @@ from mcp_server.server import mcp_app, _register_tools  # noqa: E402
 from mcp_server.asgi import MCPAuthMiddleware  # noqa: E402
 _register_tools()
 _mcp_asgi = MCPAuthMiddleware(mcp_app.sse_app())
-_fastapi_asgi = app  # save ref before wrapping
 
-
-async def _root_asgi(scope, receive, send):
-    """Route /mcp/* to the MCP SSE app, everything else to FastAPI."""
-    path = scope.get("path", "")
-    if path.startswith("/mcp"):
-        scope = dict(scope, path=path[4:] or "/", root_path=scope.get("root_path", "") + "/mcp")
-        await _mcp_asgi(scope, receive, send)
-    else:
-        await _fastapi_asgi(scope, receive, send)
-
-
-app = _root_asgi  # type: ignore[assignment]
-
-# Serve uploaded avatars
+# Serve uploaded avatars (must be mounted on FastAPI before ASGI wrapping)
 _static_dir = Path(__file__).resolve().parent.parent / "static"
 _avatars_dir = _static_dir / "avatars"
 _avatars_dir.mkdir(parents=True, exist_ok=True)
 app.mount("/static", StaticFiles(directory=str(_static_dir)), name="static")
 
-
+# Save FastAPI ref, then replace app with raw ASGI router
 @app.exception_handler(StarletteHTTPException)
 async def http_exception_handler(request: Request, exc: StarletteHTTPException) -> JSONResponse:
     """Log HTTP exceptions with structured context."""
@@ -166,6 +152,23 @@ async def unhandled_exception_handler(request: Request, exc: Exception) -> JSONR
         status_code=500,
         content={"detail": "Internal server error"},
     )
+
+# Wrap FastAPI with raw ASGI router for MCP SSE (must be after all
+# app.mount / @app.exception_handler registrations)
+_fastapi_asgi = app
+
+
+async def _root_asgi(scope, receive, send):
+    """Route /mcp/* to the MCP SSE app, everything else to FastAPI."""
+    path = scope.get("path", "")
+    if path.startswith("/mcp"):
+        scope = dict(scope, path=path[4:] or "/", root_path=scope.get("root_path", "") + "/mcp")
+        await _mcp_asgi(scope, receive, send)
+    else:
+        await _fastapi_asgi(scope, receive, send)
+
+
+app = _root_asgi  # type: ignore[assignment]
 
 
 class FrontendErrorReport(BaseModel):
