@@ -981,6 +981,13 @@ async def sync_telegram_bios(
                 if avatar_path:
                     contact.avatar_url = avatar_path
 
+            # Extract last seen status from user object
+            from app.integrations.telegram_helpers import _extract_last_seen
+            tg_user = full.users[0] if full.users else None
+            last_seen = _extract_last_seen(tg_user) if tg_user else None
+            if last_seen:
+                contact.telegram_last_seen_at = last_seen
+
             # Extract birthday if available and not already set
             from app.services.sync_utils import sync_set_field
             if not contact.birthday:

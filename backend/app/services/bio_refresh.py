@@ -142,6 +142,12 @@ async def refresh_contact_bios(
                     input_user = await client.get_input_entity(username)
                     full = await client(GetFullUserRequest(input_user))
                     new_bio = getattr(full.full_user, "about", None) or ""
+                    # Extract last seen status
+                    from app.integrations.telegram_helpers import _extract_last_seen
+                    tg_user = full.users[0] if full.users else None
+                    last_seen = _extract_last_seen(tg_user) if tg_user else None
+                    if last_seen:
+                        contact.telegram_last_seen_at = last_seen
                     # Extract birthday if available
                     if not contact.birthday:
                         bday = getattr(full.full_user, "birthday", None)

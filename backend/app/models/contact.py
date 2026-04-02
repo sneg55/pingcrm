@@ -62,6 +62,7 @@ class Contact(Base):
     telegram_groups_fetched_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     telegram_bio_checked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     telegram_read_outbox_max_id: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    telegram_last_seen_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
     tags: Mapped[list[str] | None] = mapped_column(ARRAY(String), nullable=True, default=list)
     notes: Mapped[str | None] = mapped_column(Text, nullable=True)

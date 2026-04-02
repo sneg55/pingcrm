@@ -18,6 +18,38 @@ _TWITTER_URL_RE = _re.compile(
 _TWITTER_MENTION_RE = _re.compile(r"@([\w]{1,15})\b")
 
 
+def _extract_last_seen(user) -> datetime | None:
+    """Extract last-seen timestamp from a Telethon User's status field.
+
+    Returns a timezone-aware datetime for exact statuses (Online/Offline),
+    an approximate datetime for vague statuses (Recently/LastWeek/LastMonth),
+    or None if status is hidden/empty.
+    """
+    from datetime import UTC, timedelta
+
+    status = getattr(user, "status", None)
+    if status is None:
+        return None
+
+    type_name = type(status).__name__
+
+    if type_name == "UserStatusOffline":
+        # Exact: was_online is a UTC datetime
+        return getattr(status, "was_online", None)
+    if type_name == "UserStatusOnline":
+        # Currently online
+        return datetime.now(UTC)
+    if type_name == "UserStatusRecently":
+        # Approximate: within ~3 days
+        return datetime.now(UTC) - timedelta(days=1)
+    if type_name == "UserStatusLastWeek":
+        return datetime.now(UTC) - timedelta(days=4)
+    if type_name == "UserStatusLastMonth":
+        return datetime.now(UTC) - timedelta(days=15)
+
+    return None
+
+
 def _extract_twitter_handle(bio: str) -> str | None:
     """Extract a Twitter/X handle from a bio string.
 
