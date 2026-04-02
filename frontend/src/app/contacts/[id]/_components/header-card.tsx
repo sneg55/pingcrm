@@ -85,7 +85,17 @@ function TagsPills({
           <input
             ref={inputRef}
             value={draft}
-            onChange={(e) => setDraft(e.target.value)}
+            onChange={(e) => {
+              const val = e.target.value;
+              setDraft(val);
+              // Auto-add when user picks an existing tag from the datalist
+              const normalized = val.trim().toLowerCase();
+              if (normalized && allTags.includes(normalized) && !tags.includes(normalized)) {
+                onSave([...tags, normalized]);
+                setDraft("");
+                setAdding(false);
+              }
+            }}
             onKeyDown={(e) => {
               if (e.key === "Enter") addTag();
               if (e.key === "Escape") {
