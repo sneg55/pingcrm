@@ -151,6 +151,7 @@ export function HeaderCard({
   isPromoting?: boolean;
 }) {
   const [menuOpen, setMenuOpen] = useState(false);
+  const [showAvatarModal, setShowAvatarModal] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
 
   // Fetch follow-up intervals from settings for tooltip display
@@ -183,16 +184,23 @@ export function HeaderCard({
   );
 
   return (
+    <>
     <div className="bg-white dark:bg-stone-900 rounded-xl border border-stone-200 dark:border-stone-700 p-6 mb-6">
       <div className="flex items-start gap-6">
         {/* Avatar */}
         <div className="shrink-0">
           {contact.avatar_url ? (
-            <img
-              src={contact.avatar_url}
-              alt={displayName}
-              className="w-20 h-20 rounded-full object-cover"
-            />
+            <button
+              onClick={() => setShowAvatarModal(true)}
+              className="cursor-zoom-in"
+              title="View full photo"
+            >
+              <img
+                src={contact.avatar_url}
+                alt={displayName}
+                className="w-20 h-20 rounded-full object-cover hover:ring-2 hover:ring-teal-400 transition-all"
+              />
+            </button>
           ) : (
             <div
               className={cn(
@@ -380,5 +388,22 @@ export function HeaderCard({
         </div>
       </div>
     </div>
+
+    {/* Full-size avatar modal */}
+    {showAvatarModal && contact.avatar_url && (
+      <div
+        className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 cursor-zoom-out"
+        onClick={() => setShowAvatarModal(false)}
+        onKeyDown={(e) => { if (e.key === "Escape") setShowAvatarModal(false); }}
+      >
+        <img
+          src={contact.avatar_url}
+          alt={displayName}
+          className="max-w-[90vw] max-h-[90vh] rounded-lg object-contain shadow-2xl"
+          onClick={(e) => e.stopPropagation()}
+        />
+      </div>
+    )}
+    </>
   );
 }
