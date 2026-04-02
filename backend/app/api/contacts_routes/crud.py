@@ -301,7 +301,7 @@ async def update_contact(
             import redis.asyncio as aioredis
             from app.core.config import settings
             r = aioredis.from_url(settings.REDIS_URL)
-            await r.delete(f"bio_refresh:{contact_id}")
+            await r.delete(f"bio_check:{contact_id}")
             await r.aclose()
         except Exception:
             logger.warning("Failed to clear bio_refresh cache for contact %s", contact_id, exc_info=True)
