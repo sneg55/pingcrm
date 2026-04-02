@@ -121,7 +121,7 @@ async def _handle_sse(scope, receive, send):
 
 
 _mcp_starlette = Starlette(routes=[
-    Route("/sse", endpoint=_handle_sse),
+    Mount("/sse", app=_handle_sse),
     Mount("/messages", app=_sse_transport.handle_post_message),
 ])
 _mcp_asgi = MCPAuthMiddleware(_mcp_starlette)
