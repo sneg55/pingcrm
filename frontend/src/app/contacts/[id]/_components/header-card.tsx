@@ -402,16 +402,27 @@ export function HeaderCard({
     {/* Full-size avatar modal */}
     {showAvatarModal && contact.avatar_url && (
       <div
-        className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 cursor-zoom-out"
+        className="fixed inset-0 z-50 flex items-center justify-center bg-black/60"
         onClick={() => setShowAvatarModal(false)}
         onKeyDown={(e) => { if (e.key === "Escape") setShowAvatarModal(false); }}
       >
-        <img
-          src={contact.avatar_url}
-          alt={displayName}
-          className="max-w-[90vw] max-h-[90vh] rounded-lg object-contain shadow-2xl"
+        <div
+          className="relative bg-white dark:bg-stone-900 rounded-2xl shadow-2xl p-6 max-w-lg w-full mx-4"
           onClick={(e) => e.stopPropagation()}
-        />
+        >
+          <button
+            onClick={() => setShowAvatarModal(false)}
+            className="absolute top-3 right-3 p-1.5 rounded-full text-stone-400 hover:text-stone-600 hover:bg-stone-100 dark:text-stone-500 dark:hover:text-stone-300 dark:hover:bg-stone-800 transition-colors"
+          >
+            <X className="w-5 h-5" />
+          </button>
+          <img
+            src={contact.avatar_url}
+            alt={displayName}
+            className="w-full rounded-xl object-contain"
+          />
+          <p className="text-center text-sm font-medium text-stone-700 dark:text-stone-300 mt-3">{displayName}</p>
+        </div>
       </div>
     )}
     </>
