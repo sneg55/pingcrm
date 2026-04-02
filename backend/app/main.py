@@ -102,8 +102,6 @@ app.include_router(sync_history_router)
 from mcp_server.server import mcp_app, _register_tools  # noqa: E402
 from mcp_server.asgi import MCPAuthMiddleware  # noqa: E402
 from mcp.server.sse import SseServerTransport  # noqa: E402
-from starlette.applications import Starlette  # noqa: E402
-from starlette.routing import Route, Mount  # noqa: E402
 
 _register_tools()
 
@@ -111,7 +109,7 @@ _sse_transport = SseServerTransport("/messages/")
 
 
 async def _handle_sse(scope, receive, send):
-    """Long-lived SSE handler — must be an ASGI app, not a request-response endpoint."""
+    """Long-lived SSE handler — raw ASGI, not a request-response endpoint."""
     async with _sse_transport.connect_sse(scope, receive, send) as streams:
         await mcp_app._mcp_server.run(
             streams[0],
@@ -120,11 +118,20 @@ async def _handle_sse(scope, receive, send):
         )
 
 
-_mcp_starlette = Starlette(routes=[
-    Mount("/sse", app=_handle_sse),
-    Mount("/messages", app=_sse_transport.handle_post_message),
-])
-_mcp_asgi = MCPAuthMiddleware(_mcp_starlette)
+async def _mcp_router(scope, receive, send):
+    """Route /sse and /messages within the MCP sub-app (already stripped of /mcp prefix)."""
+    from starlette.responses import Response as StarletteResponse
+    path = scope.get("path", "")
+    if path == "/sse" or path == "/sse/":
+        await _handle_sse(scope, receive, send)
+    elif path.startswith("/messages"):
+        await _sse_transport.handle_post_message(scope, receive, send)
+    else:
+        resp = StarletteResponse("Not Found", status_code=404)
+        await resp(scope, receive, send)
+
+
+_mcp_asgi = MCPAuthMiddleware(_mcp_router)
 
 # Serve uploaded avatars (must be mounted on FastAPI before ASGI wrapping)
 _static_dir = Path(__file__).resolve().parent.parent / "static"
