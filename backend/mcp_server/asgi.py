@@ -1,5 +1,4 @@
 """Auth-protected ASGI wrapper for the FastMCP SSE app."""
-from __future__ import annotations
 
 
 class MCPAuthMiddleware:
