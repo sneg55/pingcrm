@@ -96,13 +96,35 @@ app.include_router(activity_router)
 app.include_router(extension_router)
 app.include_router(sync_history_router)
 
-# MCP SSE endpoint — authenticated via Bearer API key.
-# Mounted as a raw ASGI sub-app to bypass Starlette's error middleware
-# which asserts http.response.body and breaks SSE streams.
+# MCP SSE endpoint — manually assembled to avoid the mcp library's
+# sse_app() bug: it wraps the SSE ASGI handler in a request-response
+# function that breaks long-lived SSE connections.
 from mcp_server.server import mcp_app, _register_tools  # noqa: E402
 from mcp_server.asgi import MCPAuthMiddleware  # noqa: E402
+from mcp.server.sse import SseServerTransport  # noqa: E402
+from starlette.applications import Starlette  # noqa: E402
+from starlette.routing import Route, Mount  # noqa: E402
+
 _register_tools()
-_mcp_asgi = MCPAuthMiddleware(mcp_app.sse_app())
+
+_sse_transport = SseServerTransport("/messages/")
+
+
+async def _handle_sse(scope, receive, send):
+    """Long-lived SSE handler — must be an ASGI app, not a request-response endpoint."""
+    async with _sse_transport.connect_sse(scope, receive, send) as streams:
+        await mcp_app._mcp_server.run(
+            streams[0],
+            streams[1],
+            mcp_app._mcp_server.create_initialization_options(),
+        )
+
+
+_mcp_starlette = Starlette(routes=[
+    Route("/sse", endpoint=_handle_sse),
+    Mount("/messages", app=_sse_transport.handle_post_message),
+])
+_mcp_asgi = MCPAuthMiddleware(_mcp_starlette)
 
 # Serve uploaded avatars (must be mounted on FastAPI before ASGI wrapping)
 _static_dir = Path(__file__).resolve().parent.parent / "static"
