@@ -2,6 +2,7 @@
 
 const { Client, LocalAuth } = require("whatsapp-web.js");
 const path = require("path");
+const fs = require("fs");
 const config = require("./config");
 
 /**
@@ -43,6 +44,13 @@ class SessionManager {
     }
 
     log("info", "starting session", { userId });
+
+    // Clean up stale Chromium lock files from previous container restarts
+    const profileDir = path.resolve(config.sessionDir, `session-${userId}`);
+    for (const lockFile of ["SingletonLock", "SingletonSocket", "SingletonCookie"]) {
+      const lockPath = path.join(profileDir, lockFile);
+      try { fs.unlinkSync(lockPath); } catch { /* doesn't exist, fine */ }
+    }
 
     const client = new Client({
       authStrategy: new LocalAuth({
