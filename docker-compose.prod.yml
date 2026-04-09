@@ -61,6 +61,8 @@ services:
       ENCRYPTION_KEY: ${ENCRYPTION_KEY}
       AUTH_TOKEN: ${AUTH_TOKEN:-}
       CT0: ${CT0:-}
+      WHATSAPP_SIDECAR_URL: http://whatsapp-sidecar:3001
+      WHATSAPP_WEBHOOK_SECRET: ${WHATSAPP_WEBHOOK_SECRET}
     volumes:
       - avatars:/app/static/avatars
     depends_on:
@@ -111,8 +113,25 @@ services:
       backend:
         condition: service_healthy
 
+  whatsapp-sidecar:
+    image: ghcr.io/sneg55/pingcrm/whatsapp-sidecar:latest
+    restart: unless-stopped
+    volumes:
+      - whatsapp_sessions:/data/sessions
+    environment:
+      - PORT=3001
+      - WEBHOOK_URL=http://backend:8000/api/v1/webhooks/whatsapp
+      - WEBHOOK_SECRET=${WHATSAPP_WEBHOOK_SECRET}
+      - SESSION_DIR=/data/sessions
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://localhost:3001/health').then(r => r.ok ? process.exit(0) : process.exit(1)).catch(() => process.exit(1))"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
 volumes:
   pgdata:
   avatars:
   caddy_data:
   caddy_config:
+  whatsapp_sessions:
