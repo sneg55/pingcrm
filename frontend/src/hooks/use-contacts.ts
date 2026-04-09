@@ -244,7 +244,7 @@ export function useContactActivity(id: string) {
       if (error || !data?.data) {
         throw new Error("Failed to fetch activity");
       }
-      return data.data as ActivityData;
+      return data.data as unknown as ActivityData;
     },
     enabled: Boolean(id),
     retry: false,

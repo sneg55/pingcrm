@@ -313,7 +313,7 @@ export default function SuggestionsPage() {
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [toastDismissed, setToastDismissed] = useState(false);
 
-  const allSuggestions = (data?.data ?? []) as Suggestion[];
+  const allSuggestions = (data?.data ?? []) as unknown as Suggestion[];
   const pendingSuggestions = allSuggestions.filter((s) => s.status === "pending");
 
   const genMeta = generateSuggestions.data?.meta;

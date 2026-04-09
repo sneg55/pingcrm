@@ -31,7 +31,7 @@ export function CommonGroupsCard({
         params: { path: { contact_id: contactId } },
       })
       .then(({ data }) => {
-        setGroups((data?.data as TelegramGroup[]) ?? []);
+        setGroups((data?.data as unknown as TelegramGroup[]) ?? []);
       })
       .catch(() => {})
       .finally(() => {

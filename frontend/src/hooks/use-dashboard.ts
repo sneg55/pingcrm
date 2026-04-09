@@ -78,7 +78,7 @@ export function useDashboardStats() {
     refetchInterval: DASHBOARD_REFETCH_MS,
   });
 
-  const suggestions = (suggestionsQuery.data?.data ?? []) as Suggestion[];
+  const suggestions = (suggestionsQuery.data?.data ?? []) as unknown as Suggestion[];
   const stats = statsQuery.data?.data as ContactStats | undefined;
   const overdueContacts = (overdueQuery.data?.data ?? []) as OverdueContact[];
   const recentActivity = (activityQuery.data?.data ?? []) as ActivityEvent[];
