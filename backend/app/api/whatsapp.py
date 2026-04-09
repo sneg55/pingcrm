@@ -198,14 +198,14 @@ async def whatsapp_disconnect(
 async def whatsapp_webhook(
     request: Request,
     db: AsyncSession = Depends(get_db),
-    x_whatsapp_signature: str | None = Header(default=None, alias="x-whatsapp-signature"),
+    x_webhook_signature: str | None = Header(default=None, alias="x-webhook-signature"),
 ) -> Envelope[dict]:
     """Receive events from the whatsapp-sidecar service."""
     body = await request.body()
 
     # Verify HMAC signature when secret is configured
     if settings.WHATSAPP_WEBHOOK_SECRET:
-        if not x_whatsapp_signature or not _verify_signature(body, x_whatsapp_signature):
+        if not x_webhook_signature or not _verify_signature(body, x_webhook_signature):
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 detail="Invalid webhook signature",

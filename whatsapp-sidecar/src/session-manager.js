@@ -34,9 +34,16 @@ class SessionManager {
    * @param {string} userId
    */
   async startSession(userId) {
-    if (this._sessions.has(userId)) {
-      log("info", "session already exists", { userId });
-      return;
+    const existing = this._sessions.get(userId);
+    if (existing) {
+      // If session is connected and healthy, keep it
+      if (existing.status === "connected" || existing.status === "qr_pending") {
+        log("info", "session already active", { userId, status: existing.status });
+        return;
+      }
+      // Otherwise destroy the stale session and recreate
+      log("info", "destroying stale session", { userId, status: existing.status });
+      await this.destroySession(userId);
     }
 
     if (this._sessions.size >= config.maxSessions) {
