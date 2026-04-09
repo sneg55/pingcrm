@@ -28,6 +28,7 @@ const sidebars: SidebarsConfig = {
         'features/telegram',
         'features/twitter',
         'features/linkedin',
+        'features/whatsapp',
         'features/mcp',
       ],
     },
