@@ -55,6 +55,10 @@ from app.services.task_jobs.tagging import (
 from app.services.task_jobs.meeting_prep import (
     scan_meeting_preps,
 )
+from app.services.task_jobs.whatsapp import (
+    sync_whatsapp_backfill,
+    check_whatsapp_sessions,
+)
 
 __all__ = [
     # common
@@ -98,4 +102,7 @@ __all__ = [
     "apply_tags_to_contacts",
     # meeting prep
     "scan_meeting_preps",
+    # whatsapp
+    "sync_whatsapp_backfill",
+    "check_whatsapp_sessions",
 ]
