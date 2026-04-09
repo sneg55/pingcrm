@@ -28,6 +28,10 @@ class ContactBase(BaseModel):
     twitter_bio: str | None = None
     telegram_username: str | None = None
     telegram_bio: str | None = None
+    whatsapp_phone: str | None = None
+    whatsapp_name: str | None = None
+    whatsapp_about: str | None = None
+    whatsapp_avatar_url: str | None = None
     location: str | None = None
     linkedin_url: str | None = None
     linkedin_profile_id: str | None = None
@@ -78,6 +82,10 @@ class ContactUpdate(BaseModel):
     twitter_handle: str | None = None
     twitter_bio: str | None = None
     telegram_username: str | None = None
+    whatsapp_phone: str | None = None
+    whatsapp_name: str | None = None
+    whatsapp_about: str | None = None
+    whatsapp_avatar_url: str | None = None
     location: str | None = None
     linkedin_url: str | None = None
     linkedin_profile_id: str | None = None

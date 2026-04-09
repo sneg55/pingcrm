@@ -299,6 +299,8 @@ class UserWithAccountsData(BaseModel):
     telegram_username: str | None = None
     twitter_connected: bool = False
     twitter_username: str | None = None
+    whatsapp_connected: bool = False
+    whatsapp_phone: str | None = None
     linkedin_extension_paired_at: datetime | None = None
     google_accounts: list[GoogleAccountData] = []
 

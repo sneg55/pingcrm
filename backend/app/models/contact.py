@@ -66,6 +66,7 @@ class Contact(Base):
     whatsapp_phone: Mapped[str | None] = mapped_column(String, nullable=True, index=True)
     whatsapp_name: Mapped[str | None] = mapped_column(String, nullable=True)
     whatsapp_about: Mapped[str | None] = mapped_column(Text, nullable=True)
+    whatsapp_avatar_url: Mapped[str | None] = mapped_column(String, nullable=True)
     whatsapp_bio_checked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
     tags: Mapped[list[str] | None] = mapped_column(ARRAY(String), nullable=True, default=list)
