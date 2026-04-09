@@ -32,6 +32,11 @@ class User(Base):
     telegram_last_synced_at: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True), nullable=True
     )
+    whatsapp_phone: Mapped[str | None] = mapped_column(String, nullable=True)
+    whatsapp_connected: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False, server_default="false")
+    whatsapp_last_synced_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False
     )
