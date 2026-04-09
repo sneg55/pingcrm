@@ -80,8 +80,8 @@ async def whatsapp_connect(
             extra={"provider": "whatsapp", "user_id": str(current_user.id)},
         )
         raise HTTPException(
-            status_code=status.HTTP_502_BAD_GATEWAY,
-            detail="Failed to start WhatsApp session. Please try again.",
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="WhatsApp service is not available. The sidecar may not be deployed yet.",
         )
     return {"data": {"status": result.get("status", ""), "qr": result.get("qr")}, "error": None}
 

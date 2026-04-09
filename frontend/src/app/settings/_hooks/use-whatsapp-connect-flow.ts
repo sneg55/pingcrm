@@ -45,7 +45,8 @@ export function useWhatsAppConnectFlow({
     const { data, error: err } = await client.POST("/api/v1/auth/whatsapp/connect", {});
     if (err) {
       setStep("error");
-      setError("Failed to start WhatsApp session");
+      const detail = (err as { detail?: string })?.detail;
+      setError(detail || "Failed to start WhatsApp session. The service may not be available yet.");
       setWhatsappConnect({ status: "error", message: "Connection failed" });
       return;
     }
