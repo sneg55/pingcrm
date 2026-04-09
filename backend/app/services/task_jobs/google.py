@@ -4,6 +4,7 @@ from __future__ import annotations
 import uuid
 
 from celery import shared_task
+from google.auth.exceptions import RefreshError
 from sqlalchemy import select
 
 from app.core.database import task_session
@@ -46,6 +47,17 @@ def sync_google_contacts_for_user(self, user_id: str) -> dict:
                 try:
                     access_token = refresh_access_token(token)
                     google_contacts = fetch_google_contacts(access_token)
+                except RefreshError as exc:
+                    logger.warning("sync_google_contacts: auth expired for %s", account_email, extra={"provider": "google", "email": account_email})
+                    errors.append(f"{account_email}: {exc}")
+                    db.add(Notification(
+                        user_id=uid,
+                        notification_type="error",
+                        title="Google Contacts sync failed — re-authentication needed",
+                        body=f"The OAuth token for {account_email} has expired or been revoked. Please reconnect your Google account in Settings.",
+                        link="/settings",
+                    ))
+                    continue
                 except Exception as exc:
                     logger.warning("sync_google_contacts: failed to fetch contacts for %s", account_email, exc_info=True)
                     errors.append(f"{account_email}: {exc}")
@@ -226,8 +238,13 @@ def sync_google_calendar_for_user(self, user_id: str) -> dict:
                 return {"status": "not_connected"}
 
             cal_result = {"new_contacts": 0, "new_interactions": 0, "events_processed": 0}
+            auth_errors: list[str] = []
             if not accounts and user.google_refresh_token:
-                cal_result = await sync_calendar_events(user, db)
+                try:
+                    cal_result = await sync_calendar_events(user, db)
+                except RefreshError:
+                    logger.warning("Calendar sync auth expired for %s", user.email, extra={"provider": "google", "email": user.email})
+                    auth_errors.append(user.email)
             else:
                 for ga in accounts:
                     original_token = user.google_refresh_token
@@ -237,10 +254,23 @@ def sync_google_calendar_for_user(self, user_id: str) -> dict:
                         cal_result["new_contacts"] += r.get("new_contacts", 0)
                         cal_result["new_interactions"] += r.get("new_interactions", 0)
                         cal_result["events_processed"] += r.get("events_processed", 0)
+                    except RefreshError:
+                        logger.warning("Calendar sync auth expired for %s", ga.email, extra={"provider": "google", "email": ga.email})
+                        auth_errors.append(ga.email)
                     except Exception as exc:
-                        logger.warning("Calendar sync failed for %s: %s", ga.email, exc)
+                        logger.exception("Calendar sync failed for %s", ga.email, extra={"provider": "google", "email": ga.email})
                     finally:
                         user.google_refresh_token = original_token
+
+            if auth_errors:
+                emails = ", ".join(auth_errors)
+                db.add(Notification(
+                    user_id=uid,
+                    notification_type="error",
+                    title="Google Calendar sync failed — re-authentication needed",
+                    body=f"The OAuth token for {emails} has expired or been revoked. Please reconnect your Google account in Settings.",
+                    link="/settings",
+                ))
 
             # Rescore contacts that have interactions
             if cal_result.get("new_interactions") or cal_result.get("new_contacts"):
