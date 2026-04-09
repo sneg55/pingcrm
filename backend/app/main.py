@@ -233,7 +233,7 @@ async def health_check() -> dict:
 
 # ── ASGI wrapper for MCP SSE ──────────────────────────────────────────────────
 # MUST be the last thing in this file — everything above uses `app` as FastAPI.
-_fastapi_asgi = app
+fastapi_app = app
 
 
 async def _root_asgi(scope, receive, send):
@@ -243,7 +243,7 @@ async def _root_asgi(scope, receive, send):
         scope = dict(scope, path=path[4:] or "/", root_path=scope.get("root_path", "") + "/mcp")
         await _mcp_asgi(scope, receive, send)
     else:
-        await _fastapi_asgi(scope, receive, send)
+        await fastapi_app(scope, receive, send)
 
 
 app = _root_asgi  # type: ignore[assignment]

@@ -5,7 +5,7 @@ Usage: python scripts/check_response_models.py
 Exit code 0 if all endpoints have response_model, 1 otherwise.
 """
 import sys
-from app.main import app
+from app.main import fastapi_app as app
 
 
 def main() -> int:

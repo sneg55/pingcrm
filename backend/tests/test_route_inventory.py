@@ -23,7 +23,7 @@ gotten worse.  Fix the ordering bug by moving the offending routes before
 from __future__ import annotations
 
 import pytest
-from app.main import app
+from app.main import fastapi_app as app
 
 
 def _collect_contact_routes() -> list[tuple[str, str]]:

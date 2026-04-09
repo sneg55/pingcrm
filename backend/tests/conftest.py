@@ -18,7 +18,7 @@ os.environ["DATABASE_URL"] = os.environ.get(
 
 from app.core.auth import create_access_token, hash_password
 from app.core.database import Base, get_db
-from app.main import app
+from app.main import fastapi_app as app
 from app.models.contact import Contact
 from app.models.detected_event import DetectedEvent
 from app.models.follow_up import FollowUpSuggestion
