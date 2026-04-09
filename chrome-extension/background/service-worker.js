@@ -6,7 +6,7 @@
  * Each module exposes its public functions as globals (no ES module syntax).
  */
 
-importScripts("../lib/storage.js", "voyager-client.js", "sync.js", "pairing.js");
+importScripts("../lib/storage.js", "voyager-client.js", "sync-utils.js", "sync.js", "pairing.js");
 
 // ── Suggestion cache (TTL-based, lazy refresh) ─────────────────────────────
 let _suggestionCache = null;

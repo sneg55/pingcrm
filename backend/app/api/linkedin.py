@@ -76,7 +76,7 @@ class LinkedInProfilePush(BaseModel):
 
 
 class LinkedInMessagePush(BaseModel):
-    profile_id: str
+    profile_id: str | None = None
     profile_name: str
     direction: str  # "inbound" | "outbound"
     content_preview: str
@@ -215,6 +215,11 @@ async def push_linkedin_data(
 
     # --- Messages ---
     for msg in body.messages:
+        # Skip messages where we couldn't resolve the conversation partner
+        if not msg.profile_id and not msg.profile_name:
+            interactions_skipped += 1
+            continue
+
         # Use content_hash for stable dedup (timestamps are unreliable from extension)
         if msg.content_hash:
             raw_ref = f"linkedin:{msg.conversation_id}:{msg.content_hash}"
@@ -227,9 +232,9 @@ async def push_linkedin_data(
             continue
 
         # Find contact using in-memory maps (no DB query)
-        contact = profile_id_map.get(msg.profile_id)
+        contact = profile_id_map.get(msg.profile_id) if msg.profile_id else None
 
-        if not contact:
+        if not contact and msg.profile_id:
             msg_url = f"https://www.linkedin.com/in/{msg.profile_id}"
             contact = url_map.get(msg_url)
             if contact and not contact.linkedin_profile_id:
