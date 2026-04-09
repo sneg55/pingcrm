@@ -9,6 +9,7 @@ env:
   REGISTRY: ghcr.io
   BACKEND_IMAGE: ghcr.io/${{ github.repository }}/backend
   FRONTEND_IMAGE: ghcr.io/${{ github.repository }}/frontend
+  WHATSAPP_SIDECAR_IMAGE: ghcr.io/${{ github.repository }}/whatsapp-sidecar
 
 jobs:
   lint-file-length:
@@ -84,6 +85,15 @@ jobs:
           tags: ${{ env.FRONTEND_IMAGE }}:latest,${{ env.FRONTEND_IMAGE }}:${{ github.sha }}
           build-args: |
             NEXT_PUBLIC_API_URL=https://pingcrm.sawinyh.com/api
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Build and push whatsapp-sidecar
+        uses: docker/build-push-action@v5
+        with:
+          context: ./whatsapp-sidecar
+          push: true
+          tags: ${{ env.WHATSAPP_SIDECAR_IMAGE }}:latest,${{ env.WHATSAPP_SIDECAR_IMAGE }}:${{ github.sha }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
