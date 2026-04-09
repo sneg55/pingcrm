@@ -21,6 +21,7 @@ export interface Contact {
   location: string | null;
   birthday: string | null;
   linkedin_url: string | null;
+  whatsapp_phone: string | null;
   avatar_url: string | null;
   tags: string[];
   notes: string | null;
@@ -243,7 +244,7 @@ export function useContactActivity(id: string) {
       if (error || !data?.data) {
         throw new Error("Failed to fetch activity");
       }
-      return data.data as ActivityData;
+      return data.data as unknown as ActivityData;
     },
     enabled: Boolean(id),
     retry: false,

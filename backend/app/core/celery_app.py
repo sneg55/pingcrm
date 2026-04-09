@@ -82,5 +82,10 @@ celery_app.conf.update(
             "task": "app.services.tasks.scan_meeting_preps",
             "schedule": crontab(minute="*/10"),
         },
+        # Check WhatsApp session health daily at 01:00 UTC
+        "check-whatsapp-sessions-daily": {
+            "task": "app.services.tasks.check_whatsapp_sessions",
+            "schedule": crontab(minute=0, hour=1),
+        },
     },
 )

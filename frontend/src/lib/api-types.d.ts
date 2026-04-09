@@ -175,7 +175,10 @@ export interface paths {
         };
         /**
          * Get Overdue Contacts
-         * @description Return contacts that have exceeded their follow-up threshold, sorted by most overdue first.
+         * @description Return high-priority contacts that have exceeded their follow-up threshold.
+         *
+         *     Only includes contacts with priority_level='high', at least one interaction,
+         *     and not tagged '2nd tier'. Sorted by most overdue first.
          */
         get: operations["get_overdue_contacts_api_v1_contacts_overdue_get"];
         put?: never;
@@ -1673,6 +1676,25 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/settings/mcp-key": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Mcp Key Status */
+        get: operations["get_mcp_key_status_api_v1_settings_mcp_key_get"];
+        put?: never;
+        /** Generate Mcp Key */
+        post: operations["generate_mcp_key_api_v1_settings_mcp_key_post"];
+        /** Revoke Mcp Key */
+        delete: operations["revoke_mcp_key_api_v1_settings_mcp_key_delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/linkedin/push": {
         parameters: {
             query?: never;
@@ -1783,6 +1805,126 @@ export interface paths {
         get: operations["sync_stats_api_v1_sync_history_stats_get"];
         put?: never;
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/auth/whatsapp/connect": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Whatsapp Connect
+         * @description Start a WhatsApp session (or resume one) and return QR code if needed.
+         */
+        post: operations["whatsapp_connect_api_v1_auth_whatsapp_connect_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/auth/whatsapp/qr": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Whatsapp Get Qr
+         * @description Return the current QR code for a pending WhatsApp session.
+         */
+        get: operations["whatsapp_get_qr_api_v1_auth_whatsapp_qr_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/auth/whatsapp/status": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Whatsapp Get Status
+         * @description Return the current WhatsApp session status.
+         */
+        get: operations["whatsapp_get_status_api_v1_auth_whatsapp_status_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/contacts/sync/whatsapp": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Sync Whatsapp
+         * @description Dispatch a background WhatsApp backfill sync for the authenticated user.
+         */
+        post: operations["sync_whatsapp_api_v1_contacts_sync_whatsapp_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/auth/whatsapp/disconnect": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * Whatsapp Disconnect
+         * @description Disconnect WhatsApp: destroy the sidecar session and clear user fields.
+         */
+        delete: operations["whatsapp_disconnect_api_v1_auth_whatsapp_disconnect_delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/webhooks/whatsapp": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Whatsapp Webhook
+         * @description Receive events from the whatsapp-sidecar service.
+         */
+        post: operations["whatsapp_webhook_api_v1_webhooks_whatsapp_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -1979,6 +2121,14 @@ export interface components {
             telegram_username?: string | null;
             /** Telegram Bio */
             telegram_bio?: string | null;
+            /** Whatsapp Phone */
+            whatsapp_phone?: string | null;
+            /** Whatsapp Name */
+            whatsapp_name?: string | null;
+            /** Whatsapp About */
+            whatsapp_about?: string | null;
+            /** Whatsapp Avatar Url */
+            whatsapp_avatar_url?: string | null;
             /** Location */
             location?: string | null;
             /** Linkedin Url */
@@ -2046,6 +2196,14 @@ export interface components {
             telegram_username?: string | null;
             /** Telegram Bio */
             telegram_bio?: string | null;
+            /** Whatsapp Phone */
+            whatsapp_phone?: string | null;
+            /** Whatsapp Name */
+            whatsapp_name?: string | null;
+            /** Whatsapp About */
+            whatsapp_about?: string | null;
+            /** Whatsapp Avatar Url */
+            whatsapp_avatar_url?: string | null;
             /** Location */
             location?: string | null;
             /** Linkedin Url */
@@ -2086,6 +2244,8 @@ export interface components {
             user_id: string;
             /** Organization Id */
             organization_id?: string | null;
+            /** Telegram Last Seen At */
+            telegram_last_seen_at?: string | null;
             /** Relationship Score */
             relationship_score: number;
             /**
@@ -2102,6 +2262,8 @@ export interface components {
              * @default []
              */
             user_edited_fields: string[];
+            /** Bcc Hash */
+            bcc_hash?: string | null;
             /**
              * Created At
              * Format: date-time
@@ -2198,6 +2360,14 @@ export interface components {
             twitter_bio?: string | null;
             /** Telegram Username */
             telegram_username?: string | null;
+            /** Whatsapp Phone */
+            whatsapp_phone?: string | null;
+            /** Whatsapp Name */
+            whatsapp_name?: string | null;
+            /** Whatsapp About */
+            whatsapp_about?: string | null;
+            /** Whatsapp Avatar Url */
+            whatsapp_avatar_url?: string | null;
             /** Location */
             location?: string | null;
             /** Linkedin Url */
@@ -2224,7 +2394,9 @@ export interface components {
         /** CsvImportResult */
         CsvImportResult: {
             /** Created */
-            created: Record<string, never>[];
+            created: {
+                [key: string]: unknown;
+            }[];
             /** Errors */
             errors: string[];
         };
@@ -2283,7 +2455,9 @@ export interface components {
             /** Error */
             error?: string | null;
             /** Meta */
-            meta?: Record<string, never> | null;
+            meta?: {
+                [key: string]: unknown;
+            } | null;
         };
         /** Envelope[ApplyTagsResult] */
         Envelope_ApplyTagsResult_: {
@@ -2291,7 +2465,9 @@ export interface components {
             /** Error */
             error?: string | null;
             /** Meta */
-            meta?: Record<string, never> | null;
+            meta?: {
+                [key: string]: unknown;
+            } | null;
         };
         /** Envelope[AutoTagResult] */
         Envelope_AutoTagResult_: {
@@ -2299,7 +2475,9 @@ export interface components {
             /** Error */
             error?: string | null;
             /** Meta */
-            meta?: Record<string, never> | null;
+            meta?: {
+                [key: string]: unknown;
+            } | null;
         };
         /** Envelope[AvatarRefreshData] */
         Envelope_AvatarRefreshData_: {
@@ -2307,7 +2485,9 @@ export interface components {
             /** Error */
             error?: string | null;
             /** Meta */
-            meta?: Record<string, never> | null;
+            meta?: {
+                [key: string]: unknown;
+            } | null;
         };
         /** Envelope[BioRefreshData] */
         Envelope_BioRefreshData_: {
@@ -2315,7 +2495,9 @@ export interface components {
             /** Error */
             error?: string | null;
             /** Meta */
-            meta?: Record<string, never> | null;
+            meta?: {
+                [key: string]: unknown;
+            } | null;
         };
         /** Envelope[ContactResponse] */
         Envelope_ContactResponse_: {
@@ -2323,7 +2505,9 @@ export interface components {
             /** Error */
             error?: string | null;
             /** Meta */
-            meta?: Record<string, never> | null;
+            meta?: {
+                [key: string]: unknown;
+            } | null;
         };
         /** Envelope[ContactStatsData] */
         Envelope_ContactStatsData_: {
@@ -2331,7 +2515,9 @@ export interface components {
             /** Error */
             error?: string | null;
             /** Meta */
-            meta?: Record<string, never> | null;
+            meta?: {
+                [key: string]: unknown;
+            } | null;
         };
         /** Envelope[CsvImportResult] */
         Envelope_CsvImportResult_: {
@@ -2339,7 +2525,9 @@ export interface components {
             /** Error */
             error?: string | null;
             /** Meta */
-            meta?: Record<string, never> | null;
+            meta?: {
+                [key: string]: unknown;
+            } | null;
         };
         /** Envelope[DeletedData] */
         Envelope_DeletedData_: {
@@ -2347,7 +2535,9 @@ export interface components {
             /** Error */
             error?: string | null;
             /** Meta */
-            meta?: Record<string, never> | null;
+            meta?: {
+                [key: string]: unknown;
+            } | null;
         };
         /** Envelope[EnrichData] */
         Envelope_EnrichData_: {
@@ -2355,7 +2545,9 @@ export interface components {
             /** Error */
             error?: string | null;
             /** Meta */
-            meta?: Record<string, never> | null;
+            meta?: {
+                [key: string]: unknown;
+            } | null;
         };
         /** Envelope[FollowUpResponse] */
         Envelope_FollowUpResponse_: {
@@ -2363,7 +2555,9 @@ export interface components {
             /** Error */
             error?: string | null;
             /** Meta */
-            meta?: Record<string, never> | null;
+            meta?: {
+                [key: string]: unknown;
+            } | null;
         };
         /** Envelope[IdentityMatchData] */
         Envelope_IdentityMatchData_: {
@@ -2371,7 +2565,9 @@ export interface components {
             /** Error */
             error?: string | null;
             /** Meta */
-            meta?: Record<string, never> | null;
+            meta?: {
+                [key: string]: unknown;
+            } | null;
         };
         /** Envelope[InteractionResponse] */
         Envelope_InteractionResponse_: {
@@ -2379,7 +2575,9 @@ export interface components {
             /** Error */
             error?: string | null;
             /** Meta */
-            meta?: Record<string, never> | null;
+            meta?: {
+                [key: string]: unknown;
+            } | null;
         };
         /** Envelope[LinkedInImportResult] */
         Envelope_LinkedInImportResult_: {
@@ -2387,7 +2585,9 @@ export interface components {
             /** Error */
             error?: string | null;
             /** Meta */
-            meta?: Record<string, never> | null;
+            meta?: {
+                [key: string]: unknown;
+            } | null;
         };
         /** Envelope[LinkedInMessagesImportResult] */
         Envelope_LinkedInMessagesImportResult_: {
@@ -2395,7 +2595,9 @@ export interface components {
             /** Error */
             error?: string | null;
             /** Meta */
-            meta?: Record<string, never> | null;
+            meta?: {
+                [key: string]: unknown;
+            } | null;
         };
         /** Envelope[LinkedInPushResult] */
         Envelope_LinkedInPushResult_: {
@@ -2403,7 +2605,9 @@ export interface components {
             /** Error */
             error?: string | null;
             /** Meta */
-            meta?: Record<string, never> | null;
+            meta?: {
+                [key: string]: unknown;
+            } | null;
         };
         /** Envelope[MarkedData] */
         Envelope_MarkedData_: {
@@ -2411,7 +2615,39 @@ export interface components {
             /** Error */
             error?: string | null;
             /** Meta */
-            meta?: Record<string, never> | null;
+            meta?: {
+                [key: string]: unknown;
+            } | null;
+        };
+        /** Envelope[McpKeyData] */
+        Envelope_McpKeyData_: {
+            data?: components["schemas"]["McpKeyData"] | null;
+            /** Error */
+            error?: string | null;
+            /** Meta */
+            meta?: {
+                [key: string]: unknown;
+            } | null;
+        };
+        /** Envelope[McpKeyRevokedData] */
+        Envelope_McpKeyRevokedData_: {
+            data?: components["schemas"]["McpKeyRevokedData"] | null;
+            /** Error */
+            error?: string | null;
+            /** Meta */
+            meta?: {
+                [key: string]: unknown;
+            } | null;
+        };
+        /** Envelope[McpKeyStatusData] */
+        Envelope_McpKeyStatusData_: {
+            data?: components["schemas"]["McpKeyStatusData"] | null;
+            /** Error */
+            error?: string | null;
+            /** Meta */
+            meta?: {
+                [key: string]: unknown;
+            } | null;
         };
         /** Envelope[MergeOrganizationsResult] */
         Envelope_MergeOrganizationsResult_: {
@@ -2419,7 +2655,9 @@ export interface components {
             /** Error */
             error?: string | null;
             /** Meta */
-            meta?: Record<string, never> | null;
+            meta?: {
+                [key: string]: unknown;
+            } | null;
         };
         /** Envelope[MergedContactData] */
         Envelope_MergedContactData_: {
@@ -2427,7 +2665,9 @@ export interface components {
             /** Error */
             error?: string | null;
             /** Meta */
-            meta?: Record<string, never> | null;
+            meta?: {
+                [key: string]: unknown;
+            } | null;
         };
         /** Envelope[NotificationReadData] */
         Envelope_NotificationReadData_: {
@@ -2435,7 +2675,9 @@ export interface components {
             /** Error */
             error?: string | null;
             /** Meta */
-            meta?: Record<string, never> | null;
+            meta?: {
+                [key: string]: unknown;
+            } | null;
         };
         /** Envelope[OAuthUrlData] */
         Envelope_OAuthUrlData_: {
@@ -2443,7 +2685,9 @@ export interface components {
             /** Error */
             error?: string | null;
             /** Meta */
-            meta?: Record<string, never> | null;
+            meta?: {
+                [key: string]: unknown;
+            } | null;
         };
         /** Envelope[OrgStatsResponse] */
         Envelope_OrgStatsResponse_: {
@@ -2451,7 +2695,9 @@ export interface components {
             /** Error */
             error?: string | null;
             /** Meta */
-            meta?: Record<string, never> | null;
+            meta?: {
+                [key: string]: unknown;
+            } | null;
         };
         /** Envelope[OrganizationResponse] */
         Envelope_OrganizationResponse_: {
@@ -2459,7 +2705,9 @@ export interface components {
             /** Error */
             error?: string | null;
             /** Meta */
-            meta?: Record<string, never> | null;
+            meta?: {
+                [key: string]: unknown;
+            } | null;
         };
         /** Envelope[PairTokenResponse] */
         Envelope_PairTokenResponse_: {
@@ -2467,7 +2715,9 @@ export interface components {
             /** Error */
             error?: string | null;
             /** Meta */
-            meta?: Record<string, never> | null;
+            meta?: {
+                [key: string]: unknown;
+            } | null;
         };
         /** Envelope[PrioritySettingsData] */
         Envelope_PrioritySettingsData_: {
@@ -2475,7 +2725,9 @@ export interface components {
             /** Error */
             error?: string | null;
             /** Meta */
-            meta?: Record<string, never> | null;
+            meta?: {
+                [key: string]: unknown;
+            } | null;
         };
         /** Envelope[RegenerateResult] */
         Envelope_RegenerateResult_: {
@@ -2483,7 +2735,9 @@ export interface components {
             /** Error */
             error?: string | null;
             /** Meta */
-            meta?: Record<string, never> | null;
+            meta?: {
+                [key: string]: unknown;
+            } | null;
         };
         /** Envelope[ScanResultData] */
         Envelope_ScanResultData_: {
@@ -2491,7 +2745,9 @@ export interface components {
             /** Error */
             error?: string | null;
             /** Meta */
-            meta?: Record<string, never> | null;
+            meta?: {
+                [key: string]: unknown;
+            } | null;
         };
         /** Envelope[ScoresRecalculatedData] */
         Envelope_ScoresRecalculatedData_: {
@@ -2499,7 +2755,9 @@ export interface components {
             /** Error */
             error?: string | null;
             /** Meta */
-            meta?: Record<string, never> | null;
+            meta?: {
+                [key: string]: unknown;
+            } | null;
         };
         /** Envelope[SendMessageData] */
         Envelope_SendMessageData_: {
@@ -2507,7 +2765,9 @@ export interface components {
             /** Error */
             error?: string | null;
             /** Meta */
-            meta?: Record<string, never> | null;
+            meta?: {
+                [key: string]: unknown;
+            } | null;
         };
         /** Envelope[SuggestionPrefsData] */
         Envelope_SuggestionPrefsData_: {
@@ -2515,7 +2775,9 @@ export interface components {
             /** Error */
             error?: string | null;
             /** Meta */
-            meta?: Record<string, never> | null;
+            meta?: {
+                [key: string]: unknown;
+            } | null;
         };
         /** Envelope[SyncSettingsData] */
         Envelope_SyncSettingsData_: {
@@ -2523,7 +2785,9 @@ export interface components {
             /** Error */
             error?: string | null;
             /** Meta */
-            meta?: Record<string, never> | null;
+            meta?: {
+                [key: string]: unknown;
+            } | null;
         };
         /** Envelope[SyncStartedData] */
         Envelope_SyncStartedData_: {
@@ -2531,7 +2795,9 @@ export interface components {
             /** Error */
             error?: string | null;
             /** Meta */
-            meta?: Record<string, never> | null;
+            meta?: {
+                [key: string]: unknown;
+            } | null;
         };
         /** Envelope[TaxonomyResult] */
         Envelope_TaxonomyResult_: {
@@ -2539,7 +2805,9 @@ export interface components {
             /** Error */
             error?: string | null;
             /** Meta */
-            meta?: Record<string, never> | null;
+            meta?: {
+                [key: string]: unknown;
+            } | null;
         };
         /** Envelope[TelegramConnectData] */
         Envelope_TelegramConnectData_: {
@@ -2547,7 +2815,9 @@ export interface components {
             /** Error */
             error?: string | null;
             /** Meta */
-            meta?: Record<string, never> | null;
+            meta?: {
+                [key: string]: unknown;
+            } | null;
         };
         /** Envelope[TelegramConnectedData] */
         Envelope_TelegramConnectedData_: {
@@ -2555,7 +2825,9 @@ export interface components {
             /** Error */
             error?: string | null;
             /** Meta */
-            meta?: Record<string, never> | null;
+            meta?: {
+                [key: string]: unknown;
+            } | null;
         };
         /** Envelope[TelegramSettingsData] */
         Envelope_TelegramSettingsData_: {
@@ -2563,7 +2835,9 @@ export interface components {
             /** Error */
             error?: string | null;
             /** Meta */
-            meta?: Record<string, never> | null;
+            meta?: {
+                [key: string]: unknown;
+            } | null;
         };
         /** Envelope[TelegramVerifyData] */
         Envelope_TelegramVerifyData_: {
@@ -2571,7 +2845,9 @@ export interface components {
             /** Error */
             error?: string | null;
             /** Meta */
-            meta?: Record<string, never> | null;
+            meta?: {
+                [key: string]: unknown;
+            } | null;
         };
         /** Envelope[TokenData] */
         Envelope_TokenData_: {
@@ -2579,7 +2855,9 @@ export interface components {
             /** Error */
             error?: string | null;
             /** Meta */
-            meta?: Record<string, never> | null;
+            meta?: {
+                [key: string]: unknown;
+            } | null;
         };
         /** Envelope[TwitterAuthUrlData] */
         Envelope_TwitterAuthUrlData_: {
@@ -2587,7 +2865,9 @@ export interface components {
             /** Error */
             error?: string | null;
             /** Meta */
-            meta?: Record<string, never> | null;
+            meta?: {
+                [key: string]: unknown;
+            } | null;
         };
         /** Envelope[TwitterConnectedData] */
         Envelope_TwitterConnectedData_: {
@@ -2595,7 +2875,9 @@ export interface components {
             /** Error */
             error?: string | null;
             /** Meta */
-            meta?: Record<string, never> | null;
+            meta?: {
+                [key: string]: unknown;
+            } | null;
         };
         /** Envelope[UnreadCountData] */
         Envelope_UnreadCountData_: {
@@ -2603,7 +2885,9 @@ export interface components {
             /** Error */
             error?: string | null;
             /** Meta */
-            meta?: Record<string, never> | null;
+            meta?: {
+                [key: string]: unknown;
+            } | null;
         };
         /** Envelope[UserResponse] */
         Envelope_UserResponse_: {
@@ -2611,7 +2895,9 @@ export interface components {
             /** Error */
             error?: string | null;
             /** Meta */
-            meta?: Record<string, never> | null;
+            meta?: {
+                [key: string]: unknown;
+            } | null;
         };
         /** Envelope[UserWithAccountsData] */
         Envelope_UserWithAccountsData_: {
@@ -2619,16 +2905,42 @@ export interface components {
             /** Error */
             error?: string | null;
             /** Meta */
-            meta?: Record<string, never> | null;
+            meta?: {
+                [key: string]: unknown;
+            } | null;
+        };
+        /** Envelope[WhatsAppSessionData] */
+        Envelope_WhatsAppSessionData_: {
+            data?: components["schemas"]["WhatsAppSessionData"] | null;
+            /** Error */
+            error?: string | null;
+            /** Meta */
+            meta?: {
+                [key: string]: unknown;
+            } | null;
+        };
+        /** Envelope[WhatsAppStatusData] */
+        Envelope_WhatsAppStatusData_: {
+            data?: components["schemas"]["WhatsAppStatusData"] | null;
+            /** Error */
+            error?: string | null;
+            /** Meta */
+            meta?: {
+                [key: string]: unknown;
+            } | null;
         };
         /** Envelope[dict] */
         Envelope_dict_: {
             /** Data */
-            data?: Record<string, never> | null;
+            data?: {
+                [key: string]: unknown;
+            } | null;
             /** Error */
             error?: string | null;
             /** Meta */
-            meta?: Record<string, never> | null;
+            meta?: {
+                [key: string]: unknown;
+            } | null;
         };
         /** Envelope[list] */
         Envelope_list_: {
@@ -2637,7 +2949,9 @@ export interface components {
             /** Error */
             error?: string | null;
             /** Meta */
-            meta?: Record<string, never> | null;
+            meta?: {
+                [key: string]: unknown;
+            } | null;
         };
         /** Envelope[list[DuplicateContactData]] */
         Envelope_list_DuplicateContactData__: {
@@ -2646,7 +2960,9 @@ export interface components {
             /** Error */
             error?: string | null;
             /** Meta */
-            meta?: Record<string, never> | null;
+            meta?: {
+                [key: string]: unknown;
+            } | null;
         };
         /** Envelope[list[FollowUpResponse]] */
         Envelope_list_FollowUpResponse__: {
@@ -2655,7 +2971,9 @@ export interface components {
             /** Error */
             error?: string | null;
             /** Meta */
-            meta?: Record<string, never> | null;
+            meta?: {
+                [key: string]: unknown;
+            } | null;
         };
         /** Envelope[list[GoogleAccountData]] */
         Envelope_list_GoogleAccountData__: {
@@ -2664,7 +2982,9 @@ export interface components {
             /** Error */
             error?: string | null;
             /** Meta */
-            meta?: Record<string, never> | null;
+            meta?: {
+                [key: string]: unknown;
+            } | null;
         };
         /** Envelope[list[IdentityMatchData]] */
         Envelope_list_IdentityMatchData__: {
@@ -2673,7 +2993,9 @@ export interface components {
             /** Error */
             error?: string | null;
             /** Meta */
-            meta?: Record<string, never> | null;
+            meta?: {
+                [key: string]: unknown;
+            } | null;
         };
         /** Envelope[list[InteractionResponse]] */
         Envelope_list_InteractionResponse__: {
@@ -2682,7 +3004,9 @@ export interface components {
             /** Error */
             error?: string | null;
             /** Meta */
-            meta?: Record<string, never> | null;
+            meta?: {
+                [key: string]: unknown;
+            } | null;
         };
         /** Envelope[list[OrganizationResponse]] */
         Envelope_list_OrganizationResponse__: {
@@ -2691,16 +3015,22 @@ export interface components {
             /** Error */
             error?: string | null;
             /** Meta */
-            meta?: Record<string, never> | null;
+            meta?: {
+                [key: string]: unknown;
+            } | null;
         };
         /** Envelope[list[dict]] */
         Envelope_list_dict__: {
             /** Data */
-            data?: Record<string, never>[] | null;
+            data?: {
+                [key: string]: unknown;
+            }[] | null;
             /** Error */
             error?: string | null;
             /** Meta */
-            meta?: Record<string, never> | null;
+            meta?: {
+                [key: string]: unknown;
+            } | null;
         };
         /** Envelope[list[str]] */
         Envelope_list_str__: {
@@ -2709,7 +3039,9 @@ export interface components {
             /** Error */
             error?: string | null;
             /** Meta */
-            meta?: Record<string, never> | null;
+            meta?: {
+                [key: string]: unknown;
+            } | null;
         };
         /** FollowUpResponse */
         FollowUpResponse: {
@@ -2886,7 +3218,7 @@ export interface components {
         /** LinkedInMessagePush */
         LinkedInMessagePush: {
             /** Profile Id */
-            profile_id: string;
+            profile_id?: string | null;
             /** Profile Name */
             profile_name: string;
             /** Direction */
@@ -2965,6 +3297,21 @@ export interface components {
         MarkedData: {
             /** Marked */
             marked: boolean;
+        };
+        /** McpKeyData */
+        McpKeyData: {
+            /** Key */
+            key: string;
+        };
+        /** McpKeyRevokedData */
+        McpKeyRevokedData: {
+            /** Revoked */
+            revoked: boolean;
+        };
+        /** McpKeyStatusData */
+        McpKeyStatusData: {
+            /** Has Key */
+            has_key: boolean;
         };
         /** MergeOrganizationsRequest */
         MergeOrganizationsRequest: {
@@ -3301,13 +3648,21 @@ export interface components {
         /** SyncSettingsData */
         SyncSettingsData: {
             /** Telegram */
-            telegram: Record<string, never>;
+            telegram: {
+                [key: string]: unknown;
+            };
             /** Gmail */
-            gmail: Record<string, never>;
+            gmail: {
+                [key: string]: unknown;
+            };
             /** Twitter */
-            twitter: Record<string, never>;
+            twitter: {
+                [key: string]: unknown;
+            };
             /** Linkedin */
-            linkedin: Record<string, never>;
+            linkedin: {
+                [key: string]: unknown;
+            };
         };
         /**
          * SyncSettingsInput
@@ -3315,13 +3670,21 @@ export interface components {
          */
         SyncSettingsInput: {
             /** Telegram */
-            telegram?: Record<string, never> | null;
+            telegram?: {
+                [key: string]: unknown;
+            } | null;
             /** Gmail */
-            gmail?: Record<string, never> | null;
+            gmail?: {
+                [key: string]: unknown;
+            } | null;
             /** Twitter */
-            twitter?: Record<string, never> | null;
+            twitter?: {
+                [key: string]: unknown;
+            } | null;
             /** Linkedin */
-            linkedin?: Record<string, never> | null;
+            linkedin?: {
+                [key: string]: unknown;
+            } | null;
         };
         /** SyncStartedData */
         SyncStartedData: {
@@ -3482,8 +3845,17 @@ export interface components {
             twitter_username?: string | null;
             /** Linkedin Extension Paired At */
             linkedin_extension_paired_at?: string | null;
+            /**
+             * Whatsapp Connected
+             * @default false
+             */
+            whatsapp_connected: boolean;
+            /** Whatsapp Phone */
+            whatsapp_phone?: string | null;
             /** Priority Settings */
-            priority_settings?: Record<string, never> | null;
+            priority_settings?: {
+                [key: string]: unknown;
+            } | null;
         };
         /** UserWithAccountsData */
         UserWithAccountsData: {
@@ -3522,6 +3894,13 @@ export interface components {
             twitter_connected: boolean;
             /** Twitter Username */
             twitter_username?: string | null;
+            /**
+             * Whatsapp Connected
+             * @default false
+             */
+            whatsapp_connected: boolean;
+            /** Whatsapp Phone */
+            whatsapp_phone?: string | null;
             /** Linkedin Extension Paired At */
             linkedin_extension_paired_at?: string | null;
             /**
@@ -3538,6 +3917,18 @@ export interface components {
             msg: string;
             /** Error Type */
             type: string;
+        };
+        /** WhatsAppSessionData */
+        WhatsAppSessionData: {
+            /** Status */
+            status: string;
+            /** Qr */
+            qr?: string | null;
+        };
+        /** WhatsAppStatusData */
+        WhatsAppStatusData: {
+            /** Status */
+            status: string;
         };
     };
     responses: never;
@@ -5498,7 +5889,9 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": Record<string, never>;
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
                 };
             };
         };
@@ -6310,6 +6703,66 @@ export interface operations {
             };
         };
     };
+    get_mcp_key_status_api_v1_settings_mcp_key_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope_McpKeyStatusData_"];
+                };
+            };
+        };
+    };
+    generate_mcp_key_api_v1_settings_mcp_key_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope_McpKeyData_"];
+                };
+            };
+        };
+    };
+    revoke_mcp_key_api_v1_settings_mcp_key_delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope_McpKeyRevokedData_"];
+                };
+            };
+        };
+    };
     push_linkedin_data_api_v1_linkedin_push_post: {
         parameters: {
             query?: never;
@@ -6523,6 +6976,137 @@ export interface operations {
             };
         };
     };
+    whatsapp_connect_api_v1_auth_whatsapp_connect_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope_WhatsAppSessionData_"];
+                };
+            };
+        };
+    };
+    whatsapp_get_qr_api_v1_auth_whatsapp_qr_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope_WhatsAppSessionData_"];
+                };
+            };
+        };
+    };
+    whatsapp_get_status_api_v1_auth_whatsapp_status_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope_WhatsAppStatusData_"];
+                };
+            };
+        };
+    };
+    sync_whatsapp_api_v1_contacts_sync_whatsapp_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope_SyncStartedData_"];
+                };
+            };
+        };
+    };
+    whatsapp_disconnect_api_v1_auth_whatsapp_disconnect_delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope_dict_"];
+                };
+            };
+        };
+    };
+    whatsapp_webhook_api_v1_webhooks_whatsapp_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-whatsapp-signature"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope_dict_"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     report_frontend_error_api_v1_errors_post: {
         parameters: {
             query?: never;
@@ -6542,7 +7126,9 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": Record<string, never>;
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
                 };
             };
             /** @description Validation Error */
@@ -6571,7 +7157,9 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": Record<string, never>;
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
                 };
             };
         };

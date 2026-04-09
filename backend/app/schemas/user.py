@@ -29,6 +29,8 @@ class UserResponse(BaseModel):
     twitter_connected: bool = False
     twitter_username: str | None = None
     linkedin_extension_paired_at: datetime | None = None
+    whatsapp_connected: bool = False
+    whatsapp_phone: str | None = None
     priority_settings: dict | None = None
 
     model_config = {"from_attributes": True}
@@ -49,6 +51,8 @@ class UserResponse(BaseModel):
             twitter_connected=bool(user.twitter_access_token),
             twitter_username=getattr(user, "twitter_username", None),
             linkedin_extension_paired_at=getattr(user, "linkedin_extension_paired_at", None),
+            whatsapp_connected=bool(user.whatsapp_connected),
+            whatsapp_phone=getattr(user, "whatsapp_phone", None),
             priority_settings=get_priority_settings(user),
         )
 

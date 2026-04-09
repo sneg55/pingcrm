@@ -5,7 +5,7 @@
 # Usage: bash scripts/check-as-any.sh
 # Update BASELINE when intentionally adding/removing as-any casts.
 
-BASELINE=93  # Current count as of 2026-03-24
+BASELINE=99  # Updated 2026-04-09: main branch grew from 93→99 (org pages, settings); WhatsApp endpoints use proper types
 
 COUNT=$(grep -rn "as any" src/ --include="*.ts" --include="*.tsx" \
   | grep -v "node_modules" \

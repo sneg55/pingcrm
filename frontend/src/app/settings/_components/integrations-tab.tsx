@@ -4,11 +4,13 @@ import { GoogleCard } from "./platform-cards/google-card";
 import { TelegramCard } from "./platform-cards/telegram-card";
 import { TwitterCard } from "./platform-cards/twitter-card";
 import { LinkedInCard } from "./platform-cards/linkedin-card";
+import { WhatsAppCard } from "./platform-cards/whatsapp-card";
 import type {
   ConnectedAccounts,
   SyncState,
 } from "../_hooks/use-settings-controller";
 import type { UseTelegramConnectFlowReturn } from "../_hooks/use-telegram-connect-flow";
+import type { UseWhatsAppConnectFlowReturn } from "../_hooks/use-whatsapp-connect-flow";
 import type { SyncProgress } from "@/hooks/use-telegram-sync";
 
 export interface IntegrationsTabProps {
@@ -22,6 +24,10 @@ export interface IntegrationsTabProps {
   twitterSync: SyncState;
   showTelegramModal: boolean;
   telegramFlow: UseTelegramConnectFlowReturn;
+  whatsappConnect: SyncState;
+  whatsappSync: SyncState;
+  whatsappFlow: UseWhatsAppConnectFlowReturn;
+  handleWhatsAppSync: () => Promise<void>;
   fetchConnectionStatus: () => Promise<void>;
   handleGoogleConnect: () => Promise<void>;
   handleGoogleSyncAll: () => Promise<void>;
@@ -41,6 +47,10 @@ export function IntegrationsTab({
   twitterSync,
   showTelegramModal,
   telegramFlow,
+  whatsappConnect,
+  whatsappSync,
+  whatsappFlow,
+  handleWhatsAppSync,
   fetchConnectionStatus,
   handleGoogleConnect,
   handleGoogleSyncAll,
@@ -79,6 +89,15 @@ export function IntegrationsTab({
 
       <LinkedInCard
         connected={connected}
+        fetchConnectionStatus={fetchConnectionStatus}
+      />
+
+      <WhatsAppCard
+        connected={connected}
+        whatsappConnect={whatsappConnect}
+        whatsappSync={whatsappSync}
+        whatsappFlow={whatsappFlow}
+        handleWhatsAppSync={handleWhatsAppSync}
         fetchConnectionStatus={fetchConnectionStatus}
       />
     </div>

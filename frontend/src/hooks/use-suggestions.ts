@@ -121,7 +121,7 @@ export function useSendMessage() {
 
 export function useContactSuggestion(contactId: string | undefined) {
   const { data } = useSuggestions();
-  const allSuggestions = (data?.data ?? []) as Suggestion[];
+  const allSuggestions = (data?.data ?? []) as unknown as Suggestion[];
   return allSuggestions.find(
     (s) => s.contact_id === contactId && s.status === "pending"
   ) ?? null;

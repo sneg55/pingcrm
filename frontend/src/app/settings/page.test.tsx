@@ -1144,7 +1144,7 @@ describe("SettingsPage", () => {
       expect(screen.getByText("Gmail")).toBeInTheDocument();
     });
     const notConnected = screen.getAllByText("Not connected");
-    expect(notConnected).toHaveLength(4);
+    expect(notConnected).toHaveLength(5); // Gmail, Telegram, Twitter, LinkedIn, WhatsApp
   });
 
   it("shows connected-as username for Telegram when connected", async () => {

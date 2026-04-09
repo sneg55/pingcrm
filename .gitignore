@@ -1,6 +1,9 @@
 # Research (local-only analysis files)
 research/
 
+# Git worktrees
+.worktrees/
+
 # Python
 __pycache__/
 *.py[cod]

@@ -28,6 +28,7 @@ from app.api.linkedin import router as linkedin_router
 from app.api.activity import router as activity_router
 from app.api.extension import router as extension_router
 from app.api.sync_history import router as sync_history_router
+from app.api.whatsapp import router as whatsapp_router
 
 setup_logging()
 logger = logging.getLogger(__name__)
@@ -95,6 +96,7 @@ app.include_router(linkedin_router)
 app.include_router(activity_router)
 app.include_router(extension_router)
 app.include_router(sync_history_router)
+app.include_router(whatsapp_router)
 
 # MCP SSE endpoint — manually assembled to avoid the mcp library's
 # sse_app() bug: it wraps the SSE ASGI handler in a request-response

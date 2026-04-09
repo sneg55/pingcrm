@@ -7,6 +7,7 @@ import {
   ChevronDown,
   Mail,
   MessageCircle,
+  MessageSquare,
   Pencil,
   Phone,
   Sparkles,
@@ -64,6 +65,7 @@ const platformIconMap: Record<string, React.ReactNode> = {
   twitter: <Twitter className="w-3 h-3 text-stone-400" />,
   manual: <StickyNote className="w-3 h-3 text-amber-400" />,
   meeting: <Calendar className="w-3 h-3 text-teal-500" />,
+  whatsapp: <MessageSquare className="w-3 h-3 text-green-500" />,
 };
 
 function NoteItem({

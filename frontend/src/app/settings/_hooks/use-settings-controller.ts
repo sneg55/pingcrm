@@ -40,6 +40,8 @@ export interface ConnectedAccounts {
   twitter: boolean;
   twitter_username?: string | null;
   linkedin_extension_paired_at?: string | null;
+  whatsapp: boolean;
+  whatsapp_phone?: string | null;
 }
 
 const TABS = [
@@ -77,6 +79,11 @@ export interface UseSettingsControllerReturn {
   setTwitterConnect: (s: SyncState) => void;
   twitterSync: SyncState;
   setTwitterSync: (s: SyncState) => void;
+  whatsappConnect: SyncState;
+  setWhatsappConnect: (s: SyncState) => void;
+  whatsappSync: SyncState;
+  setWhatsappSync: (s: SyncState) => void;
+  handleWhatsAppSync: () => Promise<void>;
 
   // Success modal
   successPlatform: string | null;
@@ -125,6 +132,8 @@ export function useSettingsController(): UseSettingsControllerReturn {
     telegram_username: null,
     twitter_username: null,
     linkedin_extension_paired_at: null,
+    whatsapp: false,
+    whatsapp_phone: null,
   });
 
   // Sync states
@@ -135,6 +144,8 @@ export function useSettingsController(): UseSettingsControllerReturn {
   const { data: telegramSyncProgress } = useTelegramSyncProgress();
   const [twitterConnect, setTwitterConnect] = useState<SyncState>(defaultSyncState);
   const [twitterSync, setTwitterSync] = useState<SyncState>(defaultSyncState);
+  const [whatsappConnect, setWhatsappConnect] = useState<SyncState>(defaultSyncState);
+  const [whatsappSync, setWhatsappSync] = useState<SyncState>(defaultSyncState);
 
   // Success modal
   const [successPlatform, setSuccessPlatform] = useState<string | null>(null);
@@ -178,6 +189,8 @@ export function useSettingsController(): UseSettingsControllerReturn {
           twitter_username: (user.twitter_username as string) || null,
           linkedin_extension_paired_at:
             (user.linkedin_extension_paired_at as string) || null,
+          whatsapp: !!user.whatsapp_connected,
+          whatsapp_phone: (user.whatsapp_phone as string) || null,
         });
       }
     } catch {
@@ -338,6 +351,17 @@ export function useSettingsController(): UseSettingsControllerReturn {
     }
   };
 
+  /* ── WhatsApp handlers ── */
+  const handleWhatsAppSync = useCallback(async () => {
+    setWhatsappSync({ status: "loading", message: "Syncing WhatsApp..." });
+    const { error } = await client.POST("/api/v1/contacts/sync/whatsapp", {});
+    if (error) {
+      setWhatsappSync({ status: "error", message: "Sync failed" });
+    } else {
+      pollForNotification("whatsapp", setWhatsappSync);
+    }
+  }, [pollForNotification]);
+
   return {
     activeTab,
     setTab,
@@ -356,6 +380,11 @@ export function useSettingsController(): UseSettingsControllerReturn {
     setTwitterConnect,
     twitterSync,
     setTwitterSync,
+    whatsappConnect,
+    setWhatsappConnect,
+    whatsappSync,
+    setWhatsappSync,
+    handleWhatsAppSync,
     successPlatform,
     setSuccessPlatform,
     showTelegramModal,

@@ -489,6 +489,16 @@ export function DetailsPanel({
           linkPrefix=""
           copyable
         />
+        {contact.whatsapp_phone && (
+          <InlineField
+            label="WhatsApp"
+            value={contact.whatsapp_phone}
+            onSave={(v) => onSaveField("whatsapp_phone", v)}
+            copyable
+            isLink
+            linkPrefix="https://wa.me/"
+          />
+        )}
         <InlineListField
           label="Phone"
           values={contact.phones ?? []}
