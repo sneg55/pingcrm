@@ -8,6 +8,7 @@ import { Plug, FileDown, Clock, Tag, User, RefreshCw } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useSettingsController, type TabId } from "./_hooks/use-settings-controller";
 import { useTelegramConnectFlow } from "./_hooks/use-telegram-connect-flow";
+import { useWhatsAppConnectFlow } from "./_hooks/use-whatsapp-connect-flow";
 import { SuccessModal } from "./_components/shared";
 import { IntegrationsTab } from "./_components/integrations-tab";
 import { ImportTab } from "./_components/import-tab";
@@ -86,6 +87,11 @@ function SettingsContent() {
     setShowTelegramModal: ctrl.setShowTelegramModal,
     onSuccess: (username) => ctrl.showSuccessModal("Telegram", username),
   });
+  const whatsappFlow = useWhatsAppConnectFlow({
+    whatsappConnect: ctrl.whatsappConnect,
+    setWhatsappConnect: ctrl.setWhatsappConnect,
+    onSuccess: ctrl.fetchConnectionStatus,
+  });
 
   if (ctrl.isLoading) {
     return (
@@ -128,6 +134,10 @@ function SettingsContent() {
             twitterSync={ctrl.twitterSync}
             showTelegramModal={ctrl.showTelegramModal}
             telegramFlow={telegramFlow}
+            whatsappConnect={ctrl.whatsappConnect}
+            whatsappSync={ctrl.whatsappSync}
+            whatsappFlow={whatsappFlow}
+            handleWhatsAppSync={ctrl.handleWhatsAppSync}
             fetchConnectionStatus={ctrl.fetchConnectionStatus}
             handleGoogleConnect={ctrl.handleGoogleConnect}
             handleGoogleSyncAll={ctrl.handleGoogleSyncAll}
