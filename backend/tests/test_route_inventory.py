@@ -70,6 +70,7 @@ def test_contacts_route_inventory() -> None:
             ("POST",   "/api/v1/contacts/sync/google-calendar"),
             ("POST",   "/api/v1/contacts/sync/telegram"),
             ("POST",   "/api/v1/contacts/sync/twitter"),
+            ("POST",   "/api/v1/contacts/sync/whatsapp"),
             ("GET",    "/api/v1/contacts/tags"),
             ("POST",   "/api/v1/contacts/tags/apply"),
             ("POST",   "/api/v1/contacts/tags/discover"),

@@ -34,7 +34,7 @@ export function WhatsAppCard({
   const { step, qrData, error, startConnect, cancel } = whatsappFlow;
 
   const handleDisconnect = async () => {
-    await client.DELETE("/api/v1/auth/whatsapp/disconnect" as any, {});
+    await client.DELETE("/api/v1/auth/whatsapp/disconnect", {});
     await fetchConnectionStatus();
   };
 

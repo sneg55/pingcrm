@@ -354,7 +354,7 @@ export function useSettingsController(): UseSettingsControllerReturn {
   /* ── WhatsApp handlers ── */
   const handleWhatsAppSync = useCallback(async () => {
     setWhatsappSync({ status: "loading", message: "Syncing WhatsApp..." });
-    const { error } = await client.POST("/api/v1/contacts/sync/whatsapp" as any, {});
+    const { error } = await client.POST("/api/v1/contacts/sync/whatsapp", {});
     if (error) {
       setWhatsappSync({ status: "error", message: "Sync failed" });
     } else {

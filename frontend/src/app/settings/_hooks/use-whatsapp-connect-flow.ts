@@ -42,7 +42,7 @@ export function useWhatsAppConnectFlow({
     setError(null);
     setWhatsappConnect({ status: "loading", message: "Starting WhatsApp session..." });
 
-    const { data, error: err } = await client.POST("/api/v1/auth/whatsapp/connect" as any, {});
+    const { data, error: err } = await client.POST("/api/v1/auth/whatsapp/connect", {});
     if (err) {
       setStep("error");
       setError("Failed to start WhatsApp session");
@@ -50,15 +50,15 @@ export function useWhatsAppConnectFlow({
       return;
     }
 
-    const result = data?.data as { status: string; qr: string | null } | undefined;
+    const result = data?.data;
     if (result?.qr) {
       setQrData(result.qr);
     }
     setWhatsappConnect({ status: "idle", message: "Scan QR code with your phone" });
 
     pollRef.current = setInterval(async () => {
-      const { data: statusData } = await client.GET("/api/v1/auth/whatsapp/qr" as any, {});
-      const s = statusData?.data as { status: string; qr: string | null } | undefined;
+      const { data: statusData } = await client.GET("/api/v1/auth/whatsapp/qr", {});
+      const s = statusData?.data;
       if (s?.qr) setQrData(s.qr);
       if (s?.status === "connected") {
         stopPolling();
