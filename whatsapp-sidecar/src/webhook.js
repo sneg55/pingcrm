@@ -14,14 +14,18 @@ function signPayload(body, secret) {
 
 /**
  * Create a webhook sender bound to a URL and secret.
+ * Produces flat payloads: { type, user_id, ...fields, ts }
+ * matching the backend webhook handler's expected format.
  * @param {string} url - Destination URL for webhook POSTs
  * @param {string} secret - Shared HMAC secret
- * @returns {{ send: (event: string, data: object) => Promise<void> }}
+ * @returns {{ send: (type: string, data: object) => Promise<void> }}
  */
 function createWebhookSender(url, secret) {
   return {
-    async send(event, data) {
-      const payload = JSON.stringify({ event, data, ts: Date.now() });
+    async send(type, data) {
+      // Flatten: pull user_id from data, spread remaining fields at top level
+      const { userId, ...rest } = data;
+      const payload = JSON.stringify({ type, user_id: userId, ...rest, ts: Date.now() });
       const sig = signPayload(payload, secret);
 
       const log = (level, msg, extra = {}) =>

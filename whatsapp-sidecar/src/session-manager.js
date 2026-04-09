@@ -36,8 +36,8 @@ class SessionManager {
   async startSession(userId) {
     const existing = this._sessions.get(userId);
     if (existing) {
-      // If session is connected and healthy, keep it
-      if (existing.status === "connected" || existing.status === "qr_pending") {
+      // If session is active (connected, authenticating, or awaiting QR scan), keep it
+      if (existing.status === "connected" || existing.status === "authenticated" || existing.status === "qr_pending") {
         log("info", "session already active", { userId, status: existing.status });
         return;
       }
@@ -83,26 +83,24 @@ class SessionManager {
       state.qr = qr;
       state.status = "qr_pending";
       log("info", "QR code received", { userId });
-      this._webhook.send("qr", { userId, qr }).catch(() => {});
     });
 
     client.on("authenticated", () => {
       state.status = "authenticated";
       state.qr = null;
       log("info", "session authenticated", { userId });
-      this._webhook.send("authenticated", { userId }).catch(() => {});
     });
 
     client.on("ready", () => {
-      state.status = "ready";
+      state.status = "connected";
       log("info", "session ready", { userId });
-      this._webhook.send("ready", { userId }).catch(() => {});
+      this._webhook.send("session_connected", { userId }).catch(() => {});
     });
 
     client.on("disconnected", (reason) => {
       state.status = "disconnected";
       log("info", "session disconnected", { userId, reason });
-      this._webhook.send("disconnected", { userId, reason }).catch(() => {});
+      this._webhook.send("session_disconnected", { userId }).catch(() => {});
       this._sessions.delete(userId);
     });
 
@@ -131,12 +129,13 @@ class SessionManager {
 
     log("info", "message_received", { userId, chatId: chat.id._serialized });
 
+    const phone = chat.id.user; // e.g. "1234567890" from "1234567890@c.us"
     await this._webhook.send("message_received", {
       userId,
-      messageId: msg.id._serialized,
-      chatId: chat.id._serialized,
-      chatName: chat.name,
-      fromMe: msg.fromMe,
+      message_id: msg.id._serialized,
+      from: phone,
+      sender_name: chat.name || "",
+      direction: msg.fromMe ? "outbound" : "inbound",
       body: msg.body,
       type: msg.type,
       timestamp: msg.timestamp,
@@ -168,7 +167,7 @@ class SessionManager {
    */
   async getContacts(userId) {
     const state = this._sessions.get(userId);
-    if (!state || state.status !== "ready") {
+    if (!state || state.status !== "connected") {
       throw new Error(`Session not ready for userId ${userId}`);
     }
 
@@ -192,7 +191,7 @@ class SessionManager {
    */
   async backfill(userId, { daysBack = 30, batchSize = 50 } = {}) {
     const state = this._sessions.get(userId);
-    if (!state || state.status !== "ready") {
+    if (!state || state.status !== "connected") {
       throw new Error(`Session not ready for userId ${userId}`);
     }
 
@@ -220,12 +219,13 @@ class SessionManager {
 
       const recent = messages.filter((m) => m.timestamp >= cutoff);
 
+      const phone = chat.id.user; // e.g. "1234567890"
       for (const msg of recent) {
         batch.push({
-          messageId: msg.id._serialized,
-          chatId: chat.id._serialized,
-          chatName: chat.name,
-          fromMe: msg.fromMe,
+          message_id: msg.id._serialized,
+          from: phone,
+          sender_name: chat.name || "",
+          direction: msg.fromMe ? "outbound" : "inbound",
           body: msg.body,
           type: msg.type,
           timestamp: msg.timestamp,
@@ -247,7 +247,7 @@ class SessionManager {
       log("info", "backfill batch sent", { userId, batchSize: batch.length, totalMessages });
     }
 
-    await this._webhook.send("backfill_complete", { userId, totalMessages });
+    await this._webhook.send("backfill_complete", { userId });
     log("info", "backfill complete", { userId, totalMessages });
   }
 

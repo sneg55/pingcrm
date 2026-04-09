@@ -1,7 +1,6 @@
 "use strict";
 
 const { Router } = require("express");
-const qrcode = require("qrcode");
 
 /**
  * Build the sessions router.
@@ -33,30 +32,21 @@ function buildRouter(sessionManager) {
       ]);
 
       const status = sessionManager.getStatus(userId) || "initializing";
-      const qrRaw = sessionManager.getQr(userId);
+      const qr = sessionManager.getQr(userId);
 
-      let qrDataUrl = null;
-      if (qrRaw) {
-        try {
-          qrDataUrl = await qrcode.toDataURL(qrRaw);
-        } catch (err) {
-          log("warn", "qrcode.toDataURL failed", { userId, error: err.message });
-        }
-      }
-
-      return res.status(202).json({ status, qr: qrDataUrl });
+      return res.status(202).json({ status, qr });
     } catch (err) {
       log("error", "start session error", { userId, error: err.message });
       return res.status(500).json({ error: err.message });
     }
   });
 
-  // GET /sessions/:userId/qr — get current QR as data URL
-  router.get("/:userId/qr", async (req, res) => {
+  // GET /sessions/:userId/qr — get current QR string (rendered by frontend)
+  router.get("/:userId/qr", (req, res) => {
     const { userId } = req.params;
 
-    const qrRaw = sessionManager.getQr(userId);
-    if (!qrRaw) {
+    const qr = sessionManager.getQr(userId);
+    if (!qr) {
       const status = sessionManager.getStatus(userId);
       if (!status) {
         return res.status(404).json({ error: "Session not found" });
@@ -64,13 +54,7 @@ function buildRouter(sessionManager) {
       return res.status(200).json({ qr: null, status });
     }
 
-    try {
-      const qrDataUrl = await qrcode.toDataURL(qrRaw);
-      return res.status(200).json({ qr: qrDataUrl, status: "qr_pending" });
-    } catch (err) {
-      log("error", "qrcode.toDataURL failed", { userId, error: err.message });
-      return res.status(500).json({ error: "Failed to generate QR image" });
-    }
+    return res.status(200).json({ qr, status: "qr_pending" });
   });
 
   // GET /sessions/:userId/status — get session status
@@ -91,7 +75,7 @@ function buildRouter(sessionManager) {
     const { daysBack = 30, batchSize = 50 } = req.body || {};
 
     const status = sessionManager.getStatus(userId);
-    if (status !== "ready") {
+    if (status !== "connected") {
       return res.status(400).json({ error: `Session not ready (status: ${status || "not found"})` });
     }
 
