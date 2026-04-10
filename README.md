@@ -6,7 +6,7 @@
 [![GitHub stars](https://img.shields.io/github/stars/sneg55/pingcrm)](https://github.com/sneg55/pingcrm/stargazers)
 [![Build](https://github.com/sneg55/pingcrm/actions/workflows/deploy.yml/badge.svg)](https://github.com/sneg55/pingcrm/actions/workflows/deploy.yml)
 
-Auto-syncs Gmail, Telegram, Twitter/X, and LinkedIn. Detects life events. Drafts contextual follow-ups with AI. Tells you who to reach out to and why.
+Auto-syncs Gmail, Telegram, Twitter/X, LinkedIn, and WhatsApp. Detects life events. Drafts contextual follow-ups with AI. Tells you who to reach out to and why.
 
 > **[Full Documentation](https://docs.pingcrm.xyz/)** · **[Self-Host Now](https://docs.pingcrm.xyz/setup)** · **[Join Hosted Waitlist](https://pingcrm.xyz)**
 
@@ -19,6 +19,7 @@ Auto-syncs Gmail, Telegram, Twitter/X, and LinkedIn. Detects life events. Drafts
 | Gmail sync | Yes (threads) | No | Yes (contacts) |
 | Telegram sync | Yes | No | No |
 | Twitter/X sync | Yes (DMs + mentions) | No | Import only |
+| WhatsApp sync | Yes (QR pairing) | No | No |
 | LinkedIn sync | Yes (Chrome extension) | No | Yes |
 | Relationship scoring | Yes (0–10) | No | Reminders only |
 | Life event detection | Yes (multi-source) | Manual only | Job changes only |
@@ -125,6 +126,16 @@ The main screen provides a real-time overview of your networking activity:
 - **Mention sync** -- tracks @mentions and replies
 - **Bio monitoring** -- detects bio changes (job changes, milestones), stores them as events, and adds them to the contact timeline
 - Background sync with retry logic and failure notifications
+
+#### WhatsApp (`Settings > WhatsApp`)
+
+- QR code pairing flow — scan from your phone to link your WhatsApp account
+- **Session persistence** -- sessions auto-restore on container restart via LocalAuth, no re-scanning QR after deploys
+- **Message backfill** -- syncs last 30 days of direct chat messages via WhatsApp Web's internal Store
+- **Real-time sync** -- incoming messages forwarded via webhook as they arrive
+- **LID phone resolution** -- WhatsApp's Linked Identity IDs resolved to real phone numbers via contact lookup
+- **Fuzzy contact matching** -- resolves contacts across country code formats
+- Runs as a separate Node.js sidecar service (`whatsapp-sidecar/`) using whatsapp-web.js + Puppeteer
 
 #### LinkedIn (`Chrome Extension`)
 
@@ -247,6 +258,8 @@ Central hub for managing all platform connections and data sync:
 - **Gmail** -- connect/disconnect, view connected email, sync contacts, sync calendar events
 - **Telegram** -- connect via phone number, OTP verification, 2FA support, sync chats
 - **Twitter** -- OAuth connect/disconnect, sync DMs and mentions
+- **WhatsApp** -- QR code pairing, sync history in kebab menu, disconnect
+- **LinkedIn** -- Chrome extension pairing code, sync history
 - **CSV Import** -- upload contact spreadsheets with drag-and-drop
 - Connection status badges showing connected accounts and usernames
 
@@ -287,6 +300,7 @@ Guided 4-step setup flow for new users:
 | **Frontend** | Next.js 15 + React 19 + Tailwind CSS v4 |
 | **State Management** | TanStack React Query v5 |
 | **Telegram** | Telethon (MTProto client) |
+| **WhatsApp** | whatsapp-web.js + Puppeteer (Node.js sidecar) |
 | **Google APIs** | google-api-python-client + google-auth-oauthlib |
 | **Auth** | python-jose (JWT) + passlib (bcrypt) |
 | **HTTP Client** | httpx (async) + openapi-fetch (frontend) |
@@ -531,6 +545,8 @@ For production, use `docker-compose.prod.yml` which adds Caddy reverse proxy wit
 | `TELEGRAM_API_ID` | No | Telegram MTProto API ID (integer) |
 | `TELEGRAM_API_HASH` | No | Telegram MTProto API hash |
 | `ANTHROPIC_API_KEY` | No | Anthropic API key for Claude AI features |
+| `WHATSAPP_SIDECAR_URL` | No | WhatsApp sidecar service URL (default: `http://localhost:3001`) |
+| `WHATSAPP_WEBHOOK_SECRET` | No | HMAC secret for verifying sidecar webhook payloads |
 | `NEXT_PUBLIC_API_URL` | No | Backend base URL used by the Next.js frontend (default: `http://localhost:8000`). Set this when deploying frontend and backend to different hosts. |
 
 ---
@@ -542,6 +558,7 @@ pingcrm/
 ├── README.md
 ├── CLAUDE.md                  # AI assistant instructions
 ├── mvp.md                     # Product specification
+├── whatsapp-sidecar/          # WhatsApp Web bridge (Node.js + whatsapp-web.js)
 ├── chrome-extension/          # LinkedIn companion Chrome extension (MV3)
 ├── docs/                      # Docusaurus documentation site
 │
@@ -567,7 +584,8 @@ pingcrm/
 │   │   │   ├── organizations.py     # Organization CRUD + merge
 │   │   │   ├── identity.py          # Identity resolution endpoints
 │   │   │   ├── notifications.py     # Notification management
-│   │   │   └── linkedin.py          # LinkedIn push endpoint + avatar download
+│   │   │   ├── linkedin.py          # LinkedIn push endpoint + avatar download
+│   │   │   └── whatsapp.py          # WhatsApp auth, sync, webhook endpoints
 │   │   ├── models/                  # SQLAlchemy ORM models
 │   │   │   ├── user.py
 │   │   │   ├── contact.py
@@ -588,6 +606,7 @@ pingcrm/
 │   │   │   │   ├── telegram.py      # Telegram sync tasks
 │   │   │   │   ├── twitter.py       # Twitter poll + DM sync tasks
 │   │   │   │   ├── google.py        # Google Contacts + Calendar tasks
+│   │   │   │   ├── whatsapp.py      # WhatsApp backfill + session health tasks
 │   │   │   │   ├── scoring.py       # Relationship score tasks
 │   │   │   │   ├── followups.py     # Suggestion generation tasks
 │   │   │   │   ├── maintenance.py   # Snooze reactivation + org stats
@@ -610,7 +629,9 @@ pingcrm/
 │   │   │   ├── telegram.py          # Telethon MTProto client
 │   │   │   ├── twitter.py           # Twitter API v2 client
 │   │   │   ├── bird.py              # Bird CLI (@steipete/bird) wrapper
-│   │   │   └── linkedin.py          # LinkedIn avatar download
+│   │   │   ├── linkedin.py          # LinkedIn avatar download
+│   │   │   ├── whatsapp.py          # WhatsApp sidecar HTTP client
+│   │   │   └── whatsapp_helpers.py  # Phone normalization, contact resolution
 │   │   └── core/                    # Config, auth, database, encryption, Redis, Celery
 │   ├── alembic/                     # Database migrations
 │   ├── tests/                       # 631 pytest tests
@@ -708,6 +729,7 @@ All sync endpoints dispatch Celery tasks and return immediately with `{ "status"
 | POST | `/api/v1/contacts/sync/google-calendar` | Sync Google Calendar events (background) |
 | POST | `/api/v1/contacts/sync/telegram` | Sync Telegram chats + groups + bios (background) |
 | POST | `/api/v1/contacts/sync/twitter` | Sync Twitter DMs + mentions + bios (background) |
+| POST | `/api/v1/contacts/sync/whatsapp` | Sync WhatsApp messages (background backfill) |
 
 ### Telegram Auth
 
@@ -718,6 +740,16 @@ All sync endpoints dispatch Celery tasks and return immediately with `{ "status"
 | POST | `/api/v1/auth/telegram/verify-2fa` | Complete 2FA password verification |
 | POST | `/api/v1/auth/telegram/sync` | Sync Telegram chats (background) |
 | GET | `/api/v1/contacts/{id}/telegram/common-groups` | Get shared Telegram groups with a contact |
+
+### WhatsApp Auth
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| POST | `/api/v1/auth/whatsapp/connect` | Start WhatsApp session, returns QR code |
+| GET | `/api/v1/auth/whatsapp/qr` | Get current QR code for pending session |
+| GET | `/api/v1/auth/whatsapp/status` | Get WhatsApp session status |
+| DELETE | `/api/v1/auth/whatsapp/disconnect` | Disconnect WhatsApp and clear session |
+| POST | `/api/v1/webhooks/whatsapp` | Webhook receiver for sidecar events (HMAC-verified) |
 
 ### Interactions
 
@@ -786,6 +818,7 @@ All sync endpoints dispatch Celery tasks and return immediately with `{ "status"
 | Relationship score recalculation | Daily (02:00 UTC) |
 | Follow-up suggestion generation | Daily (08:00 UTC) |
 | Weekly digest email | Weekly (Monday 09:00 UTC) |
+| WhatsApp session health check | Every 30 minutes |
 | Snooze reactivation | Hourly |
 | Organization stats refresh | Hourly |
 
