@@ -230,10 +230,26 @@ class SessionManager {
     const cutoff = Date.now() / 1000 - daysBack * 86400;
     log("info", "backfill started", { userId, daysBack, batchSize });
 
-    // Wait for WhatsApp Web to finish loading chat data internally.
-    // freshly-connected sessions need time for the internal page to hydrate.
     const delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
-    await delay(15000);
+
+    // Poll until WhatsApp Web's internal chat-loading module is available.
+    // This can take 30-90s after session connect depending on account size.
+    const pupPage = state.client.pupPage;
+    for (let waited = 0; waited < 120; waited += 5) {
+      const ready = await pupPage.evaluate(() => {
+        try {
+          // Check if the internal module store has the chat loading function
+          const store = window.Store;
+          return !!(store && store.Chat && typeof store.Chat.find === "function");
+        } catch { return false; }
+      }).catch(() => false);
+      if (ready) {
+        log("info", "backfill: internal modules ready", { userId, waitedSeconds: waited });
+        break;
+      }
+      if (waited === 0) log("info", "backfill: waiting for internal modules...", { userId });
+      await delay(5000);
+    }
 
     const chats = await state.client.getChats();
     const directChats = chats.filter((c) => !c.isGroup);
@@ -244,23 +260,15 @@ class SessionManager {
 
     for (const chat of directChats) {
       let messages;
-      // Retry once after 5s if chat data isn't loaded yet
-      for (let attempt = 0; attempt < 2; attempt++) {
-        try {
-          messages = await chat.fetchMessages({ limit: 100 });
-          break;
-        } catch (err) {
-          if (attempt === 0 && err.message.includes("waitForChatLoading")) {
-            await delay(5000);
-            continue;
-          }
-          log("warn", "backfill: failed to fetch messages for chat", {
-            userId,
-            chatId: chat.id._serialized,
-            error: err.message,
-          });
-          break;
-        }
+      try {
+        messages = await chat.fetchMessages({ limit: 100 });
+      } catch (err) {
+        log("warn", "backfill: failed to fetch messages for chat", {
+          userId,
+          chatId: chat.id._serialized,
+          error: err.message,
+        });
+        continue;
       }
       if (!messages) continue;
 
