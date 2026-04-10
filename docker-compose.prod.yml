@@ -116,6 +116,7 @@ services:
   whatsapp-sidecar:
     image: ghcr.io/sneg55/pingcrm/whatsapp-sidecar:latest
     restart: unless-stopped
+    shm_size: '2gb'
     volumes:
       - whatsapp_sessions:/data/sessions
     environment:
