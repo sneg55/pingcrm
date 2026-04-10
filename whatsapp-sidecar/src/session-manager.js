@@ -268,13 +268,31 @@ class SessionManager {
 
         // Build a LID → phone lookup from Store.Contact
         const phoneLookup = {};
+        const lidDiag = []; // diagnostic for first few LID contacts
         if (store.Contact) {
           const contacts = store.Contact.getModelsArray ? store.Contact.getModelsArray() : [];
           for (const ct of contacts) {
-            const lid = ct.id?._serialized || "";
-            // Contact.phoneNumber or the user part of a @c.us id
-            const phone = ct.phoneNumber || (lid.endsWith("@c.us") ? lid.replace(/@c\.us$/, "") : "");
-            if (phone && lid) phoneLookup[lid] = phone;
+            const ctId = ct.id?._serialized || "";
+            // Try multiple fields for the phone number
+            const phone = ct.phoneNumber || ct.number || ct.userid
+              || (ctId.endsWith("@c.us") ? ctId.replace(/@c\.us$/, "") : "");
+            if (phone && ctId) phoneLookup[ctId] = phone;
+
+            // Diagnostic: dump properties of LID contacts
+            if (ctId.endsWith("@lid") && lidDiag.length < 3) {
+              const keys = Object.keys(ct).filter((k) => !k.startsWith("_")).slice(0, 20);
+              lidDiag.push({ id: ctId, name: ct.name || ct.pushname || "", phone, keys });
+            }
+          }
+        }
+
+        // Also try to resolve via Store.Lid if available
+        if (store.Lid) {
+          const lids = store.Lid.getModelsArray ? store.Lid.getModelsArray() : [];
+          for (const l of lids) {
+            const lid = l.id?._serialized || l.lid?._serialized || "";
+            const phone = l.phoneNumber || l.number || l.user || "";
+            if (lid && phone && !phoneLookup[lid]) phoneLookup[lid] = phone;
           }
         }
 
@@ -315,7 +333,7 @@ class SessionManager {
             });
           }
         }
-        return { messages: results, diag: { storeKeys, hasChat, hasMsg, chatCount: chats.length, chatDiag, phoneLookupSize: Object.keys(phoneLookup).length } };
+        return { messages: results, diag: { storeKeys, hasChat, hasMsg, chatCount: chats.length, chatDiag, phoneLookupSize: Object.keys(phoneLookup).length, hasLidStore: !!store.Lid, lidDiag } };
       } catch (err) {
         return { error: err.message, stack: err.stack?.split("\n").slice(0, 3) };
       }
