@@ -230,72 +230,84 @@ class SessionManager {
     const cutoff = Date.now() / 1000 - daysBack * 86400;
     log("info", "backfill started", { userId, daysBack, batchSize });
 
-    const delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
-
-    // Poll until WhatsApp Web's internal chat-loading module is available.
-    // This can take 30-90s after session connect depending on account size.
+    // Extract messages directly from WhatsApp Web's internal Store.
+    // chat.fetchMessages() is broken in current WhatsApp Web (missing
+    // waitForChatLoading), so we bypass it entirely.
     const pupPage = state.client.pupPage;
-    for (let waited = 0; waited < 120; waited += 5) {
-      const ready = await pupPage.evaluate(() => {
-        try {
-          // Check if the internal module store has the chat loading function
-          const store = window.Store;
-          return !!(store && store.Chat && typeof store.Chat.find === "function");
-        } catch { return false; }
-      }).catch(() => false);
-      if (ready) {
-        log("info", "backfill: internal modules ready", { userId, waitedSeconds: waited });
-        break;
+
+    const allMessages = await pupPage.evaluate((cutoffTs) => {
+      try {
+        const store = window.Store;
+        if (!store || !store.Chat || !store.Msg) return { error: "Store not available" };
+
+        const results = [];
+        const chats = store.Chat.getModelsArray();
+
+        for (const chat of chats) {
+          if (chat.isGroup) continue;
+
+          const chatId = chat.id._serialized || "";
+          const chatName = chat.name || chat.formattedTitle || "";
+
+          const msgs = store.Msg.get(chat.id);
+          if (!msgs) continue;
+
+          const msgModels = msgs.getModelsArray ? msgs.getModelsArray() : [];
+          for (const msg of msgModels) {
+            if ((msg.t || 0) < cutoffTs) continue;
+            if (msg.type !== "chat") continue;
+
+            results.push({
+              message_id: msg.id._serialized || "",
+              chatId,
+              chatName,
+              fromMe: !!msg.id.fromMe,
+              body: msg.body || "",
+              type: msg.type,
+              timestamp: msg.t || 0,
+            });
+          }
+        }
+        return { messages: results };
+      } catch (err) {
+        return { error: err.message };
       }
-      if (waited === 0) log("info", "backfill: waiting for internal modules...", { userId });
-      await delay(5000);
+    }, cutoff).catch((err) => ({ error: `evaluate failed: ${err.message}` }));
+
+    if (allMessages.error) {
+      log("error", "backfill: Store extraction failed", { userId, error: allMessages.error });
+      // Fall back to real-time collection only
+      await this._webhook.send("backfill_complete", { userId });
+      log("info", "backfill complete (Store unavailable)", { userId, totalMessages: 0 });
+      return;
     }
 
-    const chats = await state.client.getChats();
-    const directChats = chats.filter((c) => !c.isGroup);
-    log("info", "backfill: found chats", { userId, total: chats.length, direct: directChats.length });
+    const messages = allMessages.messages || [];
+    log("info", "backfill: extracted messages from Store", { userId, count: messages.length });
 
     let batch = [];
     let totalMessages = 0;
 
-    for (const chat of directChats) {
-      let messages;
-      try {
-        messages = await chat.fetchMessages({ limit: 100 });
-      } catch (err) {
-        log("warn", "backfill: failed to fetch messages for chat", {
-          userId,
-          chatId: chat.id._serialized,
-          error: err.message,
-        });
-        continue;
-      }
-      if (!messages) continue;
+    for (const msg of messages) {
+      const phone = msg.chatId.replace(/@.*$/, ""); // strip @c.us or @lid
+      batch.push({
+        message_id: msg.message_id,
+        from: phone,
+        sender_name: msg.chatName,
+        direction: msg.fromMe ? "outbound" : "inbound",
+        body: msg.body,
+        type: msg.type,
+        timestamp: msg.timestamp,
+      });
 
-      const recent = messages.filter((m) => m.timestamp >= cutoff);
-
-      const phone = chat.id.user; // e.g. "1234567890"
-      for (const msg of recent) {
-        batch.push({
-          message_id: msg.id._serialized,
-          from: phone,
-          sender_name: chat.name || "",
-          direction: msg.fromMe ? "outbound" : "inbound",
-          body: msg.body,
-          type: msg.type,
-          timestamp: msg.timestamp,
-        });
-
-        if (batch.length >= batchSize) {
-          await this._webhook.send("backfill_batch", { userId, messages: batch });
-          totalMessages += batch.length;
-          log("info", "backfill batch sent", { userId, batchSize: batch.length, totalMessages });
-          batch = [];
-        }
+      if (batch.length >= batchSize) {
+        await this._webhook.send("backfill_batch", { userId, messages: batch });
+        totalMessages += batch.length;
+        log("info", "backfill batch sent", { userId, batchSize: batch.length, totalMessages });
+        batch = [];
       }
     }
 
-    // Send remaining messages
     if (batch.length > 0) {
       await this._webhook.send("backfill_batch", { userId, messages: batch });
       totalMessages += batch.length;
