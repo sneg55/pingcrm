@@ -238,51 +238,65 @@ class SessionManager {
     const allMessages = await pupPage.evaluate((cutoffTs) => {
       try {
         const store = window.Store;
-        if (!store || !store.Chat || !store.Msg) return { error: "Store not available" };
+        if (!store) return { error: "window.Store not available" };
+
+        // Diagnostic: discover what's in the Store
+        const storeKeys = Object.keys(store).slice(0, 30);
+        const hasChat = !!store.Chat;
+        const hasMsg = !!store.Msg;
+
+        if (!hasChat) return { error: "Store.Chat missing", storeKeys };
+
+        const chats = store.Chat.getModelsArray ? store.Chat.getModelsArray() : [];
+        const chatDiag = chats.slice(0, 5).map((c) => ({
+          id: c.id?._serialized,
+          name: c.name || c.formattedTitle || "",
+          isGroup: c.isGroup,
+          msgCount: c.msgs?.getModelsArray ? c.msgs.getModelsArray().length : -1,
+        }));
 
         const results = [];
-        const chats = store.Chat.getModelsArray();
 
         for (const chat of chats) {
           if (chat.isGroup) continue;
 
-          const chatId = chat.id._serialized || "";
+          const chatId = chat.id?._serialized || "";
           const chatName = chat.name || chat.formattedTitle || "";
 
-          const msgs = store.Msg.get(chat.id);
-          if (!msgs) continue;
+          // Messages are on chat.msgs, not Store.Msg.get()
+          const msgModels = chat.msgs?.getModelsArray ? chat.msgs.getModelsArray() : [];
 
-          const msgModels = msgs.getModelsArray ? msgs.getModelsArray() : [];
           for (const msg of msgModels) {
             if ((msg.t || 0) < cutoffTs) continue;
             if (msg.type !== "chat") continue;
 
             results.push({
-              message_id: msg.id._serialized || "",
+              message_id: msg.id?._serialized || "",
               chatId,
               chatName,
-              fromMe: !!msg.id.fromMe,
+              fromMe: !!msg.id?.fromMe,
               body: msg.body || "",
               type: msg.type,
               timestamp: msg.t || 0,
             });
           }
         }
-        return { messages: results };
+        return { messages: results, diag: { storeKeys, hasChat, hasMsg, chatCount: chats.length, chatDiag } };
       } catch (err) {
-        return { error: err.message };
+        return { error: err.message, stack: err.stack?.split("\n").slice(0, 3) };
       }
     }, cutoff).catch((err) => ({ error: `evaluate failed: ${err.message}` }));
 
     if (allMessages.error) {
-      log("error", "backfill: Store extraction failed", { userId, error: allMessages.error });
-      // Fall back to real-time collection only
+      log("error", "backfill: Store extraction failed", { userId, error: allMessages.error, storeKeys: allMessages.storeKeys });
       await this._webhook.send("backfill_complete", { userId });
-      log("info", "backfill complete (Store unavailable)", { userId, totalMessages: 0 });
       return;
     }
 
     const messages = allMessages.messages || [];
+    if (allMessages.diag) {
+      log("info", "backfill: Store diagnostics", { userId, ...allMessages.diag });
+    }
     log("info", "backfill: extracted messages from Store", { userId, count: messages.length });
 
     let batch = [];
