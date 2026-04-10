@@ -103,6 +103,20 @@ class LinkedInPushResult(BaseModel):
     backfill_needed: list[BackfillItem] = []
 
 
+class MetaBackfillItem(BaseModel):
+    contact_id: str
+    platform_id: str
+    platform: str  # "facebook" | "instagram"
+
+
+class MetaPushResult(BaseModel):
+    contacts_created: int
+    contacts_updated: int
+    interactions_created: int
+    interactions_skipped: int
+    backfill_needed: list[MetaBackfillItem] = []
+
+
 class SyncStartedData(BaseModel):
     status: str
 

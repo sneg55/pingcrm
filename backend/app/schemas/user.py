@@ -31,6 +31,10 @@ class UserResponse(BaseModel):
     linkedin_extension_paired_at: datetime | None = None
     whatsapp_connected: bool = False
     whatsapp_phone: str | None = None
+    meta_connected: bool = False
+    meta_connected_name: str | None = None
+    meta_sync_facebook: bool = True
+    meta_sync_instagram: bool = True
     priority_settings: dict | None = None
 
     model_config = {"from_attributes": True}
@@ -53,6 +57,10 @@ class UserResponse(BaseModel):
             linkedin_extension_paired_at=getattr(user, "linkedin_extension_paired_at", None),
             whatsapp_connected=bool(user.whatsapp_connected),
             whatsapp_phone=getattr(user, "whatsapp_phone", None),
+            meta_connected=bool(user.meta_connected),
+            meta_connected_name=getattr(user, "meta_connected_name", None),
+            meta_sync_facebook=bool(getattr(user, "meta_sync_facebook", True)),
+            meta_sync_instagram=bool(getattr(user, "meta_sync_instagram", True)),
             priority_settings=get_priority_settings(user),
         )
 
