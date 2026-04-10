@@ -316,6 +316,10 @@ class UserWithAccountsData(BaseModel):
     whatsapp_connected: bool = False
     whatsapp_phone: str | None = None
     linkedin_extension_paired_at: datetime | None = None
+    meta_connected: bool = False
+    meta_connected_name: str | None = None
+    meta_sync_facebook: bool = True
+    meta_sync_instagram: bool = True
     google_accounts: list[GoogleAccountData] = []
 
 
