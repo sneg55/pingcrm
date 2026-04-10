@@ -6,7 +6,7 @@
  * Each module exposes its public functions as globals (no ES module syntax).
  */
 
-importScripts("../lib/storage.js", "voyager-client.js", "sync-utils.js", "sync.js", "pairing.js");
+importScripts("../lib/storage.js", "voyager-client.js", "sync-utils.js", "sync.js", "pairing.js", "meta-client.js", "meta-sync-utils.js", "sync-facebook.js", "sync-instagram.js");
 
 // ── Suggestion cache (TTL-based, lazy refresh) ─────────────────────────────
 let _suggestionCache = null;
@@ -46,6 +46,34 @@ function setBadge(text, color) {
 
 let _lastProfileSyncAt = 0;
 const PROFILE_SYNC_THROTTLE_MS = 5 * 60 * 1000; // 5 minutes
+
+// ── Throttle state for Meta auto-sync ────────────────────────────────────────
+let _lastMetaSyncAt = 0;
+const META_AUTO_SYNC_THROTTLE_MS = 5 * 60 * 1000; // 5 minutes
+
+async function _maybeRunMetaSync(platform) {
+  if (Date.now() - _lastMetaSyncAt < META_AUTO_SYNC_THROTTLE_MS) return;
+  _lastMetaSyncAt = Date.now();
+
+  const { apiUrl, token, metaSyncFacebook, metaSyncInstagram } = await chrome.storage.local.get([
+    "apiUrl", "token", "metaSyncFacebook", "metaSyncInstagram",
+  ]);
+  if (!apiUrl || !token) return;
+
+  if (platform === "facebook" && metaSyncFacebook !== false) {
+    const result = await runFacebookSync(apiUrl, token, false);
+    if (result.error) {
+      console.warn("[SW] Auto Meta sync error (facebook):", result.error);
+    }
+  }
+
+  if (platform === "instagram" && metaSyncInstagram !== false) {
+    const result = await runInstagramSync(apiUrl, token, false);
+    if (result.error) {
+      console.warn("[SW] Auto Meta sync error (instagram):", result.error);
+    }
+  }
+}
 
 async function _maybeRunVoyagerSync() {
   if (Date.now() - _lastProfileSyncAt < PROFILE_SYNC_THROTTLE_MS) return;
@@ -329,6 +357,87 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
       } catch (e) {
         console.warn("[SW] REGENERATE_SUGGESTION error:", e.message);
         sendResponse({ suggestion: null, error: e.message });
+      }
+    })();
+    return true;
+  }
+
+  // META_PAGE_VISIT — user visited Facebook or Instagram
+  if (message.type === "META_PAGE_VISIT") {
+    (async () => {
+      try {
+        const cookies = await chrome.cookies.getAll({ domain: ".facebook.com" });
+        const cUser = cookies.find(c => c.name === "c_user")?.value;
+        const xs = cookies.find(c => c.name === "xs")?.value;
+        const valid = !!(cUser && xs);
+        await chrome.storage.local.set({ metaCookiesValid: valid });
+        console.log("[SW] Meta cookie refresh:", valid ? "valid" : "missing");
+
+        if (valid) {
+          _maybeRunMetaSync(message.platform).catch(e =>
+            console.warn("[SW] Auto Meta sync failed:", e.message)
+          );
+        }
+      } catch (e) {
+        console.warn("[SW] Meta cookie refresh failed:", e.message);
+      }
+      sendResponse({ ok: true });
+    })();
+    return true;
+  }
+
+  // META_SYNC_NOW — force Meta sync (from popup or frontend)
+  if (message.type === "META_SYNC_NOW") {
+    (async () => {
+      try {
+        const { apiUrl, token } = await chrome.storage.local.get(["apiUrl", "token"]);
+        if (!apiUrl || !token) {
+          sendResponse({ ok: false, error: "Not paired" });
+          return;
+        }
+
+        setBadge("...", "#64748b");
+        const platform = message.platform || "both";
+
+        let fbResult = { skipped: true, conversations: 0, messages: 0 };
+        let igResult = { skipped: true, conversations: 0, messages: 0 };
+
+        if (platform === "facebook" || platform === "both") {
+          fbResult = await runFacebookSync(apiUrl, token, true);
+          if (fbResult.error) {
+            setBadge("X", "#FF9800");
+            sendResponse({ ok: false, error: fbResult.error, platform: "facebook" });
+            return;
+          }
+        }
+
+        if (platform === "instagram" || platform === "both") {
+          igResult = await runInstagramSync(apiUrl, token, true);
+          if (igResult.error) {
+            setBadge("X", "#FF9800");
+            sendResponse({ ok: false, error: igResult.error, platform: "instagram" });
+            return;
+          }
+        }
+
+        setBadge("OK", "#4CAF50");
+        setTimeout(() => setBadge("", ""), 3000);
+
+        sendResponse({
+          ok: true,
+          facebook: {
+            conversations: fbResult.conversations,
+            messages: fbResult.messages,
+          },
+          instagram: {
+            conversations: igResult.conversations,
+            messages: igResult.messages,
+          },
+        });
+      } catch (e) {
+        console.error("[SW] META_SYNC_NOW crashed:", e.message, e.stack);
+        setBadge("X", "#FF9800");
+        sendResponse({ ok: false, error: e.message });
       }
     })();
     return true;
