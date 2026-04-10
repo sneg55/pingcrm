@@ -158,10 +158,21 @@ class SessionManager {
     if (msg.from === "status@broadcast") return;
 
     const chat = await msg.getChat();
+    const chatId = chat.id._serialized;
 
-    log("info", "message_received", { userId, chatId: chat.id._serialized });
+    log("info", "message_received", { userId, chatId });
 
-    const phone = chat.id.user; // e.g. "1234567890" from "1234567890@c.us"
+    // Resolve real phone — LID chats don't have phone in the ID
+    let phone = "";
+    if (chatId.endsWith("@c.us")) {
+      phone = chat.id.user;
+    } else {
+      // Try to get phone from the contact object
+      const contact = await msg.getContact().catch(() => null);
+      phone = contact?.number || chat.id.user || "";
+    }
+    if (!phone || phone === "0") return;
+
     await this._webhook.send("message_received", {
       userId,
       message_id: msg.id._serialized,
@@ -255,6 +266,18 @@ class SessionManager {
           msgCount: c.msgs?.getModelsArray ? c.msgs.getModelsArray().length : -1,
         }));
 
+        // Build a LID → phone lookup from Store.Contact
+        const phoneLookup = {};
+        if (store.Contact) {
+          const contacts = store.Contact.getModelsArray ? store.Contact.getModelsArray() : [];
+          for (const ct of contacts) {
+            const lid = ct.id?._serialized || "";
+            // Contact.phoneNumber or the user part of a @c.us id
+            const phone = ct.phoneNumber || (lid.endsWith("@c.us") ? lid.replace(/@c\.us$/, "") : "");
+            if (phone && lid) phoneLookup[lid] = phone;
+          }
+        }
+
         const results = [];
 
         for (const chat of chats) {
@@ -263,7 +286,17 @@ class SessionManager {
           const chatId = chat.id?._serialized || "";
           const chatName = chat.name || chat.formattedTitle || "";
 
-          // Messages are on chat.msgs, not Store.Msg.get()
+          // Resolve real phone: try contact lookup, then chat.contact, then parse chatId
+          let phone = phoneLookup[chatId] || "";
+          if (!phone && chat.contact) {
+            phone = chat.contact.phoneNumber || "";
+          }
+          if (!phone && chatId.endsWith("@c.us")) {
+            phone = chatId.replace(/@c\.us$/, "");
+          }
+          // Skip chats where we can't resolve a phone number (e.g. 0@c.us)
+          if (!phone || phone === "0") continue;
+
           const msgModels = chat.msgs?.getModelsArray ? chat.msgs.getModelsArray() : [];
 
           for (const msg of msgModels) {
@@ -274,6 +307,7 @@ class SessionManager {
               message_id: msg.id?._serialized || "",
               chatId,
               chatName,
+              phone,
               fromMe: !!msg.id?.fromMe,
               body: msg.body || "",
               type: msg.type,
@@ -281,7 +315,7 @@ class SessionManager {
             });
           }
         }
-        return { messages: results, diag: { storeKeys, hasChat, hasMsg, chatCount: chats.length, chatDiag } };
+        return { messages: results, diag: { storeKeys, hasChat, hasMsg, chatCount: chats.length, chatDiag, phoneLookupSize: Object.keys(phoneLookup).length } };
       } catch (err) {
         return { error: err.message, stack: err.stack?.split("\n").slice(0, 3) };
       }
@@ -303,10 +337,9 @@ class SessionManager {
     let totalMessages = 0;
 
     for (const msg of messages) {
-      const phone = msg.chatId.replace(/@.*$/, ""); // strip @c.us or @lid
       batch.push({
         message_id: msg.message_id,
-        from: phone,
+        from: msg.phone,
         sender_name: msg.chatName,
         direction: msg.fromMe ? "outbound" : "inbound",
         body: msg.body,
