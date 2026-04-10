@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
-  "name": "PingCRM LinkedIn Companion",
-  "version": "1.5.11",
-  "description": "Syncs LinkedIn conversations and profiles to your PingCRM instance",
+  "name": "PingCRM Companion",
+  "version": "1.6.0",
+  "description": "Syncs LinkedIn, Facebook Messenger, and Instagram DMs to your PingCRM instance",
   "permissions": ["storage", "activeTab", "cookies", "scripting"],
   "host_permissions": ["https://www.linkedin.com/*", "http://localhost/*", "https://*/*", "https://www.facebook.com/*", "https://www.instagram.com/*"],
   "background": { "service_worker": "background/service-worker.js" },
