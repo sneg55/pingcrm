@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "PingCRM Companion",
-  "version": "1.6.1",
+  "version": "1.6.2",
   "description": "Syncs LinkedIn, Facebook Messenger, and Instagram DMs to your PingCRM instance",
   "permissions": ["storage", "activeTab", "cookies", "scripting"],
   "host_permissions": ["https://www.linkedin.com/*", "http://localhost/*", "https://*/*", "https://www.facebook.com/*", "https://www.instagram.com/*"],
@@ -12,7 +12,7 @@
     "css": ["content/linkedin-suggest.css"],
     "run_at": "document_idle"
   }, {
-    "matches": ["https://www.facebook.com/*", "https://www.instagram.com/*"],
+    "matches": ["https://www.facebook.com/*", "https://facebook.com/*", "https://web.facebook.com/*", "https://www.instagram.com/*", "https://instagram.com/*"],
     "js": ["content/meta-notify.js"],
     "run_at": "document_idle"
   }],

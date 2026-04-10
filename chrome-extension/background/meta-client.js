@@ -15,10 +15,14 @@ const META_GRAPHQL_URL = "https://www.facebook.com/api/graphql/";
  * @throws {Error} "NO_META_TAB" if none found
  */
 async function _requireMetaTab(platform) {
-  const pattern = platform === "instagram"
-    ? "https://www.instagram.com/*"
-    : "https://www.facebook.com/*";
-  const tabs = await chrome.tabs.query({ url: pattern });
+  const patterns = platform === "instagram"
+    ? ["https://www.instagram.com/*", "https://instagram.com/*"]
+    : ["https://www.facebook.com/*", "https://facebook.com/*", "https://web.facebook.com/*"];
+  let tabs = [];
+  for (const pattern of patterns) {
+    tabs = await chrome.tabs.query({ url: pattern });
+    if (tabs.length > 0) break;
+  }
   const tabId = tabs.find(t => t.active)?.id ?? tabs[0]?.id;
   if (!tabId) throw new Error("NO_META_TAB");
   return tabId;
