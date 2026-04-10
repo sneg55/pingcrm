@@ -35,13 +35,18 @@ app.use((_req, res) => {
   res.status(404).json({ error: "Not found" });
 });
 
-// Start server
+// Start server, then restore any persisted sessions
 app.listen(config.port, () => {
   log("info", "whatsapp-sidecar started", {
     port: config.port,
     webhookUrl: config.webhookUrl,
     maxSessions: config.maxSessions,
     sessionDir: config.sessionDir,
+  });
+
+  // Restore sessions in the background — don't block the health check
+  sessionManager.autoRestore().catch((err) => {
+    log("error", "autoRestore error", { error: err.message });
   });
 });
 

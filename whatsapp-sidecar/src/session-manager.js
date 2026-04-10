@@ -28,6 +28,38 @@ class SessionManager {
   }
 
   /**
+   * Scan the session directory and restore any previously-authenticated sessions.
+   * Called once on startup so sessions survive container restarts.
+   */
+  async autoRestore() {
+    const sessionDir = path.resolve(config.sessionDir);
+    let entries;
+    try {
+      entries = fs.readdirSync(sessionDir, { withFileTypes: true });
+    } catch {
+      return;
+    }
+
+    const prefix = "session-";
+    const userIds = entries
+      .filter((e) => e.isDirectory() && e.name.startsWith(prefix))
+      .map((e) => e.name.slice(prefix.length));
+
+    if (userIds.length === 0) return;
+
+    log("info", "auto-restoring sessions", { count: userIds.length });
+
+    for (const userId of userIds) {
+      try {
+        await this.startSession(userId);
+        log("info", "auto-restore initiated", { userId });
+      } catch (err) {
+        log("warn", "auto-restore failed", { userId, error: err.message });
+      }
+    }
+  }
+
+  /**
    * Start a WhatsApp session for the given userId.
    * Returns a promise that resolves once the client is initialised
    * (QR may still be pending at that point).
