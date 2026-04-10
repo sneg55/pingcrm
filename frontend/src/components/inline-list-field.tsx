@@ -1,23 +1,32 @@
 "use client";
 
 import { useState, useRef, useEffect } from "react";
-import { Pencil } from "lucide-react";
+import { Check, Pencil } from "lucide-react";
 
-/* ── CopyButton (inline, no external dep) ── */
+/* ── CopyButton ── */
 function CopyButton({ text }: { text: string }) {
   const [copied, setCopied] = useState(false);
-  const copy = async () => {
-    await navigator.clipboard.writeText(text);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 1500);
-  };
   return (
     <button
-      onClick={copy}
-      aria-label="Copy"
-      className="p-0.5 rounded text-stone-300 dark:text-stone-600 hover:text-stone-500 dark:hover:text-stone-400 transition-colors shrink-0"
+      onClick={(e) => {
+        e.stopPropagation();
+        void navigator.clipboard.writeText(text);
+        setCopied(true);
+        setTimeout(() => setCopied(false), 1500);
+      }}
+      title="Copy"
+      className={`p-0.5 rounded transition-opacity shrink-0 ${
+        copied
+          ? "text-emerald-500 opacity-100"
+          : "text-stone-300 dark:text-stone-600 hover:text-stone-500 dark:hover:text-stone-400 opacity-0 group-hover/row:opacity-100"
+      }`}
     >
-      {copied ? "✓" : "⧉"}
+      {copied ? <Check className="w-3 h-3" /> : (
+        <svg className="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
+          <rect x="9" y="9" width="13" height="13" rx="2" ry="2" />
+          <path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1" />
+        </svg>
+      )}
     </button>
   );
 }
@@ -31,6 +40,8 @@ export interface InlineListFieldProps {
   copyable?: boolean;
   isLink?: boolean;
   linkPrefix?: string;
+  /** Render an icon before a specific value (e.g. WhatsApp icon for a matched phone) */
+  valueIcon?: (value: string) => React.ReactNode | null;
 }
 
 export function InlineListField({
@@ -40,6 +51,7 @@ export function InlineListField({
   copyable,
   isLink,
   linkPrefix,
+  valueIcon,
 }: InlineListFieldProps) {
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(values.join(", "));
@@ -104,14 +116,17 @@ export function InlineListField({
         <div className="flex items-center gap-1.5 min-w-0">
           {displayValue ? (
             isLink && linkPrefix ? (
-              <a
-                href={`${linkPrefix}${displayValue}`}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="text-xs font-medium text-teal-600 dark:text-teal-400 hover:text-teal-700 dark:hover:text-teal-300 truncate"
-              >
-                {displayValue}
-              </a>
+              <>
+                {valueIcon?.(displayValue)}
+                <a
+                  href={`${linkPrefix}${displayValue}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-xs font-medium text-teal-600 dark:text-teal-400 hover:text-teal-700 dark:hover:text-teal-300 truncate"
+                >
+                  {displayValue}
+                </a>
+              </>
             ) : (
               <span className="text-xs font-medium text-stone-900 dark:text-stone-100 truncate">
                 {displayValue}
