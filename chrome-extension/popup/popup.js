@@ -42,6 +42,16 @@
   const instanceHostEl = document.getElementById("instance-host-el");
   const activityFeed = document.getElementById("activity-feed");
 
+  // ── Meta elements ──
+  const metaStatusChip = document.getElementById("meta-status");
+  const metaStatusText = document.getElementById("meta-status-text");
+  const metaCookieStatusEl = document.getElementById("meta-cookie-status-el");
+  const lastFbSyncEl = document.getElementById("last-fb-sync-el");
+  const lastIgSyncEl = document.getElementById("last-ig-sync-el");
+  const metaSyncBtn = document.getElementById("meta-sync-btn");
+  const metaHint = document.getElementById("meta-hint");
+  const versionFooter = document.getElementById("version-footer");
+
   // ════════════════════════════════════════════
   // View Management
   // ════════════════════════════════════════════
@@ -65,6 +75,9 @@
       "messageCount",
       "lastVoyagerSync",
       "_pairingCode",
+      "metaCookiesValid",
+      "lastFacebookSync",
+      "lastInstagramSync",
     ]);
 
     // No token → unpaired view
@@ -143,6 +156,39 @@
 
     // Activity feed — build from available state
     renderActivityFeed(state);
+
+    // Meta section
+    renderMetaSection(state);
+
+    // Version footer
+    const manifest = chrome.runtime.getManifest();
+    versionFooter.textContent = `v${manifest.version}`;
+  }
+
+  function renderMetaSection(state) {
+    const metaValid = state.metaCookiesValid === true;
+
+    metaCookieStatusEl.innerHTML = metaValid
+      ? '<span class="cookie-dot valid"></span> Valid'
+      : '<span class="cookie-dot expired"></span> Not detected';
+
+    if (metaValid) {
+      metaStatusChip.className = "status-chip connected";
+      metaStatusText.textContent = "Connected";
+      metaHint.classList.add("hidden");
+    } else {
+      metaStatusChip.className = "status-chip disconnected";
+      metaStatusText.textContent = "Not connected";
+      metaHint.classList.remove("hidden");
+    }
+
+    lastFbSyncEl.textContent = state.lastFacebookSync
+      ? timeAgo(new Date(state.lastFacebookSync))
+      : "—";
+
+    lastIgSyncEl.textContent = state.lastInstagramSync
+      ? timeAgo(new Date(state.lastInstagramSync))
+      : "—";
   }
 
   function renderActivityFeed(state) {
@@ -283,6 +329,38 @@
       console.error("[PingCRM Popup] SYNC_NOW error:", e.message);
     } finally {
       setLoading(syncNowBtn, false);
+      await render();
+    }
+  });
+
+  // ════════════════════════════════════════════
+  // Connected: Meta Sync
+  // ════════════════════════════════════════════
+
+  metaSyncBtn.addEventListener("click", async () => {
+    setLoading(metaSyncBtn, true);
+
+    try {
+      const response = await chrome.runtime.sendMessage({ type: "META_SYNC_NOW", platform: "both" });
+      if (!response || !response.ok) {
+        console.warn("[PingCRM Popup] Meta sync failed:", response?.error);
+        const label = metaSyncBtn.querySelector(".btn-label");
+        const original = label.textContent;
+        if (response?.error === "NO_META_TAB") {
+          label.textContent = "Open facebook.com first";
+        } else if (response?.error === "MISSING_META_COOKIES") {
+          label.textContent = "Log in to Facebook first";
+        } else if (response?.error === "RATE_LIMITED") {
+          label.textContent = "Rate limited — try later";
+        } else {
+          label.textContent = "Sync failed";
+        }
+        setTimeout(() => { label.textContent = original; }, 4000);
+      }
+    } catch (e) {
+      console.error("[PingCRM Popup] META_SYNC_NOW error:", e.message);
+    } finally {
+      setLoading(metaSyncBtn, false);
       await render();
     }
   });

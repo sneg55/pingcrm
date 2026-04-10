@@ -294,6 +294,32 @@ body {
 }
 
 .platform-badge.linkedin { color: var(--linkedin); }
+.platform-badge.meta { color: #1877F2; }
+
+.status-chip.disconnected {
+  color: var(--text-tertiary);
+  background: var(--surface-raised);
+}
+
+.btn-meta { background: #1877F2; }
+.btn-meta:hover { background: #1565c0; }
+
+.meta-hint {
+  padding: 6px 14px 10px;
+  font-size: 11px;
+  color: var(--text-tertiary);
+  text-align: center;
+}
+
+.meta-hint a {
+  color: #1877F2;
+  text-decoration: none;
+  font-weight: 600;
+}
+
+.meta-hint a:hover { text-decoration: underline; }
+
+#meta-card { margin-top: 12px; }
 
 .status-chip {
   display: inline-flex;
@@ -561,4 +587,12 @@ body {
 
 .view:not(.hidden) {
   animation: fadeIn .2s ease-out;
+}
+
+.version-footer {
+  text-align: center;
+  padding: 8px 0 4px;
+  font-size: 10px;
+  color: var(--text-tertiary);
+  font-family: 'JetBrains Mono', monospace;
 }

@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>PingCRM — LinkedIn</title>
+  <title>PingCRM Companion</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;1,9..40,400&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="popup.css">
@@ -21,7 +21,7 @@
       </div>
       <div class="brand-text">
         <h1>PingCRM</h1>
-        <span class="brand-badge">LinkedIn Sync</span>
+        <span class="brand-badge">Companion</span>
       </div>
     </div>
 
@@ -127,6 +127,53 @@
       </div>
     </div>
 
+    <!-- Meta Status Card -->
+    <div class="card" id="meta-card">
+      <div class="card-header">
+        <div class="platform-badge meta">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+            <path d="M12 2C6.477 2 2 6.477 2 12c0 4.991 3.657 9.128 8.438 9.879V14.89h-2.54V12h2.54V9.797c0-2.506 1.492-3.89 3.777-3.89 1.094 0 2.238.195 2.238.195v2.46h-1.26c-1.243 0-1.63.771-1.63 1.562V12h2.773l-.443 2.89h-2.33v6.989C18.343 21.129 22 16.99 22 12c0-5.523-4.477-10-10-10z"/>
+          </svg>
+          Meta
+        </div>
+        <div id="meta-status" class="status-chip disconnected">
+          <span id="meta-status-text">Not connected</span>
+        </div>
+      </div>
+
+      <div class="card-body">
+        <div class="sync-timeline">
+          <div class="timeline-row">
+            <span class="timeline-label">Cookie status</span>
+            <span class="timeline-value" id="meta-cookie-status-el">
+              <span class="cookie-dot expired"></span> Unknown
+            </span>
+          </div>
+          <div class="timeline-row">
+            <span class="timeline-label">Last FB sync</span>
+            <span class="timeline-value" id="last-fb-sync-el">—</span>
+          </div>
+          <div class="timeline-row">
+            <span class="timeline-label">Last IG sync</span>
+            <span class="timeline-value" id="last-ig-sync-el">—</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="card-actions">
+        <button id="meta-sync-btn" class="btn-main btn-compact btn-meta">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round">
+            <path d="M21 12a9 9 0 11-6.2-8.6"/>
+            <polyline points="21 3 21 9 15 9"/>
+          </svg>
+          <span class="btn-label">Sync Meta</span>
+          <span class="btn-spinner hidden"></span>
+        </button>
+      </div>
+
+      <p class="meta-hint" id="meta-hint">Visit <a href="https://www.facebook.com" target="_blank">facebook.com</a> to connect.</p>
+    </div>
+
     <!-- Activity Feed -->
     <div class="activity-section">
       <h3 class="section-title">Recent Activity</h3>
@@ -142,8 +189,10 @@
       <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
         <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
       </svg>
-      <span>LinkedIn cookies stay in your browser. Profiles and messages are sent only to <strong id="instance-host-el">your instance</strong>.</span>
+      <span>Cookies stay in your browser. Data is sent only to <strong id="instance-host-el">your instance</strong>.</span>
     </div>
+
+    <div class="version-footer" id="version-footer"></div>
   </div>
 
   <!-- ═══ EXPIRED VIEW ═══ -->
