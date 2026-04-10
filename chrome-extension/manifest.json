@@ -4,12 +4,16 @@
   "version": "1.5.11",
   "description": "Syncs LinkedIn conversations and profiles to your PingCRM instance",
   "permissions": ["storage", "activeTab", "cookies", "scripting"],
-  "host_permissions": ["https://www.linkedin.com/*", "http://localhost/*", "https://*/*"],
+  "host_permissions": ["https://www.linkedin.com/*", "http://localhost/*", "https://*/*", "https://www.facebook.com/*", "https://www.instagram.com/*"],
   "background": { "service_worker": "background/service-worker.js" },
   "content_scripts": [{
     "matches": ["https://www.linkedin.com/*"],
     "js": ["content/linkedin-notify.js", "content/linkedin-suggest.js"],
     "css": ["content/linkedin-suggest.css"],
+    "run_at": "document_idle"
+  }, {
+    "matches": ["https://www.facebook.com/*", "https://www.instagram.com/*"],
+    "js": ["content/meta-notify.js"],
     "run_at": "document_idle"
   }],
   "action": {
