@@ -30,7 +30,7 @@ function createWebhookSender(url, secret) {
 
       const log = (level, msg, extra = {}) =>
         process.stdout.write(
-          JSON.stringify({ level, msg, event, ...extra, ts: new Date().toISOString() }) + "\n"
+          JSON.stringify({ level, msg, type, ...extra, ts: new Date().toISOString() }) + "\n"
         );
 
       try {

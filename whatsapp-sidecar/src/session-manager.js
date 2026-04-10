@@ -198,6 +198,9 @@ class SessionManager {
     const cutoff = Date.now() / 1000 - daysBack * 86400;
     log("info", "backfill started", { userId, daysBack, batchSize });
 
+    // Wait for WhatsApp Web to finish loading chat data internally
+    await new Promise((resolve) => setTimeout(resolve, 5000));
+
     const chats = await state.client.getChats();
     const directChats = chats.filter((c) => !c.isGroup);
 
