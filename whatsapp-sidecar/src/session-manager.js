@@ -198,27 +198,39 @@ class SessionManager {
     const cutoff = Date.now() / 1000 - daysBack * 86400;
     log("info", "backfill started", { userId, daysBack, batchSize });
 
-    // Wait for WhatsApp Web to finish loading chat data internally
-    await new Promise((resolve) => setTimeout(resolve, 5000));
+    // Wait for WhatsApp Web to finish loading chat data internally.
+    // freshly-connected sessions need time for the internal page to hydrate.
+    const delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+    await delay(15000);
 
     const chats = await state.client.getChats();
     const directChats = chats.filter((c) => !c.isGroup);
+    log("info", "backfill: found chats", { userId, total: chats.length, direct: directChats.length });
 
     let batch = [];
     let totalMessages = 0;
 
     for (const chat of directChats) {
       let messages;
-      try {
-        messages = await chat.fetchMessages({ limit: 100 });
-      } catch (err) {
-        log("warn", "backfill: failed to fetch messages for chat", {
-          userId,
-          chatId: chat.id._serialized,
-          error: err.message,
-        });
-        continue;
+      // Retry once after 5s if chat data isn't loaded yet
+      for (let attempt = 0; attempt < 2; attempt++) {
+        try {
+          messages = await chat.fetchMessages({ limit: 100 });
+          break;
+        } catch (err) {
+          if (attempt === 0 && err.message.includes("waitForChatLoading")) {
+            await delay(5000);
+            continue;
+          }
+          log("warn", "backfill: failed to fetch messages for chat", {
+            userId,
+            chatId: chat.id._serialized,
+            error: err.message,
+          });
+          break;
+        }
       }
+      if (!messages) continue;
 
       const recent = messages.filter((m) => m.timestamp >= cutoff);
 
