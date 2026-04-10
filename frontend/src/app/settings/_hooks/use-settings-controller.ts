@@ -42,6 +42,10 @@ export interface ConnectedAccounts {
   linkedin_extension_paired_at?: string | null;
   whatsapp: boolean;
   whatsapp_phone?: string | null;
+  meta_connected: boolean;
+  meta_connected_name?: string | null;
+  meta_sync_facebook: boolean;
+  meta_sync_instagram: boolean;
 }
 
 const TABS = [
@@ -134,6 +138,10 @@ export function useSettingsController(): UseSettingsControllerReturn {
     linkedin_extension_paired_at: null,
     whatsapp: false,
     whatsapp_phone: null,
+    meta_connected: false,
+    meta_connected_name: null,
+    meta_sync_facebook: true,
+    meta_sync_instagram: true,
   });
 
   // Sync states
@@ -191,6 +199,10 @@ export function useSettingsController(): UseSettingsControllerReturn {
             (user.linkedin_extension_paired_at as string) || null,
           whatsapp: !!user.whatsapp_connected,
           whatsapp_phone: (user.whatsapp_phone as string) || null,
+          meta_connected: !!user.meta_connected,
+          meta_connected_name: (user.meta_connected_name as string) || null,
+          meta_sync_facebook: user.meta_sync_facebook !== false,
+          meta_sync_instagram: user.meta_sync_instagram !== false,
         });
       }
     } catch {

@@ -5,6 +5,7 @@ import { TelegramCard } from "./platform-cards/telegram-card";
 import { TwitterCard } from "./platform-cards/twitter-card";
 import { LinkedInCard } from "./platform-cards/linkedin-card";
 import { WhatsAppCard } from "./platform-cards/whatsapp-card";
+import { MetaCard } from "./platform-cards/meta-card";
 import type {
   ConnectedAccounts,
   SyncState,
@@ -98,6 +99,11 @@ export function IntegrationsTab({
         whatsappSync={whatsappSync}
         whatsappFlow={whatsappFlow}
         handleWhatsAppSync={handleWhatsAppSync}
+        fetchConnectionStatus={fetchConnectionStatus}
+      />
+
+      <MetaCard
+        connected={connected}
         fetchConnectionStatus={fetchConnectionStatus}
       />
     </div>
