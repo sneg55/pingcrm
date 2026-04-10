@@ -273,8 +273,10 @@ class SessionManager {
           const contacts = store.Contact.getModelsArray ? store.Contact.getModelsArray() : [];
           for (const ct of contacts) {
             const ctId = ct.id?._serialized || "";
-            // Try multiple fields for the phone number
-            const phone = ct.phoneNumber || ct.number || ct.userid
+            // Try multiple fields for the phone number.
+            // For LID contacts, userid is an object {server, user, _serialized}
+            const useridPhone = ct.userid?.user || (typeof ct.userid === "string" ? ct.userid : "");
+            const phone = ct.phoneNumber || ct.number || useridPhone
               || (ctId.endsWith("@c.us") ? ctId.replace(/@c\.us$/, "") : "");
             if (phone && ctId) phoneLookup[ctId] = phone;
 
