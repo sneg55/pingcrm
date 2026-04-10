@@ -1931,6 +1931,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/meta/push": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Push Meta Data
+         * @description Receive profile and message data from the Meta Chrome Extension.
+         */
+        post: operations["push_meta_data_api_v1_meta_push_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/errors": {
         parameters: {
             query?: never;
@@ -2669,6 +2689,16 @@ export interface components {
                 [key: string]: unknown;
             } | null;
         };
+        /** Envelope[MetaPushResult] */
+        Envelope_MetaPushResult_: {
+            data?: components["schemas"]["MetaPushResult"] | null;
+            /** Error */
+            error?: string | null;
+            /** Meta */
+            meta?: {
+                [key: string]: unknown;
+            } | null;
+        };
         /** Envelope[NotificationReadData] */
         Envelope_NotificationReadData_: {
             data?: components["schemas"]["NotificationReadData"] | null;
@@ -3346,6 +3376,91 @@ export interface components {
             /** Merged Contact Id */
             merged_contact_id: string;
         };
+        /** MetaBackfillItem */
+        MetaBackfillItem: {
+            /** Contact Id */
+            contact_id: string;
+            /** Platform Id */
+            platform_id: string;
+            /** Platform */
+            platform: string;
+        };
+        /** MetaMessagePush */
+        MetaMessagePush: {
+            /** Message Id */
+            message_id: string;
+            /** Conversation Id */
+            conversation_id: string;
+            /** Platform Id */
+            platform_id?: string | null;
+            /** Sender Name */
+            sender_name: string;
+            /** Direction */
+            direction: string;
+            /** Content Preview */
+            content_preview?: string | null;
+            /** Timestamp */
+            timestamp: string;
+            /**
+             * Reactions
+             * @default []
+             */
+            reactions: components["schemas"]["MetaReaction"][];
+            /**
+             * Read By
+             * @default []
+             */
+            read_by: string[];
+        };
+        /** MetaProfilePush */
+        MetaProfilePush: {
+            /** Platform Id */
+            platform_id: string;
+            /** Name */
+            name: string;
+            /** Username */
+            username?: string | null;
+            /** Avatar Url */
+            avatar_url?: string | null;
+        };
+        /** MetaPushRequest */
+        MetaPushRequest: {
+            /** Platform */
+            platform: string;
+            /**
+             * Profiles
+             * @default []
+             */
+            profiles: components["schemas"]["MetaProfilePush"][];
+            /**
+             * Messages
+             * @default []
+             */
+            messages: components["schemas"]["MetaMessagePush"][];
+        };
+        /** MetaPushResult */
+        MetaPushResult: {
+            /** Contacts Created */
+            contacts_created: number;
+            /** Contacts Updated */
+            contacts_updated: number;
+            /** Interactions Created */
+            interactions_created: number;
+            /** Interactions Skipped */
+            interactions_skipped: number;
+            /**
+             * Backfill Needed
+             * @default []
+             */
+            backfill_needed: components["schemas"]["MetaBackfillItem"][];
+        };
+        /** MetaReaction */
+        MetaReaction: {
+            /** Reactor Id */
+            reactor_id: string;
+            /** Type */
+            type: string;
+        };
         /** NotificationData */
         NotificationData: {
             /** Id */
@@ -3852,6 +3967,23 @@ export interface components {
             whatsapp_connected: boolean;
             /** Whatsapp Phone */
             whatsapp_phone?: string | null;
+            /**
+             * Meta Connected
+             * @default false
+             */
+            meta_connected: boolean;
+            /** Meta Connected Name */
+            meta_connected_name?: string | null;
+            /**
+             * Meta Sync Facebook
+             * @default true
+             */
+            meta_sync_facebook: boolean;
+            /**
+             * Meta Sync Instagram
+             * @default true
+             */
+            meta_sync_instagram: boolean;
             /** Priority Settings */
             priority_settings?: {
                 [key: string]: unknown;
@@ -7080,7 +7212,7 @@ export interface operations {
         parameters: {
             query?: never;
             header?: {
-                "x-whatsapp-signature"?: string | null;
+                "x-webhook-signature"?: string | null;
             };
             path?: never;
             cookie?: never;
@@ -7094,6 +7226,39 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["Envelope_dict_"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    push_meta_data_api_v1_meta_push_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["MetaPushRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope_MetaPushResult_"];
                 };
             };
             /** @description Validation Error */
