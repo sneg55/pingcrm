@@ -1,6 +1,7 @@
 "use client";
 
-import { RefreshCw, Check, Link2, Unplug } from "lucide-react";
+import { useState } from "react";
+import { RefreshCw, Check, Link2, Unplug, History } from "lucide-react";
 import { QRCodeSVG } from "qrcode.react";
 import { cn } from "@/lib/utils";
 import { client } from "@/lib/api-client";
@@ -10,6 +11,7 @@ import {
   KebabMenu,
   WhatsAppIcon,
 } from "../shared";
+import { SyncHistoryModal } from "../sync-history-modal";
 import type { ConnectedAccounts, SyncState } from "../../_hooks/use-settings-controller";
 import type { UseWhatsAppConnectFlowReturn } from "../../_hooks/use-whatsapp-connect-flow";
 
@@ -32,6 +34,7 @@ export function WhatsAppCard({
 }: WhatsAppCardProps) {
   const isConnected = connected.whatsapp;
   const { step, qrData, error, startConnect, cancel } = whatsappFlow;
+  const [showSyncHistory, setShowSyncHistory] = useState(false);
 
   const handleDisconnect = async () => {
     if (confirm("Disconnect WhatsApp? Your synced messages will be kept but no new data will sync.")) {
@@ -92,6 +95,7 @@ export function WhatsAppCard({
               </SyncButtonWrapper>
               <KebabMenu
                 items={[
+                  { icon: History, label: "Sync history", onClick: () => setShowSyncHistory(true) },
                   { icon: Unplug, label: "Disconnect WhatsApp", danger: true, onClick: handleDisconnect },
                 ]}
               />
@@ -132,6 +136,10 @@ export function WhatsAppCard({
         <p className="text-xs mt-3 text-red-500">
           {error || whatsappConnect.message}
         </p>
+      )}
+
+      {showSyncHistory && (
+        <SyncHistoryModal platform="whatsapp" onClose={() => setShowSyncHistory(false)} />
       )}
     </div>
   );
