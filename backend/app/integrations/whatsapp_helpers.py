@@ -64,6 +64,22 @@ async def find_contact_by_phone_list(
     return result.scalar_one_or_none()
 
 
+def _phone_suffix_variants(phone: str) -> list[str]:
+    """Return phone number variants for fuzzy matching.
+
+    E.g. "+14693693809" → ["+14693693809", "14693693809", "4693693809"]
+    """
+    variants = [phone]
+    digits = phone.lstrip("+")
+    if digits != phone:
+        variants.append(digits)
+    # Strip common country codes (1-3 digits)
+    for prefix_len in (1, 2, 3):
+        if len(digits) > prefix_len + 6:
+            variants.append(digits[prefix_len:])
+    return variants
+
+
 async def resolve_contact(
     phone: str,
     user_id: uuid.UUID,
@@ -75,8 +91,8 @@ async def resolve_contact(
 
     Lookup order:
       1. whatsapp_phone field (exact match)
-      2. phones array (contains match)
-      3. Create a new contact
+      2. phones array (contains match, tries suffix variants)
+      3. Create a new contact (and set whatsapp_phone)
 
     Returns ``(contact, is_new)`` where *is_new* is True when a new contact
     was created.
@@ -86,10 +102,14 @@ async def resolve_contact(
     if contact:
         return contact, False
 
-    # 2. Lookup by phones array
-    contact = await find_contact_by_phone_list(phone, user_id, db)
-    if contact:
-        return contact, False
+    # 2. Lookup by phones array — try suffix variants for country-code mismatches
+    for variant in _phone_suffix_variants(phone):
+        contact = await find_contact_by_phone_list(variant, user_id, db)
+        if contact:
+            # Link the WhatsApp phone to the existing contact
+            if not contact.whatsapp_phone:
+                contact.whatsapp_phone = phone
+            return contact, False
 
     # 3. Create new contact
     contact = Contact(
