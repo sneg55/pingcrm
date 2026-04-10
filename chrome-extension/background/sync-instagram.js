@@ -1,19 +1,15 @@
 /**
  * Instagram DM sync orchestrator.
  *
- * Fetches DM threads and messages via Meta's internal GraphQL API
- * (shared with Facebook), then pushes to PingCRM backend.
+ * Opens a background tab to instagram.com/direct/inbox, scrapes DM threads
+ * from the DOM, then pushes to PingCRM backend.
  *
  * Storage keys (chrome.storage.local):
- *   igWatermark        - ISO timestamp of newest message (delta cursor)
+ *   igWatermark        - ISO timestamp of newest conversation activity
  *   lastInstagramSync  - ISO timestamp of last sync completion
  *   metaNextRetryAt    - shared with Facebook sync
  *   metaCookiesValid   - shared with Facebook sync
  */
-
-// Instagram DM GraphQL doc_ids
-const IG_THREADS_DOC_ID = "6707582879298508";   // IGDInboxQuery
-const IG_MESSAGES_DOC_ID = "7123744197665318";   // thread detail query
 
 let _igSyncRunning = false;
 
@@ -73,103 +69,164 @@ async function _runInstagramSyncInner(apiUrl, token, force, result) {
   await chrome.storage.local.set({ metaCookiesValid: true });
   console.log("[IGSync] Cookies OK, self user ID:", cUser);
 
-  // ── Determine sync mode ──
-  const { igWatermark } = await chrome.storage.local.get(["igWatermark"]);
-  const isFirstSync = !igWatermark;
-  const cutoffMs = isFirstSync
-    ? Date.now() - META_BACKFILL_WINDOW_MS
-    : new Date(igWatermark).getTime();
+  // ── Open background tab to Instagram DMs ──
+  let tabId;
+  try {
+    const tab = await chrome.tabs.create({
+      url: "https://www.instagram.com/direct/inbox/",
+      active: false,
+    });
+    tabId = tab.id;
+    console.log("[IGSync] Opened background tab:", tabId);
 
-  // ── Fetch threads ──
+    // Wait for page to fully load
+    await new Promise((resolve, reject) => {
+      const timeout = setTimeout(() => {
+        chrome.tabs.onUpdated.removeListener(listener);
+        reject(new Error("PAGE_LOAD_TIMEOUT"));
+      }, 30000);
+
+      function listener(id, info) {
+        if (id === tabId && info.status === "complete") {
+          clearTimeout(timeout);
+          chrome.tabs.onUpdated.removeListener(listener);
+          resolve();
+        }
+      }
+      chrome.tabs.onUpdated.addListener(listener);
+    });
+
+    // Extra wait for Instagram SPA to render DM threads
+    await _metaDelay(5000);
+  } catch (e) {
+    if (tabId) chrome.tabs.remove(tabId).catch(() => {});
+    result.error = e.message;
+    return result;
+  }
+
+  // ── Scrape DM threads from DOM ──
   let threads;
   try {
-    // Instagram DMs use the same GraphQL endpoint but via instagram.com tab
-    const raw = await metaGraphQL(IG_THREADS_DOC_ID, {
-      limit: META_CONVERSATION_MAX,
-      before: null,
-    }, "instagram");
-    threads = _parseInstagramThreads(raw);
-    await _metaDelay(META_RATE_LIMIT_DELAY_MS);
+    const [execResult] = await chrome.scripting.executeScript({
+      target: { tabId },
+      func: () => {
+        const items = [];
+
+        // Instagram DM threads are links to /direct/t/<thread_id>/
+        const links = document.querySelectorAll('a[href*="/direct/t/"]');
+
+        for (const a of links) {
+          const href = a.href;
+          const threadMatch = href.match(/\/direct\/t\/(\d+)\/?/);
+          if (!threadMatch) continue;
+          const threadId = threadMatch[1];
+
+          if (items.some(i => i.threadId === threadId)) continue;
+
+          const row = a.closest('[role="listitem"], [role="row"]') || a;
+
+          // Extract username/name
+          const spans = row.querySelectorAll('span');
+          let name = "";
+          let snippet = "";
+          let timeText = "";
+
+          for (const s of spans) {
+            const text = s.textContent.trim();
+            if (!text) continue;
+
+            // First non-empty span is typically the name
+            if (!name && text.length < 60 && !text.match(/^\d+[mhd]\s/i) && !text.match(/^(Active|Seen)/i)) {
+              name = text;
+              continue;
+            }
+
+            // Look for time indicators
+            if (!timeText && (text.match(/^\d+\s*[mhdw]/i) || text.match(/^(just now|yesterday)/i))) {
+              timeText = text;
+              continue;
+            }
+
+            // Everything else could be a snippet
+            if (!snippet && text !== name && text.length > 0) {
+              snippet = text;
+            }
+          }
+
+          if (name) {
+            items.push({ threadId, name, snippet, timeText, href });
+          }
+        }
+
+        return items;
+      },
+      world: "MAIN",
+    });
+
+    threads = execResult?.result ?? [];
+    console.log("[IGSync] Scraped", threads.length, "DM threads from DOM");
   } catch (e) {
-    return await _handleMetaSyncError(e, result);
+    chrome.tabs.remove(tabId).catch(() => {});
+    result.error = "SCRAPE_FAILED: " + e.message;
+    return result;
   }
+
+  // ── Close background tab ──
+  chrome.tabs.remove(tabId).catch(() => {});
 
   result.conversations = threads.length;
-  console.log("[IGSync] Fetched", threads.length, "threads");
 
-  // ── Process threads → messages ──
-  const allMessages = [];
-  let newestTimestamp = igWatermark ? new Date(igWatermark).getTime() : 0;
-
-  for (const thread of threads) {
-    const threadId = thread?.thread_id ?? thread?.id ?? null;
-    if (!threadId) continue;
-
-    const lastActivityMs = thread?.last_activity_at
-      ? parseInt(thread.last_activity_at)
-      : 0;
-
-    if (!isFirstSync && lastActivityMs <= cutoffMs) continue;
-
-    // Identify conversation partner
-    const users = thread?.users ?? thread?.participants ?? [];
-    const partner = users.find(u => (u?.pk ?? u?.id) !== cUser);
-    const partnerId = partner?.pk ?? partner?.id ?? null;
-    const partnerName = partner?.full_name ?? partner?.username ?? "Unknown";
-    const partnerUsername = partner?.username ?? null;
-
-    // Fetch messages for this thread
-    let messages;
-    try {
-      const msgRaw = await metaGraphQL(IG_MESSAGES_DOC_ID, {
-        thread_id: threadId,
-        message_limit: META_MESSAGES_PER_CONV_MAX,
-      }, "instagram");
-      messages = _parseInstagramMessages(msgRaw);
-      await _metaDelay(META_RATE_LIMIT_DELAY_MS);
-    } catch (e) {
-      if (e.message === "RATE_LIMITED" || e.message === "AUTH_EXPIRED") {
-        return await _handleMetaSyncError(e, result);
-      }
-      console.warn("[IGSync] Failed to fetch messages for thread", threadId, e.message);
-      continue;
-    }
-
-    for (const msg of messages) {
-      const createdAtMs = msg?.timestamp ? parseInt(msg.timestamp) / 1000 : 0;
-
-      if (!isFirstSync && createdAtMs <= cutoffMs) continue;
-
-      const payload = _igMessageToPayload(msg, threadId, partnerId, partnerName, cUser);
-      allMessages.push(payload);
-
-      if (createdAtMs > newestTimestamp) newestTimestamp = createdAtMs;
-    }
+  if (threads.length === 0) {
+    console.log("[IGSync] No DM threads found, saving sync timestamp");
+    await chrome.storage.local.set({ lastInstagramSync: new Date().toISOString() });
+    return result;
   }
 
-  result.messages = allMessages.length;
-  console.log("[IGSync] Extracted", allMessages.length, "messages");
+  // ── Build profiles and messages for backend ──
+  const profiles = [];
+  const messages = [];
+  const seenProfiles = new Set();
+  let newestTimestamp = 0;
 
-  // ── Push to backend ──
-  try {
-    // Build profiles from thread partners for contact creation
-    const profilesSeen = new Set();
-    const profiles = [];
-    for (const thread of threads) {
-      const users = thread?.users ?? thread?.participants ?? [];
-      const partner = users.find(u => (u?.pk ?? u?.id) !== cUser);
-      if (!partner) continue;
-      const pid = partner?.pk ?? partner?.id;
-      if (!pid || profilesSeen.has(pid)) continue;
-      profilesSeen.add(pid);
+  for (const thread of threads) {
+    if (!thread.name) continue;
+
+    // Build profile
+    if (!seenProfiles.has(thread.threadId)) {
+      seenProfiles.add(thread.threadId);
       profiles.push({
-        platform_id: pid,
-        name: partner?.full_name ?? partner?.username ?? "",
-        username: partner?.username ?? null,
-        avatar_url: partner?.profile_pic_url ?? null,
+        platform_id: thread.threadId,
+        name: thread.name,
+        username: thread.name.startsWith("@") ? thread.name.slice(1) : thread.name,
+        avatar_url: null,
       });
     }
 
+    // Build message from last DM snippet
+    if (thread.snippet) {
+      const now = Date.now();
+
+      messages.push({
+        message_id: `ig_sidebar_${thread.threadId}_${Math.floor(now / 60000)}`,
+        conversation_id: thread.threadId,
+        platform_id: thread.threadId,
+        sender_name: thread.name,
+        direction: "inbound",
+        content_preview: thread.snippet.substring(0, 500),
+        timestamp: new Date().toISOString(),
+        reactions: [],
+        read_by: [],
+      });
+
+      if (now > newestTimestamp) newestTimestamp = now;
+    }
+  }
+
+  result.messages = messages.length;
+  console.log("[IGSync] Built", profiles.length, "profiles,", messages.length, "messages");
+
+  // ── Push to backend ──
+  try {
     const pushResp = await fetch(`${apiUrl}/api/v1/meta/push`, {
       method: "POST",
       headers: {
@@ -179,7 +236,7 @@ async function _runInstagramSyncInner(apiUrl, token, force, result) {
       body: JSON.stringify({
         platform: "instagram",
         profiles,
-        messages: allMessages,
+        messages,
       }),
     });
 

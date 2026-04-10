@@ -1,20 +1,16 @@
 /**
  * Facebook Messenger sync orchestrator.
  *
- * Fetches conversations and messages via Meta's internal GraphQL API,
- * then pushes results to the PingCRM backend.
+ * Opens a background tab to facebook.com/messages, scrapes conversations
+ * from the DOM (required because Messenger uses E2EE — data is only
+ * readable after client-side decryption), then pushes to backend.
  *
  * Storage keys (chrome.storage.local):
- *   fbWatermark        - ISO timestamp of newest message (delta cursor)
+ *   fbWatermark        - ISO timestamp of newest conversation activity
  *   lastFacebookSync   - ISO timestamp of last sync completion
  *   metaNextRetryAt    - ISO timestamp; block syncs until (rate-limit backoff)
  *   metaCookiesValid   - boolean
  */
-
-// GraphQL doc_id hashes — these are Meta's internal query identifiers.
-// They may change when Meta deploys updates; update as needed.
-const FB_CONVERSATIONS_DOC_ID = "8845758248780392";  // LSPlatformGraphQLLightspeedRequestQuery
-const FB_MESSAGES_DOC_ID = "9106571592726805";        // thread messages query
 
 let _fbSyncRunning = false;
 
@@ -74,82 +70,163 @@ async function _runFacebookSyncInner(apiUrl, token, force, result) {
   await chrome.storage.local.set({ metaCookiesValid: true });
   console.log("[FBSync] Cookies OK, self user ID:", cUser);
 
-  // ── Determine sync mode ──
-  const { fbWatermark } = await chrome.storage.local.get(["fbWatermark"]);
-  const isFirstSync = !fbWatermark;
-  const cutoffMs = isFirstSync
-    ? Date.now() - META_BACKFILL_WINDOW_MS
-    : new Date(fbWatermark).getTime();
+  // ── Open background tab to Messenger ──
+  let tabId;
+  try {
+    const tab = await chrome.tabs.create({
+      url: "https://www.facebook.com/messages/t",
+      active: false,
+    });
+    tabId = tab.id;
+    console.log("[FBSync] Opened background tab:", tabId);
 
-  // ── Fetch conversations ──
+    // Wait for page to fully load
+    await new Promise((resolve, reject) => {
+      const timeout = setTimeout(() => {
+        chrome.tabs.onUpdated.removeListener(listener);
+        reject(new Error("PAGE_LOAD_TIMEOUT"));
+      }, 30000);
+
+      function listener(id, info) {
+        if (id === tabId && info.status === "complete") {
+          clearTimeout(timeout);
+          chrome.tabs.onUpdated.removeListener(listener);
+          resolve();
+        }
+      }
+      chrome.tabs.onUpdated.addListener(listener);
+    });
+
+    // Extra wait for Messenger SPA to render conversations
+    await _metaDelay(5000);
+  } catch (e) {
+    if (tabId) chrome.tabs.remove(tabId).catch(() => {});
+    result.error = e.message;
+    return result;
+  }
+
+  // ── Scrape conversations from DOM ──
   let conversations;
   try {
-    const raw = await metaGraphQL(FB_CONVERSATIONS_DOC_ID, {
-      limit: META_CONVERSATION_MAX,
-      before: null,
-    }, "facebook");
-    conversations = _parseMetaConversations(raw);
-    await _metaDelay(META_RATE_LIMIT_DELAY_MS);
+    const [execResult] = await chrome.scripting.executeScript({
+      target: { tabId },
+      func: () => {
+        const items = [];
+        const links = document.querySelectorAll('a[href*="/messages/t/"], a[href*="/messages/e2ee/t/"]');
+
+        for (const a of links) {
+          const href = a.href;
+          const threadMatch = href.match(/\/t\/(\d+)\/?/);
+          if (!threadMatch) continue;
+          const threadId = threadMatch[1];
+
+          // Skip duplicate thread IDs
+          if (items.some(i => i.threadId === threadId)) continue;
+
+          // Get the row container for this conversation
+          const row = a.closest('[role="row"], [role="listitem"]') || a;
+
+          // Extract name: first span[dir="auto"] within the row is typically the contact name
+          const spans = row.querySelectorAll('span[dir="auto"]');
+          let name = "";
+          for (const s of spans) {
+            const text = s.textContent.trim();
+            // Skip timestamps, snippets (usually shorter or contain specific patterns)
+            if (text && text.length > 0 && text.length < 60 && !text.match(/^\d+[mhd]\s*ago$/i)) {
+              name = text;
+              break;
+            }
+          }
+
+          // Extract last message snippet: usually the second or third span
+          let snippet = "";
+          for (const s of spans) {
+            const text = s.textContent.trim();
+            if (text && text !== name && text.length > 0) {
+              snippet = text;
+              break;
+            }
+          }
+
+          // Extract relative time: look for time-related text
+          let timeText = "";
+          const allText = row.textContent || "";
+          const timeMatch = allText.match(/(\d+\s*(?:min|hour|day|week|month|year|[mhd])\w*\s*ago|just now|yesterday|\d{1,2}:\d{2}\s*[AP]M)/i);
+          if (timeMatch) timeText = timeMatch[0];
+
+          // Check if E2EE
+          const isE2EE = href.includes("/e2ee/");
+
+          items.push({ threadId, name, snippet, timeText, isE2EE, href });
+        }
+
+        return items;
+      },
+      world: "MAIN",
+    });
+
+    conversations = execResult?.result ?? [];
+    console.log("[FBSync] Scraped", conversations.length, "conversations from DOM");
   } catch (e) {
-    return await _handleMetaSyncError(e, result);
+    chrome.tabs.remove(tabId).catch(() => {});
+    result.error = "SCRAPE_FAILED: " + e.message;
+    return result;
   }
+
+  // ── Close background tab ──
+  chrome.tabs.remove(tabId).catch(() => {});
 
   result.conversations = conversations.length;
-  console.log("[FBSync] Fetched", conversations.length, "conversations");
 
-  // ── Process conversations → messages ──
-  const allMessages = [];
-  let newestTimestamp = fbWatermark ? new Date(fbWatermark).getTime() : 0;
+  if (conversations.length === 0) {
+    console.log("[FBSync] No conversations found, saving sync timestamp");
+    await chrome.storage.local.set({ lastFacebookSync: new Date().toISOString() });
+    return result;
+  }
 
-  for (const thread of conversations) {
-    const threadId = thread?.thread_key?.thread_fbid ?? thread?.id ?? null;
-    if (!threadId) continue;
+  // ── Build profiles and messages for backend ──
+  const profiles = [];
+  const messages = [];
+  const seenProfiles = new Set();
+  let newestTimestamp = 0;
 
-    const lastActivityMs = thread?.updated_time_precise
-      ? parseInt(thread.updated_time_precise)
-      : (thread?.updated_time ?? 0) * 1000;
+  for (const conv of conversations) {
+    if (!conv.name || conv.name === "Unknown") continue;
 
-    if (!isFirstSync && lastActivityMs <= cutoffMs) continue;
-
-    // Identify conversation partner
-    const participants = thread?.all_participants?.nodes ?? thread?.participants?.nodes ?? [];
-    const partner = participants.find(p => (p?.id ?? p?.messaging_actor?.id) !== cUser);
-    const partnerId = partner?.id ?? partner?.messaging_actor?.id ?? null;
-    const partnerName = partner?.name ?? partner?.messaging_actor?.name ?? "Unknown";
-
-    // Fetch messages for this thread
-    let messages;
-    try {
-      const msgRaw = await metaGraphQL(FB_MESSAGES_DOC_ID, {
-        thread_id: threadId,
-        message_limit: META_MESSAGES_PER_CONV_MAX,
-      }, "facebook");
-      messages = _parseMetaMessages(msgRaw);
-      await _metaDelay(META_RATE_LIMIT_DELAY_MS);
-    } catch (e) {
-      if (e.message === "RATE_LIMITED" || e.message === "AUTH_EXPIRED") {
-        return await _handleMetaSyncError(e, result);
-      }
-      console.warn("[FBSync] Failed to fetch messages for thread", threadId, e.message);
-      continue;
+    // Build profile
+    if (!seenProfiles.has(conv.threadId)) {
+      seenProfiles.add(conv.threadId);
+      profiles.push({
+        platform_id: conv.threadId,
+        name: conv.name,
+        username: null,
+        avatar_url: null,
+      });
     }
 
-    for (const msg of messages) {
-      const createdAtMs = msg?.timestamp_precise
-        ? parseInt(msg.timestamp_precise)
-        : (msg?.timestamp ?? 0) * 1000;
+    // Build message from last conversation snippet
+    if (conv.snippet) {
+      const now = Date.now();
+      const msgTimestamp = new Date().toISOString();
 
-      if (!isFirstSync && createdAtMs <= cutoffMs) continue;
+      messages.push({
+        message_id: `fb_sidebar_${conv.threadId}_${Math.floor(now / 60000)}`,
+        conversation_id: conv.threadId,
+        platform_id: conv.threadId,
+        sender_name: conv.name,
+        direction: "inbound", // sidebar shows their last message typically
+        content_preview: conv.snippet.substring(0, 500),
+        timestamp: msgTimestamp,
+        reactions: [],
+        read_by: [],
+      });
 
-      const payload = _metaMessageToPayload(msg, threadId, partnerId, partnerName, cUser);
-      allMessages.push(payload);
-
-      if (createdAtMs > newestTimestamp) newestTimestamp = createdAtMs;
+      if (now > newestTimestamp) newestTimestamp = now;
     }
   }
 
-  result.messages = allMessages.length;
-  console.log("[FBSync] Extracted", allMessages.length, "messages");
+  result.messages = messages.length;
+  console.log("[FBSync] Built", profiles.length, "profiles,", messages.length, "messages");
 
   // ── Push to backend ──
   try {
@@ -161,8 +238,8 @@ async function _runFacebookSyncInner(apiUrl, token, force, result) {
       },
       body: JSON.stringify({
         platform: "facebook",
-        profiles: [],
-        messages: allMessages,
+        profiles,
+        messages,
       }),
     });
 
