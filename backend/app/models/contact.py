@@ -69,6 +69,13 @@ class Contact(Base):
     whatsapp_avatar_url: Mapped[str | None] = mapped_column(String, nullable=True)
     whatsapp_bio_checked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
+    facebook_id: Mapped[str | None] = mapped_column(String, nullable=True, index=True)
+    facebook_name: Mapped[str | None] = mapped_column(String, nullable=True)
+    facebook_avatar_url: Mapped[str | None] = mapped_column(String, nullable=True)
+    instagram_id: Mapped[str | None] = mapped_column(String, nullable=True, index=True)
+    instagram_username: Mapped[str | None] = mapped_column(String, nullable=True)
+    instagram_avatar_url: Mapped[str | None] = mapped_column(String, nullable=True)
+
     tags: Mapped[list[str] | None] = mapped_column(ARRAY(String), nullable=True, default=list)
     notes: Mapped[str | None] = mapped_column(Text, nullable=True)
 

@@ -46,6 +46,10 @@ class User(Base):
     linkedin_extension_paired_at: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True), nullable=True
     )
+    meta_connected: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False, server_default="false")
+    meta_connected_name: Mapped[str | None] = mapped_column(String, nullable=True)
+    meta_sync_facebook: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False, server_default="true")
+    meta_sync_instagram: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False, server_default="true")
     mcp_api_key_hash: Mapped[str | None] = mapped_column(String(128), nullable=True)
     updated_at: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True), onupdate=func.now(), nullable=True
