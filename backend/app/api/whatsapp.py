@@ -241,15 +241,16 @@ async def whatsapp_webhook(
         return {"data": {"received": True}, "error": None}
 
     if event_type == "session_connected":
-        user.whatsapp_connected = True
-        db.add(Notification(
-            user_id=user.id,
-            notification_type="sync",
-            title="WhatsApp connected",
-            body="Your WhatsApp account has been connected successfully.",
-            link="/settings",
-        ))
-        await db.flush()
+        if not user.whatsapp_connected:
+            user.whatsapp_connected = True
+            db.add(Notification(
+                user_id=user.id,
+                notification_type="sync",
+                title="WhatsApp connected",
+                body="Your WhatsApp account has been connected successfully.",
+                link="/settings",
+            ))
+            await db.flush()
 
     elif event_type == "session_disconnected":
         user.whatsapp_connected = False
