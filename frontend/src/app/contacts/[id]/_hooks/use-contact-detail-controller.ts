@@ -35,7 +35,7 @@ export function useContactDetailController(id: string) {
   const [isExtracting, setIsExtracting] = useState(false);
   const [isAutoTagging, setIsAutoTagging] = useState(false);
   const [isPromoting, setIsPromoting] = useState(false);
-  const [toast, setToast] = useState<{ type: "success" | "error"; text: string } | null>(null);
+  const [toast, setToast] = useState<{ type: "success" | "error"; text: string; action?: { label: string; onClick: () => void } } | null>(null);
 
   // Interactions query
   const { data: interactionsData, refetch: refetchInteractions } = useQuery({

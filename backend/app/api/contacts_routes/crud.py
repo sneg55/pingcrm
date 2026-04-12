@@ -239,6 +239,25 @@ async def update_contact(
                 },
             )
 
+    # Check twitter_handle uniqueness
+    if twitter_handle_changed and update_data["twitter_handle"]:
+        dup_result = await db.execute(
+            select(Contact).where(
+                Contact.user_id == current_user.id,
+                Contact.id != contact_id,
+                func.lower(Contact.twitter_handle) == update_data["twitter_handle"].lower(),
+            )
+        )
+        dup = dup_result.scalar_one_or_none()
+        if dup:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail={
+                    "message": "Another contact already has this Twitter handle",
+                    "conflicting_contact": {"id": str(dup.id), "full_name": dup.full_name},
+                },
+            )
+
     # Clear stale telegram_user_id when username changes
     if telegram_username_changed:
         update_data["telegram_user_id"] = None

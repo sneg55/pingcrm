@@ -5,6 +5,7 @@ import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import { ChevronDown, Sparkles, X } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useMergeContacts } from "@/hooks/use-contacts";
 import { useContactDetailController } from "./_hooks/use-contact-detail-controller";
 import { HeaderCard } from "./_components/header-card";
 import { MessageComposerCard } from "./_components/message-composer-card";
@@ -20,6 +21,7 @@ export default function ContactDetailPage() {
   const { id } = useParams<{ id: string }>();
   const router = useRouter();
   const ctrl = useContactDetailController(id);
+  const mergeContacts = useMergeContacts();
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
@@ -74,16 +76,39 @@ export default function ContactDetailPage() {
         field === "family_name" ? (value as string) : (contact.family_name ?? "");
       input.full_name = [given, family].filter(Boolean).join(" ") || "";
     }
-    if (field === "telegram_username") {
+    if (field === "telegram_username" || field === "twitter_handle") {
       try {
         await ctrl.updateContact.mutateAsync({ id, input });
       } catch (err: unknown) {
         const detail = (err as any)?.detail;
         if (detail?.conflicting_contact) {
           const c = detail.conflicting_contact;
+          const platformLabel = field === "telegram_username" ? "Telegram username" : "Twitter handle";
           ctrl.setToast({
             type: "error",
-            text: `Telegram username already used by ${c.full_name || "another contact"}`,
+            text: `${platformLabel} already used by ${c.full_name || "another contact"}`,
+            action: {
+              label: "Merge",
+              onClick: () => {
+                ctrl.setToast(null);
+                mergeContacts.mutate(
+                  { contactId: id, otherId: c.id },
+                  {
+                    onSuccess: (result: any) => {
+                      const mergedId = result?.data?.id;
+                      if (mergedId && mergedId !== id) {
+                        router.push(`/contacts/${mergedId}`);
+                      } else {
+                        router.refresh();
+                      }
+                    },
+                    onError: () => {
+                      ctrl.setToast({ type: "error", text: "Merge failed. Try again." });
+                    },
+                  },
+                );
+              },
+            },
           });
         }
         // Don't re-throw — toast shows the error
@@ -134,6 +159,14 @@ export default function ContactDetailPage() {
               <X className="w-4 h-4 flex-shrink-0" />
             )}
             {ctrl.toast.text}
+            {ctrl.toast.action && (
+              <button
+                onClick={ctrl.toast.action.onClick}
+                className="ml-2 px-2.5 py-1 text-xs font-semibold rounded-md bg-white/80 dark:bg-stone-800/80 border border-current/20 hover:bg-white dark:hover:bg-stone-700 transition-colors"
+              >
+                {ctrl.toast.action.label}
+              </button>
+            )}
             <button
               onClick={() => ctrl.setToast(null)}
               className="ml-auto p-0.5 hover:opacity-70"
