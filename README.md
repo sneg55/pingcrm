@@ -36,7 +36,7 @@ Auto-syncs Gmail, Telegram, Twitter/X, LinkedIn, and WhatsApp. Detects life even
 - **Identity resolution** — merges the same person across Gmail, LinkedIn, Telegram, etc.
 - **MCP server** — query your CRM from Claude Desktop, Cursor, and other MCP clients
 
-See the [full feature docs](https://docs.pingcrm.xyz/category/features) for screenshots and details.
+See the [feature docs](https://docs.pingcrm.xyz/features/dashboard) for screenshots and details.
 
 ---
 
@@ -50,7 +50,7 @@ See the [full feature docs](https://docs.pingcrm.xyz/category/features) for scre
 | **Render** | [![Deploy to Render](https://render.com/images/deploy-to-render-button.svg)](https://render.com/deploy?repo=https://github.com/sneg55/pingcrm) |
 | **DigitalOcean** | [![Deploy to DO](https://www.deploytodo.com/do-btn-blue.svg)](https://cloud.digitalocean.com/apps/new?repo=https://github.com/sneg55/pingcrm/tree/main) |
 | **Fly.io** | `fly launch --from https://github.com/sneg55/pingcrm` |
-| **Coolify** (self-hosted) | [Import as Docker Compose resource](https://coolify.io/docs/applications/docker-compose) |
+| **Coolify** (self-hosted) | [Import as Docker Compose app](https://coolify.io/docs/applications/) |
 
 After deploy, set `ANTHROPIC_API_KEY` and any OAuth credentials for integrations you want. [Environment reference →](https://docs.pingcrm.xyz/setup#environment-variables)
 
