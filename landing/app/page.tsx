@@ -365,9 +365,12 @@ export default function LandingPage() {
             Open source.{" "}
             <span style={{ color: "var(--accent)" }}>Your data, your server.</span>
           </h2>
-          <p className="text-lg leading-relaxed mb-8 max-w-xl mx-auto" style={{ color: "var(--text-muted)" }}>
+          <p className="text-lg leading-relaxed mb-3 max-w-xl mx-auto" style={{ color: "var(--text-muted)" }}>
             PingCRM is fully open source. Self-host on your own infrastructure, audit every line of code, and own your relationship data completely.
             No vendor lock-in, no data harvesting.
+          </p>
+          <p className="text-sm mb-8" style={{ color: "var(--accent)", fontFamily: "'Space Mono', monospace" }}>
+            Deploy in under 10 minutes with Docker Compose.
           </p>
 
           <div className="flex flex-wrap justify-center gap-2 mb-10">
@@ -388,22 +391,42 @@ export default function LandingPage() {
             ))}
           </div>
 
-          <a
-            href={GITHUB_URL}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="inline-flex items-center gap-2.5 px-6 py-3 rounded-lg text-sm font-bold tracking-wide transition-all duration-200 hover:border-[var(--text-muted)] hover:-translate-y-0.5"
-            style={{
-              fontFamily: "'Space Mono', monospace",
-              border: "1px solid var(--border-bright)",
-              background: "var(--bg-elevated)",
-              color: "var(--text)",
-              fontSize: "14px",
-            }}
-          >
-            <GitHubIcon size={18} />
-            Star on GitHub
-          </a>
+          <div className="flex flex-col sm:flex-row gap-3 justify-center">
+            <a
+              href={GITHUB_URL}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-2.5 px-6 py-3 rounded-lg text-sm font-bold tracking-wide transition-all duration-200 hover:border-[var(--text-muted)] hover:-translate-y-0.5"
+              style={{
+                fontFamily: "'Space Mono', monospace",
+                border: "1px solid var(--border-bright)",
+                background: "var(--bg-elevated)",
+                color: "var(--text)",
+                fontSize: "14px",
+              }}
+            >
+              <GitHubIcon size={18} />
+              Star on GitHub
+            </a>
+            <a
+              href="https://docs.pingcrm.xyz/"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-2.5 px-6 py-3 rounded-lg text-sm tracking-wide transition-all duration-200 hover:border-[var(--text-muted)] hover:-translate-y-0.5"
+              style={{
+                fontFamily: "'Space Mono', monospace",
+                border: "1px solid var(--border)",
+                color: "var(--text-muted)",
+                fontSize: "14px",
+              }}
+            >
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M2 3h6a4 4 0 014 4v14a3 3 0 00-3-3H2z" />
+                <path d="M22 3h-6a4 4 0 00-4 4v14a3 3 0 013-3h7z" />
+              </svg>
+              Read the Docs
+            </a>
+          </div>
         </div>
       </section>
 
