@@ -1,0 +1,130 @@
+name: pingcrm
+region: nyc
+
+databases:
+  - name: pingcrm-db
+    engine: PG
+    version: "16"
+    production: false
+    cluster_name: pingcrm-db
+
+  - name: pingcrm-redis
+    engine: REDIS
+    version: "7"
+    production: false
+    cluster_name: pingcrm-redis
+
+services:
+  - name: backend
+    dockerfile_path: backend/Dockerfile
+    source_dir: backend
+    github:
+      repo: sneg55/pingcrm
+      branch: main
+      deploy_on_push: true
+    http_port: 8000
+    instance_count: 1
+    instance_size_slug: basic-xs
+    health_check:
+      http_path: /api/health
+      initial_delay_seconds: 20
+      period_seconds: 10
+    envs:
+      - key: DATABASE_URL
+        scope: RUN_AND_BUILD_TIME
+        value: ${pingcrm-db.DATABASE_URL}
+      - key: REDIS_URL
+        scope: RUN_AND_BUILD_TIME
+        value: ${pingcrm-redis.DATABASE_URL}
+      - key: SECRET_KEY
+        scope: RUN_TIME
+        type: SECRET
+      - key: ENCRYPTION_KEY
+        scope: RUN_TIME
+        type: SECRET
+      - key: ENVIRONMENT
+        value: production
+      - key: ANTHROPIC_API_KEY
+        scope: RUN_TIME
+        type: SECRET
+      - key: GOOGLE_CLIENT_ID
+        scope: RUN_TIME
+        type: SECRET
+      - key: GOOGLE_CLIENT_SECRET
+        scope: RUN_TIME
+        type: SECRET
+      - key: TWITTER_CLIENT_ID
+        scope: RUN_TIME
+        type: SECRET
+      - key: TWITTER_CLIENT_SECRET
+        scope: RUN_TIME
+        type: SECRET
+      - key: TELEGRAM_API_ID
+        scope: RUN_TIME
+        type: SECRET
+      - key: TELEGRAM_API_HASH
+        scope: RUN_TIME
+        type: SECRET
+
+  - name: frontend
+    dockerfile_path: frontend/Dockerfile
+    source_dir: frontend
+    github:
+      repo: sneg55/pingcrm
+      branch: main
+      deploy_on_push: true
+    http_port: 3000
+    instance_count: 1
+    instance_size_slug: basic-xxs
+    envs:
+      - key: NEXT_PUBLIC_API_URL
+        scope: BUILD_TIME
+        value: ${backend.PUBLIC_URL}
+
+workers:
+  - name: worker
+    dockerfile_path: backend/Dockerfile
+    source_dir: backend
+    github:
+      repo: sneg55/pingcrm
+      branch: main
+      deploy_on_push: true
+    run_command: celery -A worker.celery_app worker --beat --loglevel=info
+    instance_count: 1
+    instance_size_slug: basic-xs
+    envs:
+      - key: DATABASE_URL
+        scope: RUN_AND_BUILD_TIME
+        value: ${pingcrm-db.DATABASE_URL}
+      - key: REDIS_URL
+        scope: RUN_AND_BUILD_TIME
+        value: ${pingcrm-redis.DATABASE_URL}
+      - key: SECRET_KEY
+        scope: RUN_TIME
+        type: SECRET
+      - key: ENCRYPTION_KEY
+        scope: RUN_TIME
+        type: SECRET
+      - key: ENVIRONMENT
+        value: production
+      - key: ANTHROPIC_API_KEY
+        scope: RUN_TIME
+        type: SECRET
+      - key: GOOGLE_CLIENT_ID
+        scope: RUN_TIME
+        type: SECRET
+      - key: GOOGLE_CLIENT_SECRET
+        scope: RUN_TIME
+        type: SECRET
+      - key: TWITTER_CLIENT_ID
+        scope: RUN_TIME
+        type: SECRET
+      - key: TWITTER_CLIENT_SECRET
+        scope: RUN_TIME
+        type: SECRET
+      - key: TELEGRAM_API_ID
+        scope: RUN_TIME
+        type: SECRET
+      - key: TELEGRAM_API_HASH
+        scope: RUN_TIME
+        type: SECRET

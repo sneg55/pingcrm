@@ -1,8 +1,22 @@
+from pydantic import field_validator
 from pydantic_settings import BaseSettings
 
 
 class Settings(BaseSettings):
     DATABASE_URL: str = "postgresql+asyncpg://localhost:5432/pingcrm"
+
+    @field_validator("DATABASE_URL", mode="before")
+    @classmethod
+    def _ensure_asyncpg_driver(cls, v: str) -> str:
+        # Managed Postgres providers (Render, Railway, DO, Heroku) emit
+        # postgres:// or postgresql:// URLs; SQLAlchemy's async engine needs
+        # the +asyncpg driver tag.
+        if isinstance(v, str):
+            if v.startswith("postgres://"):
+                v = "postgresql://" + v[len("postgres://"):]
+            if v.startswith("postgresql://") and "+asyncpg" not in v:
+                v = "postgresql+asyncpg://" + v[len("postgresql://"):]
+        return v
     REDIS_URL: str = "redis://localhost:6379/0"
     SECRET_KEY: str = ""
     ALGORITHM: str = "HS256"

@@ -32,6 +32,7 @@ Auto-syncs Gmail, Telegram, Twitter/X, LinkedIn, and WhatsApp. Detects life even
 - [Features](#features)
 - [Tech Stack](#tech-stack)
 - [Prerequisites](#prerequisites)
+- [One-Click Deploy](#one-click-deploy)
 - [Setup Guide](#setup-guide)
   - [1. Clone the Repository](#1-clone-the-repository)
   - [2. Database Setup](#2-database-setup-postgresql)
@@ -314,6 +315,32 @@ Guided 4-step setup flow for new users:
 - **Node.js 18+** and npm
 - **PostgreSQL 14+**
 - **Redis 6+**
+
+---
+
+## One-Click Deploy
+
+The fastest way to try PingCRM is to deploy a hosted instance. All options below provision PostgreSQL, Redis, the FastAPI backend, the Celery worker, and the Next.js frontend from this repo.
+
+| Platform | Deploy | Notes |
+|---|---|---|
+| **Railway** | [![Deploy on Railway](https://railway.com/button.svg)](https://railway.com/new/template?template=https://github.com/sneg55/pingcrm) | Managed Postgres + Redis, auto-detects Docker Compose, ~$5/mo starter |
+| **Render** | [![Deploy to Render](https://render.com/images/deploy-to-render-button.svg)](https://render.com/deploy?repo=https://github.com/sneg55/pingcrm) | Uses `render.yaml` blueprint, free tier available for web service |
+| **Fly.io** | `fly launch --from https://github.com/sneg55/pingcrm` | Multi-process app, global edge, generous free tier |
+| **Coolify** (self-hosted) | [Import as Docker Compose resource](https://coolify.io/docs/applications/docker-compose) | Best for keeping contact data on your own server |
+| **DigitalOcean** | [![Deploy to DO](https://www.deploytodo.com/do-btn-blue.svg)](https://cloud.digitalocean.com/apps/new?repo=https://github.com/sneg55/pingcrm/tree/main) | App Platform with managed Postgres add-on |
+
+> **After deploying:** set the required environment variables (`SECRET_KEY`, `ANTHROPIC_API_KEY`, OAuth credentials per platform). See [Environment Variables](#environment-variables).
+
+> **Self-hosting recommended for privacy** — PingCRM stores email, DM, and contact data. Coolify or your own VPS keeps everything on infrastructure you control.
+
+### Have an AI agent set it up for you
+
+Point Claude Code, Cursor, Codex, or any agent at [`AGENT_SETUP.md`](AGENT_SETUP.md) and ask it to deploy PingCRM. It's a step-by-step runbook the agent can execute end-to-end on your VPS — provisioning DNS, generating secrets, wiring OAuth, booting the stack, and verifying everything works.
+
+```
+"Read AGENT_SETUP.md and set up PingCRM for me on my server."
+```
 
 ---
 
