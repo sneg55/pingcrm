@@ -243,6 +243,7 @@ See @.claude/rules/exception-handling.md for the full policy (logging requiremen
 - **Never skip pre-push tests** — always run tests before pushing, never use `--no-verify` unless the user explicitly asks
 - **No debug endpoints in prod** — never add debug/temporary endpoints unless the user explicitly asks
 - **Twitter polling strategy** — cron only polls bios via bird CLI; tweet fetching + LLM classification is on-demand for suggestion generation (not daily)
+- **No silent errors** — when editing any file, also fix existing silent error patterns in that file (bare `except:`, `except: pass`, empty `catch {}`, catch-with-only-console.log). Every exception handler must log with context and either re-raise or return a sentinel. See `.claude/rules/exception-handling.md`. Add `# silent-ok` or `// silent-ok` only for genuinely intentional cases.
 
 ### Platform Integrations
 1. **Gmail** - OAuth + Gmail API for per-message email sync + BCC logging
