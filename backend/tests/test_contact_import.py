@@ -12,6 +12,7 @@ from app.models.contact import Contact
 from app.models.interaction import Interaction
 from app.models.user import User
 from app.services.contact_import import (
+    _normalize_linkedin_name,
     import_csv,
     import_linkedin_connections,
     import_linkedin_messages,
@@ -472,3 +473,121 @@ async def test_import_linkedin_messages_updates_last_interaction_at(
     assert contact.last_interaction_at.year == 2024
     assert contact.last_interaction_at.month == 1
     assert contact.last_interaction_at.day == 15
+
+
+# ---------------------------------------------------------------------------
+# _normalize_linkedin_name unit tests
+# ---------------------------------------------------------------------------
+
+
+def test_normalize_strips_suffix_mba():
+    assert _normalize_linkedin_name("Aaron Schneider, MBA") == "aaron schneider"
+
+
+def test_normalize_strips_suffix_phd():
+    assert _normalize_linkedin_name("Jane Doe, PhD") == "jane doe"
+
+
+def test_normalize_strips_emoji_star():
+    assert _normalize_linkedin_name("Adam Shaw ★") == "adam shaw"
+
+
+def test_normalize_strips_special_chars():
+    assert _normalize_linkedin_name("María García-López") == "maría garcía lópez"
+
+
+def test_normalize_collapses_whitespace():
+    assert _normalize_linkedin_name("  John   Smith  ") == "john smith"
+
+
+def test_normalize_empty():
+    assert _normalize_linkedin_name("") == ""
+
+
+# ---------------------------------------------------------------------------
+# import_linkedin_connections — duplicate contact tolerance
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_import_linkedin_connections_multiple_existing_duplicates(
+    db: AsyncSession, user: User,
+):
+    """If the DB already has two contacts with the same name+company,
+    the dedup check must not crash (previously used scalar_one_or_none)."""
+    for _ in range(2):
+        db.add(Contact(user_id=user.id, full_name="Dupe Person", company="SameCo", source="manual"))
+    await db.flush()
+
+    csv_bytes = (
+        "First Name,Last Name,Email Address,Company,Position,Connected On,URL\n"
+        "Dupe,Person,,SameCo,,,\n"
+    ).encode()
+
+    result = await import_linkedin_connections(csv_bytes, user.id, db)
+
+    assert result["errors"] == []
+    assert result["skipped"] == 1
+    assert result["created"] == 0
+
+
+# ---------------------------------------------------------------------------
+# import_linkedin_messages — normalized matching
+# ---------------------------------------------------------------------------
+
+
+@pytest_asyncio.fixture(loop_scope="function")
+async def user_with_varied_contacts(db: AsyncSession) -> tuple[User, list[Contact]]:
+    """User + contacts with clean names for normalized matching tests."""
+    from app.core.auth import hash_password
+
+    u = User(
+        id=uuid.uuid4(),
+        email=f"norm_{uuid.uuid4().hex[:8]}@example.com",
+        hashed_password=hash_password("pw"),
+        full_name="Norm Test User",
+    )
+    db.add(u)
+    await db.flush()
+
+    contacts = []
+    for name in ["Aaron Schneider", "Adam Shaw", "Jane Doe"]:
+        c = Contact(user_id=u.id, full_name=name, source="linkedin")
+        db.add(c)
+        contacts.append(c)
+    await db.flush()
+    return u, contacts
+
+
+@pytest.mark.asyncio
+async def test_import_messages_matches_name_with_suffix(
+    db: AsyncSession, user_with_varied_contacts: tuple[User, list[Contact]],
+):
+    """'Aaron Schneider, MBA' in messages matches contact 'Aaron Schneider'."""
+    u, contacts = user_with_varied_contacts
+    csv_bytes = (
+        'CONVERSATION ID,FROM,TO,DATE,SUBJECT,CONTENT\n'
+        'conv10,"Aaron Schneider, MBA",norm test user,2024-01-01 10:00:00 UTC,,Hello\n'
+    ).encode()
+
+    result = await import_linkedin_messages(csv_bytes, u.id, "norm test user", db)
+
+    assert result["new_interactions"] == 1
+    assert result["unmatched"] == 0
+
+
+@pytest.mark.asyncio
+async def test_import_messages_matches_name_with_emoji(
+    db: AsyncSession, user_with_varied_contacts: tuple[User, list[Contact]],
+):
+    """'Adam Shaw ★' in messages matches contact 'Adam Shaw'."""
+    u, contacts = user_with_varied_contacts
+    csv_bytes = (
+        "CONVERSATION ID,FROM,TO,DATE,SUBJECT,CONTENT\n"
+        "conv11,Adam Shaw \u2605,norm test user,2024-02-01 10:00:00 UTC,,Hey there\n"
+    ).encode()
+
+    result = await import_linkedin_messages(csv_bytes, u.id, "norm test user", db)
+
+    assert result["new_interactions"] == 1
+    assert result["unmatched"] == 0

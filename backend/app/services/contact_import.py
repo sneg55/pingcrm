@@ -5,6 +5,7 @@ import csv
 import io
 import logging
 import re as _re
+import unicodedata
 from datetime import UTC, datetime
 from typing import Any
 
@@ -24,6 +25,27 @@ logger = logging.getLogger(__name__)
 _NAME_ORG_RE = _re.compile(
     r"^(.+?)\s*(?:\||@|/|—|–|-\s)\s*(.+)$"
 )
+
+
+_SUFFIX_RE = _re.compile(
+    r",?\s*\b(?:MBA|PhD|MD|CPA|CFA|PMP|Jr|Sr|II|III|IV|Esq|PE|RN|BSc|MSc)\b\.?",
+    _re.IGNORECASE,
+)
+_NON_ALPHA_SPACE_RE = _re.compile(r"[^\w\s]", _re.UNICODE)
+_MULTI_SPACE_RE = _re.compile(r"\s+")
+
+
+def _normalize_linkedin_name(name: str) -> str:
+    """Normalize a LinkedIn display name for fuzzy matching.
+
+    Strips suffixes (MBA, PhD, etc.), special characters (★, emoji),
+    collapses whitespace, and lowercases.
+    """
+    s = _SUFFIX_RE.sub("", name)
+    s = "".join(c for c in s if not unicodedata.category(c).startswith(("So", "Sk")))
+    s = _NON_ALPHA_SPACE_RE.sub(" ", s)
+    s = _MULTI_SPACE_RE.sub(" ", s).strip().lower()
+    return s
 
 
 def parse_name_org(raw_name: str | None) -> tuple[str | None, str | None]:
@@ -167,7 +189,7 @@ async def import_linkedin_connections(
                     Contact.company == (company or None),
                 )
             )
-            if existing.scalar_one_or_none():
+            if existing.scalars().first():
                 skipped += 1
                 continue
 
@@ -225,14 +247,18 @@ async def import_linkedin_messages(
     text = content_bytes.decode("utf-8-sig")
     reader = csv.DictReader(io.StringIO(text))
 
-    # Load all contacts keyed by full_name (lowercased)
+    # Load all contacts keyed by full_name (lowercased) + normalized name index
     all_contacts_result = await db.execute(
         select(Contact).where(Contact.user_id == user_id)
     )
     contacts_by_name: dict[str, Contact] = {}
+    contacts_by_normalized: dict[str, Contact] = {}
     for c in all_contacts_result.scalars().all():
         if c.full_name:
             contacts_by_name[c.full_name.lower()] = c
+            normalized = _normalize_linkedin_name(c.full_name)
+            if normalized:
+                contacts_by_normalized[normalized] = c
 
     new_interactions = 0
     skipped = 0
@@ -260,6 +286,8 @@ async def import_linkedin_messages(
             continue
 
         contact = contacts_by_name.get(other_name.lower())
+        if not contact:
+            contact = contacts_by_normalized.get(_normalize_linkedin_name(other_name))
         if not contact:
             unmatched_names.add(other_name)
             continue
