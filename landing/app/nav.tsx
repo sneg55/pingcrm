@@ -66,7 +66,9 @@ export function Nav() {
             Star
           </a>
           <a
-            href="#waitlist"
+            href="https://docs.pingcrm.xyz/"
+            target="_blank"
+            rel="noopener noreferrer"
             className="px-4 py-1.5 rounded text-sm transition-all duration-200 hover:shadow-[0_0_16px_var(--accent-glow)]"
             style={{
               fontFamily: "'Space Mono', monospace",
@@ -75,7 +77,7 @@ export function Nav() {
               color: "var(--accent)",
             }}
           >
-            Get Early Access
+            Get Started
           </a>
         </div>
       </div>
