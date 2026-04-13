@@ -2,7 +2,7 @@
 
 import { useState, type FormEvent } from "react";
 
-export default function WaitlistForm() {
+export default function WaitlistForm({ compact = false }: { compact?: boolean }) {
   const [email, setEmail] = useState("");
   const [status, setStatus] = useState<"idle" | "loading" | "success" | "error">("idle");
   const [message, setMessage] = useState("");
@@ -44,13 +44,13 @@ export default function WaitlistForm() {
 
   if (status === "success") {
     return (
-      <div className="flex items-center gap-3 px-6 py-4 rounded-lg border"
+      <div className={`flex items-center gap-2 ${compact ? "px-3 py-2" : "px-6 py-4"} rounded-lg border`}
         style={{ borderColor: "var(--accent-dim)", background: "var(--accent-glow)" }}>
-        <svg width="20" height="20" viewBox="0 0 20 20" fill="none" className="shrink-0">
+        <svg width={compact ? 14 : 20} height={compact ? 14 : 20} viewBox="0 0 20 20" fill="none" className="shrink-0">
           <path d="M7 10l2 2 4-4" stroke="var(--accent)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
           <circle cx="10" cy="10" r="8" stroke="var(--accent)" strokeWidth="1.5" />
         </svg>
-        <span style={{ color: "var(--accent)", fontFamily: "'Space Mono', monospace", fontSize: "14px" }}>
+        <span style={{ color: "var(--accent)", fontFamily: "'Space Mono', monospace", fontSize: compact ? "12px" : "14px" }}>
           {message}
         </span>
       </div>
@@ -58,33 +58,33 @@ export default function WaitlistForm() {
   }
 
   return (
-    <form onSubmit={handleSubmit} className="flex flex-col sm:flex-row gap-3 w-full max-w-lg">
+    <form onSubmit={handleSubmit} className={`flex ${compact ? "flex-row gap-2" : "flex-col sm:flex-row gap-3"} w-full ${compact ? "max-w-md" : "max-w-lg"}`}>
       <input
         type="email"
         value={email}
         onChange={(e) => setEmail(e.target.value)}
         placeholder="you@company.com"
         required
-        className="flex-1 px-4 py-3 rounded-lg text-sm"
+        className={`flex-1 ${compact ? "px-3 py-1.5" : "px-4 py-3"} rounded-lg text-sm`}
         style={{
           fontFamily: "'Space Mono', monospace",
           background: "var(--bg-surface)",
           border: "1px solid var(--border)",
           color: "var(--text)",
-          fontSize: "14px",
+          fontSize: compact ? "12px" : "14px",
         }}
       />
       <button
         type="submit"
         disabled={status === "loading"}
-        className="px-6 py-3 rounded-lg text-sm font-bold tracking-wide whitespace-nowrap transition-all duration-200 cursor-pointer"
+        className={`${compact ? "px-4 py-1.5" : "px-6 py-3"} rounded-lg text-sm font-bold tracking-wide whitespace-nowrap transition-all duration-200 cursor-pointer`}
         style={{
           fontFamily: "'Space Mono', monospace",
           background: status === "loading"
             ? "var(--border)"
             : "linear-gradient(135deg, var(--accent-dim), var(--accent))",
           color: "var(--bg)",
-          fontSize: "14px",
+          fontSize: compact ? "12px" : "14px",
           border: "none",
         }}
         onMouseEnter={(e) => {
