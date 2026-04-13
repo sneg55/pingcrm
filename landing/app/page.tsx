@@ -430,34 +430,15 @@ export default function LandingPage() {
         </div>
       </section>
 
-      <div className="glow-line mx-auto max-w-4xl" />
-
-      {/* ──── Waitlist ──── */}
-      <section id="waitlist" className="scroll-reveal py-24 px-6">
-        <div className="max-w-2xl mx-auto text-center">
-          <p
-            className="text-xs tracking-[0.2em] uppercase mb-3"
-            style={{ fontFamily: "'Space Mono', monospace", color: "var(--accent)" }}
-          >
-            Hosted Version
+      {/* ──── Hosted Waitlist Banner ──── */}
+      <div className="py-6 px-6" style={{ borderTop: "1px solid var(--border)" }}>
+        <div className="max-w-4xl mx-auto flex flex-col sm:flex-row items-center justify-center gap-4">
+          <p className="text-sm shrink-0" style={{ fontFamily: "'Space Mono', monospace", color: "var(--text-muted)" }}>
+            Prefer not to self-host? We&apos;re building a managed version.
           </p>
-          <h2
-            className="text-3xl sm:text-4xl font-bold tracking-tight mb-4"
-            style={{ fontFamily: "'Space Mono', monospace" }}
-          >
-            Want us to handle the setup?
-          </h2>
-          <p className="text-lg leading-relaxed mb-10 max-w-lg mx-auto" style={{ color: "var(--text-muted)" }}>
-            We&apos;re building a hosted version — same features, zero infrastructure. Join the waitlist for early access and a founding-member discount.
-          </p>
-          <div className="flex justify-center">
-            <WaitlistForm />
-          </div>
-          <p className="mt-4 text-xs" style={{ color: "var(--text-dim)", fontFamily: "'Space Mono', monospace" }}>
-            We&apos;ll email you once when it&apos;s ready — that&apos;s it.
-          </p>
+          <WaitlistForm compact />
         </div>
-      </section>
+      </div>
 
       <Footer />
     </div>

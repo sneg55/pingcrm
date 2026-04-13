@@ -1,5 +1,7 @@
 "use client";
 
+import WaitlistForm from "./waitlist-form";
+
 const GITHUB_URL = "https://github.com/sneg55/pingcrm";
 
 function GitHubIcon({ size = 20 }: { size?: number }) {
@@ -88,38 +90,45 @@ export function Nav() {
 export function Footer() {
   return (
     <footer className="py-12 px-6" style={{ borderTop: "1px solid var(--border)" }}>
-      <div className="max-w-6xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-6">
-        <PingLogo />
-        <div className="flex items-center gap-6">
-          {[
-            { label: "GitHub", href: GITHUB_URL, external: true },
-            { label: "Docs", href: "https://docs.pingcrm.xyz/", external: true },
-            { label: "Waitlist", href: "#waitlist", external: false },
-          ].map((link) => (
+      <div className="max-w-6xl mx-auto">
+        <div className="flex flex-col sm:flex-row items-center justify-between gap-6">
+          <PingLogo />
+          <div className="flex items-center gap-6">
+            {[
+              { label: "GitHub", href: GITHUB_URL, external: true },
+              { label: "Docs", href: "https://docs.pingcrm.xyz/", external: true },
+            ].map((link) => (
+              <a
+                key={link.label}
+                href={link.href}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-xs transition-colors duration-200 hover:!text-[var(--text)]"
+                style={{ fontFamily: "'Space Mono', monospace", color: "var(--text-dim)" }}
+              >
+                {link.label}
+              </a>
+            ))}
+          </div>
+          <p className="text-xs" style={{ fontFamily: "'Space Mono', monospace", color: "var(--text-dim)" }}>
+            Built by{" "}
             <a
-              key={link.label}
-              href={link.href}
-              target={link.external ? "_blank" : undefined}
-              rel={link.external ? "noopener noreferrer" : undefined}
-              className="text-xs transition-colors duration-200 hover:!text-[var(--text)]"
-              style={{ fontFamily: "'Space Mono', monospace", color: "var(--text-dim)" }}
+              href="https://sawinyh.com"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="transition-colors duration-200 hover:!text-[var(--text)]"
+              style={{ color: "var(--accent)", textDecoration: "none" }}
             >
-              {link.label}
+              Sawinyh.com
             </a>
-          ))}
+          </p>
         </div>
-        <p className="text-xs" style={{ fontFamily: "'Space Mono', monospace", color: "var(--text-dim)" }}>
-          Built by{" "}
-          <a
-            href="https://sawinyh.com"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="transition-colors duration-200 hover:!text-[var(--text)]"
-            style={{ color: "var(--accent)", textDecoration: "none" }}
-          >
-            Sawinyh.com
-          </a>
-        </p>
+        <div className="mt-8 pt-6 flex flex-col sm:flex-row items-center justify-center gap-3" style={{ borderTop: "1px solid var(--border)" }}>
+          <span className="text-xs shrink-0" style={{ fontFamily: "'Space Mono', monospace", color: "var(--text-dim)" }}>
+            Hosted version coming soon
+          </span>
+          <WaitlistForm compact />
+        </div>
       </div>
     </footer>
   );
