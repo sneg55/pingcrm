@@ -5,7 +5,7 @@ import uuid
 from datetime import UTC, datetime
 
 from celery import shared_task
-from sqlalchemy import select
+from sqlalchemy import or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.celery_app import celery_app  # noqa: F401 — registers the app
@@ -100,3 +100,35 @@ def geocode_contact(contact_id: str) -> None:
             await _do_geocode(session, contact_id, _geocoder)
 
     _run(_runner())
+
+
+async def _do_backfill(session: AsyncSession) -> int:
+    """Enqueue geocode_contact for every contact that needs geocoding.
+
+    Returns the number of contacts enqueued.
+    """
+    rows = await session.execute(
+        select(Contact.id).where(
+            Contact.location.is_not(None),
+            Contact.location != "",
+            or_(
+                Contact.geocoded_location.is_(None),
+                Contact.geocoded_location != Contact.location,
+            ),
+        )
+    )
+    count = 0
+    for (cid,) in rows:
+        geocode_contact.delay(str(cid))
+        count += 1
+    return count
+
+
+@shared_task(name="app.services.tasks.backfill_all_contacts")
+def backfill_all_contacts() -> int:
+    """Admin task: enqueue geocode_contact for all contacts needing coordinates."""
+    async def _runner() -> int:
+        async with task_session() as session:
+            return await _do_backfill(session)
+
+    return _run(_runner())
