@@ -501,6 +501,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/contacts/map": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Contacts Map */
+        get: operations["contacts_map_api_v1_contacts_map_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/contacts/bulk-update": {
         parameters: {
             query?: never;
@@ -1970,6 +1987,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/map/config": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Map Config */
+        get: operations["map_config_api_v1_map_config_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/errors": {
         parameters: {
             query?: never;
@@ -2205,6 +2239,24 @@ export interface components {
             error?: string | null;
             meta: components["schemas"]["PaginationMeta"];
         };
+        /** ContactMapPin */
+        ContactMapPin: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Full Name */
+            full_name: string | null;
+            /** Avatar Url */
+            avatar_url: string | null;
+            /** Latitude */
+            latitude: number;
+            /** Longitude */
+            longitude: number;
+            /** Relationship Score */
+            relationship_score: number;
+        };
         /** ContactResponse */
         ContactResponse: {
             /** Full Name */
@@ -2303,6 +2355,10 @@ export interface components {
             user_edited_fields: string[];
             /** Bcc Hash */
             bcc_hash?: string | null;
+            /** Latitude */
+            latitude?: number | null;
+            /** Longitude */
+            longitude?: number | null;
             /**
              * Created At
              * Format: date-time
@@ -2648,6 +2704,16 @@ export interface components {
         /** Envelope[LinkedInPushResult] */
         Envelope_LinkedInPushResult_: {
             data?: components["schemas"]["LinkedInPushResult"] | null;
+            /** Error */
+            error?: string | null;
+            /** Meta */
+            meta?: {
+                [key: string]: unknown;
+            } | null;
+        };
+        /** Envelope[MapConfig] */
+        Envelope_MapConfig_: {
+            data?: components["schemas"]["MapConfig"] | null;
             /** Error */
             error?: string | null;
             /** Meta */
@@ -3019,6 +3085,17 @@ export interface components {
                 [key: string]: unknown;
             } | null;
         };
+        /** Envelope[list[ContactMapPin]] */
+        Envelope_list_ContactMapPin__: {
+            /** Data */
+            data?: components["schemas"]["ContactMapPin"][] | null;
+            /** Error */
+            error?: string | null;
+            /** Meta */
+            meta?: {
+                [key: string]: unknown;
+            } | null;
+        };
         /** Envelope[list[DuplicateContactData]] */
         Envelope_list_DuplicateContactData__: {
             /** Data */
@@ -3358,6 +3435,11 @@ export interface components {
              * @default []
              */
             backfill_needed: components["schemas"]["BackfillItem"][];
+        };
+        /** MapConfig */
+        MapConfig: {
+            /** Mapbox Public Token */
+            mapbox_public_token: string;
         };
         /** MarkedData */
         MarkedData: {
@@ -4870,6 +4952,39 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["Envelope"];
+                };
+            };
+        };
+    };
+    contacts_map_api_v1_contacts_map_get: {
+        parameters: {
+            query: {
+                /** @description minLng,minLat,maxLng,maxLat */
+                bbox: string;
+                limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope_list_ContactMapPin__"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
         };
@@ -7401,6 +7516,26 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["Envelope_TwitterBirdStatusData_"];
+                };
+            };
+        };
+    };
+    map_config_api_v1_map_config_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope_MapConfig_"];
                 };
             };
         };
