@@ -13,6 +13,7 @@ import pytest
 
 import app.integrations.bird as bird_mod
 from app.integrations.bird import (
+    BirdResult,
     _extract_tweets,
     _run_bird,
     check_health,
@@ -110,20 +111,22 @@ async def test_check_health_timeout(monkeypatch):
 
 @pytest.mark.asyncio
 async def test_run_bird_cli_not_found(monkeypatch):
-    """When bird is absent, _run_bird returns None and sets last_error."""
+    """When bird is absent, _run_bird returns BirdResult with error and sets last_error."""
     monkeypatch.setattr("shutil.which", lambda _name: None)
     bird_mod.last_error = None
 
-    result = await _run_bird("user-tweets", "@someone")
+    result = await _run_bird("user-tweets", "@someone", auth_token="a", ct0="b")
 
-    assert result is None
+    assert result.data is None
+    assert result.error is not None
+    assert "not found" in result.error
     assert bird_mod.last_error is not None
     assert "not found" in bird_mod.last_error
 
 
 @pytest.mark.asyncio
 async def test_run_bird_success_returns_parsed_json(monkeypatch):
-    """Successful CLI run returns parsed JSON and clears last_error."""
+    """Successful CLI run returns BirdResult with data and clears last_error."""
     monkeypatch.setattr("shutil.which", lambda _name: "/usr/local/bin/bird")
 
     payload = [{"id": "1", "text": "Hello world"}]
@@ -141,15 +144,16 @@ async def test_run_bird_success_returns_parsed_json(monkeypatch):
 
     with patch("asyncio.create_subprocess_exec", new=_fake_exec), \
          patch("asyncio.wait_for", side_effect=_fake_wait_for):
-        result = await _run_bird("user-tweets", "@someone")
+        result = await _run_bird("user-tweets", "@someone", auth_token="a", ct0="b")
 
-    assert result == payload
+    assert result.data == payload
+    assert result.error is None
     assert bird_mod.last_error is None
 
 
 @pytest.mark.asyncio
 async def test_run_bird_nonzero_exit_returns_none(monkeypatch):
-    """Non-zero exit code causes _run_bird to return None and record error."""
+    """Non-zero exit code causes _run_bird to return BirdResult with error."""
     monkeypatch.setattr("shutil.which", lambda _name: "/usr/local/bin/bird")
 
     proc = _make_proc(returncode=1, stdout=b"", stderr=b"auth failed")
@@ -166,16 +170,18 @@ async def test_run_bird_nonzero_exit_returns_none(monkeypatch):
 
     with patch("asyncio.create_subprocess_exec", new=_fake_exec), \
          patch("asyncio.wait_for", side_effect=_fake_wait_for):
-        result = await _run_bird("user-tweets", "@someone")
+        result = await _run_bird("user-tweets", "@someone", auth_token="a", ct0="b")
 
-    assert result is None
+    assert result.data is None
+    assert result.error is not None
+    assert "exit code 1" in result.error
     assert bird_mod.last_error is not None
     assert "exit code 1" in bird_mod.last_error
 
 
 @pytest.mark.asyncio
 async def test_run_bird_invalid_json_returns_none(monkeypatch):
-    """Invalid JSON from stdout causes _run_bird to return None."""
+    """Invalid JSON from stdout causes _run_bird to return BirdResult with error."""
     monkeypatch.setattr("shutil.which", lambda _name: "/usr/local/bin/bird")
 
     proc = _make_proc(returncode=0, stdout=b"not valid json {{{")
@@ -190,29 +196,33 @@ async def test_run_bird_invalid_json_returns_none(monkeypatch):
 
     with patch("asyncio.create_subprocess_exec", new=_fake_exec), \
          patch("asyncio.wait_for", side_effect=_fake_wait_for):
-        result = await _run_bird("user-tweets", "@someone")
+        result = await _run_bird("user-tweets", "@someone", auth_token="a", ct0="b")
 
-    assert result is None
+    assert result.data is None
+    assert result.error is not None
+    assert "invalid JSON" in result.error
     assert bird_mod.last_error is not None
     assert "invalid JSON" in bird_mod.last_error
 
 
 @pytest.mark.asyncio
 async def test_run_bird_timeout(monkeypatch):
-    """Subprocess timeout causes _run_bird to return None with descriptive error."""
+    """Subprocess timeout causes _run_bird to return BirdResult with descriptive error."""
     monkeypatch.setattr("shutil.which", lambda _name: "/usr/local/bin/bird")
 
     with patch("asyncio.wait_for", side_effect=asyncio.TimeoutError):
-        result = await _run_bird("user-tweets", "@someone")
+        result = await _run_bird("user-tweets", "@someone", auth_token="a", ct0="b")
 
-    assert result is None
+    assert result.data is None
+    assert result.error is not None
+    assert "timed out" in result.error
     assert bird_mod.last_error is not None
     assert "timed out" in bird_mod.last_error
 
 
 @pytest.mark.asyncio
 async def test_run_bird_os_error(monkeypatch):
-    """OSError during subprocess spawn returns None with OS error message."""
+    """OSError during subprocess spawn returns BirdResult with OS error message."""
     monkeypatch.setattr("shutil.which", lambda _name: "/usr/local/bin/bird")
 
     with patch("asyncio.create_subprocess_exec", side_effect=OSError("permission denied")):
@@ -223,9 +233,11 @@ async def test_run_bird_os_error(monkeypatch):
             return await coro_or_fut
 
         with patch("asyncio.wait_for", side_effect=_fake_wait_for):
-            result = await _run_bird("user-tweets", "@someone")
+            result = await _run_bird("user-tweets", "@someone", auth_token="a", ct0="b")
 
-    assert result is None
+    assert result.data is None
+    assert result.error is not None
+    assert "OS error" in result.error
     assert bird_mod.last_error is not None
     assert "OS error" in bird_mod.last_error
 
@@ -280,7 +292,7 @@ async def test_fetch_user_tweets_success(monkeypatch):
     tweets = [{"id": "1", "text": "tweet one"}, {"id": "2", "text": "tweet two"}]
 
     async def _fake_run(*args, **kwargs):
-        return tweets
+        return BirdResult(data=tweets, error=None)
 
     with patch.object(bird_mod, "_run_bird", new=_fake_run):
         result = await fetch_user_tweets_bird("elonmusk", count=2)
@@ -290,9 +302,9 @@ async def test_fetch_user_tweets_success(monkeypatch):
 
 @pytest.mark.asyncio
 async def test_fetch_user_tweets_cli_unavailable(monkeypatch):
-    """Returns [] when _run_bird returns None (CLI not found)."""
+    """Returns [] when _run_bird returns BirdResult with None data (CLI not found)."""
     async def _fake_run(*args, **kwargs):
-        return None
+        return BirdResult(data=None, error="bird CLI not found")
 
     with patch.object(bird_mod, "_run_bird", new=_fake_run):
         result = await fetch_user_tweets_bird("elonmusk")
@@ -315,7 +327,7 @@ async def test_fetch_user_profile_empty_handle():
 async def test_fetch_user_profile_cli_unavailable(monkeypatch):
     """Returns empty dict when CLI is absent."""
     async def _fake_run(*args, **kwargs):
-        return None
+        return BirdResult(data=None, error="bird CLI not found")
 
     with patch.object(bird_mod, "_run_bird", new=_fake_run):
         result = await fetch_user_profile_bird("elonmusk")
@@ -351,7 +363,7 @@ async def test_fetch_user_profile_parses_full_response(monkeypatch):
     }
 
     async def _fake_run(*args, **kwargs):
-        return [tweet_with_raw]
+        return BirdResult(data=[tweet_with_raw], error=None)
 
     with patch.object(bird_mod, "_run_bird", new=_fake_run):
         profile = await fetch_user_profile_bird("elonmusk")
@@ -372,7 +384,7 @@ async def test_fetch_user_profile_parses_full_response(monkeypatch):
 async def test_fetch_user_profile_missing_raw(monkeypatch):
     """Tweet without _raw block returns partial/empty profile gracefully."""
     async def _fake_run(*args, **kwargs):
-        return [{"id": "99", "text": "hello"}]
+        return BirdResult(data=[{"id": "99", "text": "hello"}], error=None)
 
     with patch.object(bird_mod, "_run_bird", new=_fake_run):
         profile = await fetch_user_profile_bird("someone")
@@ -381,3 +393,99 @@ async def test_fetch_user_profile_missing_raw(monkeypatch):
     assert isinstance(profile, dict)
 
 
+# ---------------------------------------------------------------------------
+# New in Task 3: BirdResult / per-call cookies / verify_cookies
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_run_bird_passes_cookie_flags(monkeypatch):
+    """_run_bird must include --auth-token and --ct0 in the argv, in that order, before the bird subcommand."""
+    monkeypatch.setattr("shutil.which", lambda _name: "/usr/local/bin/bird")
+    captured: dict = {}
+
+    proc = _make_proc(returncode=0, stdout=b"[]")
+
+    async def _fake_exec(*args, **kwargs):
+        captured["args"] = args
+        return proc
+
+    import app.integrations.bird as _bird
+
+    async def _wait_for(coro, timeout):
+        return await coro
+
+    monkeypatch.setattr("asyncio.create_subprocess_exec", _fake_exec)
+    monkeypatch.setattr("asyncio.wait_for", _wait_for)
+
+    result = await _bird._run_bird(
+        "mentions", "-u", "@alice",
+        auth_token="AUTH123", ct0="CT0XYZ",
+    )
+
+    argv = captured["args"]
+    assert "--auth-token" in argv and "AUTH123" in argv
+    assert "--ct0" in argv and "CT0XYZ" in argv
+    # auth flags should come BEFORE the subcommand
+    assert argv.index("--auth-token") < argv.index("mentions")
+    assert result.data == []
+    assert result.error is None
+
+
+@pytest.mark.asyncio
+async def test_run_bird_returns_error_on_nonzero_exit(monkeypatch):
+    monkeypatch.setattr("shutil.which", lambda _name: "/usr/local/bin/bird")
+    proc = _make_proc(returncode=1, stdout=b"", stderr=b"401 unauthorized")
+
+    async def _fake_exec(*args, **kwargs):
+        return proc
+
+    async def _wait_for(coro, timeout):
+        return await coro
+
+    monkeypatch.setattr("asyncio.create_subprocess_exec", _fake_exec)
+    monkeypatch.setattr("asyncio.wait_for", _wait_for)
+
+    import app.integrations.bird as _bird
+    result = await _bird._run_bird(
+        "mentions", "-u", "@alice", auth_token="a", ct0="b",
+    )
+    assert result.data is None
+    assert "exit code 1" in result.error
+    assert "401 unauthorized" in result.error
+
+
+@pytest.mark.asyncio
+async def test_verify_cookies_true_on_exit_zero(monkeypatch):
+    monkeypatch.setattr("shutil.which", lambda _name: "/usr/local/bin/bird")
+    proc = _make_proc(returncode=0, stdout=b'{"username":"alice"}')
+
+    async def _fake_exec(*args, **kwargs):
+        return proc
+
+    async def _wait_for(coro, timeout):
+        return await coro
+
+    monkeypatch.setattr("asyncio.create_subprocess_exec", _fake_exec)
+    monkeypatch.setattr("asyncio.wait_for", _wait_for)
+
+    import app.integrations.bird as _bird
+    assert await _bird.verify_cookies("a", "b") is True
+
+
+@pytest.mark.asyncio
+async def test_verify_cookies_false_on_exit_nonzero(monkeypatch):
+    monkeypatch.setattr("shutil.which", lambda _name: "/usr/local/bin/bird")
+    proc = _make_proc(returncode=1, stdout=b"", stderr=b"invalid session")
+
+    async def _fake_exec(*args, **kwargs):
+        return proc
+
+    async def _wait_for(coro, timeout):
+        return await coro
+
+    monkeypatch.setattr("asyncio.create_subprocess_exec", _fake_exec)
+    monkeypatch.setattr("asyncio.wait_for", _wait_for)
+
+    import app.integrations.bird as _bird
+    assert await _bird.verify_cookies("a", "b") is False
