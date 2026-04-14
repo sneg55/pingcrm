@@ -210,14 +210,20 @@ async def refresh_contact_avatar(
         try:
             from app.integrations.bird import fetch_user_profile_bird
             from app.integrations.twitter import download_twitter_avatar
+            from app.services.bird_session import get_cookies
             handle = (contact.twitter_handle or "").lstrip("@").strip()
             if handle:
-                profile = await fetch_user_profile_bird(handle)
-                image_url = profile.get("profileImageUrl") or profile.get("profile_image_url")
-                if image_url:
-                    avatar_path = await download_twitter_avatar(image_url, contact.id)
-                    if avatar_path:
-                        new_avatar = avatar_path
+                cookies = get_cookies(current_user)
+                if cookies is not None:
+                    auth_token, ct0 = cookies
+                    profile, _err = await fetch_user_profile_bird(
+                        handle, auth_token=auth_token, ct0=ct0,
+                    )
+                    image_url = profile.get("profileImageUrl") or profile.get("profile_image_url")
+                    if image_url:
+                        avatar_path = await download_twitter_avatar(image_url, contact.id)
+                        if avatar_path:
+                            new_avatar = avatar_path
         except Exception:
             logger.debug("Avatar refresh: Twitter failed for contact %s", contact_id)
 

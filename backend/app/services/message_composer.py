@@ -64,7 +64,7 @@ async def _call_anthropic_with_retry(client: Any, **kwargs) -> Any:
 _TWEET_CACHE_TTL = 12 * 60 * 60  # 12 hours
 
 
-async def _fetch_twitter_context(contact: Contact) -> str:
+async def _fetch_twitter_context(contact: Contact, user: Any = None) -> str:
     """Fetch recent tweets and bio for prompt enrichment. Best-effort.
 
     Uses the ``bird`` CLI (cookie-based auth) to fetch tweets, with Redis
@@ -78,7 +78,7 @@ async def _fetch_twitter_context(contact: Contact) -> str:
         lines.append(f"Bio: {contact.twitter_bio}")
 
     try:
-        tweets = await _get_cached_tweets(contact)
+        tweets = await _get_cached_tweets(contact, user=user)
         if tweets:
             lines.append("Recent tweets:")
             for t in tweets:
@@ -94,7 +94,7 @@ async def _fetch_twitter_context(contact: Contact) -> str:
     return "RECENT TWITTER ACTIVITY:\n" + "\n".join(lines)
 
 
-async def _get_cached_tweets(contact: Contact) -> list[dict[str, Any]]:
+async def _get_cached_tweets(contact: Contact, user: Any = None) -> list[dict[str, Any]]:
     """Return recent tweets, preferring a Redis cache hit.
 
     On cache miss, fetches via the ``bird`` CLI and caches for 12 hours.
@@ -115,7 +115,17 @@ async def _get_cached_tweets(contact: Contact) -> list[dict[str, Any]]:
 
     # --- Fetch fresh tweets via bird CLI ---
     from app.integrations.bird import fetch_user_tweets_bird
-    tweets = await fetch_user_tweets_bird(handle)
+    from app.services.bird_session import get_cookies
+
+    cookies = get_cookies(user) if user is not None else None
+    if cookies is None:
+        tweets = []
+    else:
+        auth_token, ct0 = cookies
+        tweets, _err = await fetch_user_tweets_bird(
+            handle, auth_token=auth_token, ct0=ct0,
+        )
+        # composer is best-effort — _err is logged inside _run_bird already
 
     # --- Cache result (even if empty, to avoid hammering) ---
     if tweets:

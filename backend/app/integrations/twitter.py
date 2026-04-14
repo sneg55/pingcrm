@@ -106,6 +106,8 @@ async def poll_contacts_activity(
         A list of activity dicts, one per contact that has a twitter_handle.
     """
     from app.models.notification import Notification
+    from app.integrations.bird import fetch_user_profile_bird
+    from app.services.bird_session import get_cookies, handle_bird_failure
 
     result = await db.execute(
         select(Contact).where(
@@ -118,10 +120,11 @@ async def poll_contacts_activity(
 
     activity_records: list[dict[str, Any]] = []
 
-    from app.integrations import bird
-    from app.integrations.bird import fetch_user_profile_bird
+    cookies = get_cookies(user)
+    if cookies is None:
+        return activity_records  # user hasn't connected bird cookies
 
-    bird.last_error = None  # reset before batch
+    auth_token, ct0 = cookies
 
     _POLL_CONCURRENCY = 5
     semaphore = asyncio.Semaphore(_POLL_CONCURRENCY)
@@ -132,7 +135,12 @@ async def poll_contacts_activity(
             return None
 
         async with semaphore:
-            profile = await fetch_user_profile_bird(handle)
+            profile, bird_error = await fetch_user_profile_bird(
+                handle, auth_token=auth_token, ct0=ct0,
+            )
+        if bird_error:
+            await handle_bird_failure(user, db, bird_error, operation="bios")
+            return None
 
         current_bio = profile.get("description", "")
 

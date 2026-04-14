@@ -22,7 +22,7 @@ from app.services.bio_refresh import refresh_contact_bios
 
 @pytest_asyncio.fixture(loop_scope="function")
 async def bio_user(db: AsyncSession) -> User:
-    """A user for bio_refresh tests."""
+    """A user for bio_refresh tests, with valid bird cookies."""
     from app.core.auth import hash_password
 
     u = User(
@@ -30,6 +30,9 @@ async def bio_user(db: AsyncSession) -> User:
         email=f"biotest_{uuid.uuid4().hex[:8]}@example.com",
         hashed_password=hash_password("pass"),
         full_name="Bio Test User",
+        twitter_bird_auth_token="test_auth_token",
+        twitter_bird_ct0="test_ct0",
+        twitter_bird_status="connected",
     )
     db.add(u)
     await db.flush()
@@ -75,7 +78,7 @@ async def test_twitter_bio_change_detected(db: AsyncSession, bio_user: User):
     with (
         patch(
             "app.integrations.bird.fetch_user_profile_bird",
-            new=AsyncMock(return_value=fake_profile),
+            new=AsyncMock(return_value=(fake_profile, None)),
         ),
         patch(
             "app.integrations.twitter.download_twitter_avatar",
@@ -104,7 +107,7 @@ async def test_twitter_bio_no_change(db: AsyncSession, bio_user: User):
     with (
         patch(
             "app.integrations.bird.fetch_user_profile_bird",
-            new=AsyncMock(return_value=fake_profile),
+            new=AsyncMock(return_value=(fake_profile, None)),
         ),
         patch(
             "app.integrations.twitter.download_twitter_avatar",
@@ -134,7 +137,7 @@ async def test_notification_created_on_bio_change(db: AsyncSession, bio_user: Us
     with (
         patch(
             "app.integrations.bird.fetch_user_profile_bird",
-            new=AsyncMock(return_value=fake_profile),
+            new=AsyncMock(return_value=(fake_profile, None)),
         ),
         patch(
             "app.integrations.twitter.download_twitter_avatar",
@@ -173,7 +176,7 @@ async def test_no_notification_when_first_bio_set(db: AsyncSession, bio_user: Us
     with (
         patch(
             "app.integrations.bird.fetch_user_profile_bird",
-            new=AsyncMock(return_value=fake_profile),
+            new=AsyncMock(return_value=(fake_profile, None)),
         ),
         patch(
             "app.integrations.twitter.download_twitter_avatar",
@@ -253,7 +256,7 @@ async def test_twitter_location_updated_from_profile(db: AsyncSession, bio_user:
     with (
         patch(
             "app.integrations.bird.fetch_user_profile_bird",
-            new=AsyncMock(return_value=fake_profile),
+            new=AsyncMock(return_value=(fake_profile, None)),
         ),
         patch(
             "app.integrations.twitter.download_twitter_avatar",
@@ -285,7 +288,7 @@ async def test_twitter_avatar_downloaded_when_missing(db: AsyncSession, bio_user
     with (
         patch(
             "app.integrations.bird.fetch_user_profile_bird",
-            new=AsyncMock(return_value=fake_profile),
+            new=AsyncMock(return_value=(fake_profile, None)),
         ),
         patch(
             "app.integrations.twitter.download_twitter_avatar",

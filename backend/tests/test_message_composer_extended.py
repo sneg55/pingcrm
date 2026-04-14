@@ -697,18 +697,21 @@ async def test_get_cached_tweets_returns_from_redis_cache():
 async def test_get_cached_tweets_calls_bird_and_caches():
     """On cache miss, fetches via bird CLI and caches result in Redis."""
     import json
+    from unittest.mock import MagicMock
     from app.services.message_composer import _get_cached_tweets, _TWEET_CACHE_TTL
 
     contact = _make_contact(twitter_handle="janesmith")
+    mock_user = MagicMock()
 
     mock_redis = AsyncMock()
     mock_redis.get = AsyncMock(return_value=None)  # cache miss
     mock_redis.set = AsyncMock()
 
     with patch("app.core.redis.get_redis", return_value=mock_redis), \
-         patch("app.integrations.bird.fetch_user_tweets_bird", new_callable=AsyncMock, return_value=_FAKE_TWEETS):
+         patch("app.services.bird_session.get_cookies", return_value=("tok", "ct0")), \
+         patch("app.integrations.bird.fetch_user_tweets_bird", new_callable=AsyncMock, return_value=(_FAKE_TWEETS, None)):
 
-        result = await _get_cached_tweets(contact)
+        result = await _get_cached_tweets(contact, user=mock_user)
 
     assert result == _FAKE_TWEETS
     mock_redis.set.assert_called_once_with(
@@ -720,33 +723,36 @@ async def test_get_cached_tweets_calls_bird_and_caches():
 async def test_fetch_user_tweets_bird_parses_json():
     """bird CLI stdout is parsed correctly."""
     import json
-    from app.integrations.bird import fetch_user_tweets_bird
+    from app.integrations.bird import fetch_user_tweets_bird, BirdResult
 
     fake_output = json.dumps(_FAKE_TWEETS)
 
-    with patch("app.integrations.bird._run_bird", new_callable=AsyncMock, return_value=_FAKE_TWEETS):
-        result = await fetch_user_tweets_bird("janesmith")
+    with patch("app.integrations.bird._run_bird", new_callable=AsyncMock, return_value=BirdResult(data=_FAKE_TWEETS, error=None)):
+        result, err = await fetch_user_tweets_bird("janesmith", auth_token="x", ct0="y")
 
+    assert err is None
     assert result == _FAKE_TWEETS
 
 
 @pytest.mark.asyncio
 async def test_fetch_user_tweets_bird_handles_dict_response():
     """bird CLI may return { tweets: [...], nextCursor: ... }."""
-    from app.integrations.bird import fetch_user_tweets_bird
+    from app.integrations.bird import fetch_user_tweets_bird, BirdResult
 
-    with patch("app.integrations.bird._run_bird", new_callable=AsyncMock, return_value={"tweets": _FAKE_TWEETS, "nextCursor": "abc"}):
-        result = await fetch_user_tweets_bird("janesmith")
+    with patch("app.integrations.bird._run_bird", new_callable=AsyncMock, return_value=BirdResult(data={"tweets": _FAKE_TWEETS, "nextCursor": "abc"}, error=None)):
+        result, err = await fetch_user_tweets_bird("janesmith", auth_token="x", ct0="y")
 
+    assert err is None
     assert result == _FAKE_TWEETS
 
 
 @pytest.mark.asyncio
 async def test_fetch_user_tweets_bird_not_installed():
     """When bird CLI is not on PATH, returns empty list."""
-    from app.integrations.bird import fetch_user_tweets_bird
+    from app.integrations.bird import fetch_user_tweets_bird, BirdResult
 
-    with patch("app.integrations.bird._run_bird", new_callable=AsyncMock, return_value=None):
-        result = await fetch_user_tweets_bird("janesmith")
+    with patch("app.integrations.bird._run_bird", new_callable=AsyncMock, return_value=BirdResult(data=None, error="bird not found")):
+        result, err = await fetch_user_tweets_bird("janesmith", auth_token="x", ct0="y")
 
     assert result == []
+    assert err is not None

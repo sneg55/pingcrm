@@ -48,10 +48,23 @@ async def refresh_contact_bios(
         try:
             from app.integrations.bird import fetch_user_profile_bird
             from app.integrations.twitter import download_twitter_avatar
+            from app.services.bird_session import get_cookies, handle_bird_failure
 
             handle = (contact.twitter_handle or "").lstrip("@").strip()
             if handle:
-                profile = await fetch_user_profile_bird(handle)
+                cookies = get_cookies(current_user)
+                if cookies is None:
+                    profile = {}
+                else:
+                    auth_token, ct0 = cookies
+                    profile, bird_error = await fetch_user_profile_bird(
+                        handle, auth_token=auth_token, ct0=ct0,
+                    )
+                    if bird_error:
+                        await handle_bird_failure(
+                            current_user, db, bird_error, operation="bio_refresh",
+                        )
+                        profile = {}
                 new_bio = profile.get("description", "")
 
                 # Update location from Twitter profile

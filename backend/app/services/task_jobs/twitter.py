@@ -28,7 +28,6 @@ def poll_twitter_activity(self, user_id: str) -> dict:
         A dict with ``contacts_processed`` and ``events_created`` counts.
     """
     async def _poll(uid: uuid.UUID) -> dict:
-        from app.integrations import bird
         from app.integrations.twitter import poll_contacts_activity
         from app.models.notification import Notification
 
@@ -41,23 +40,9 @@ def poll_twitter_activity(self, user_id: str) -> dict:
 
             activity_records = await poll_contacts_activity(user, db)
 
-            # Surface bird CLI failures to the user (at most once per 24h)
-            bird_error = bird.last_error
-            if bird_error and not activity_records:
-                import redis.asyncio as aioredis
-                from app.core.config import settings as _cfg
-                _r = aioredis.from_url(_cfg.REDIS_URL)
-                dedup_key = f"bird_error_notified:{uid}"
-                if not await _r.exists(dedup_key):
-                    db.add(Notification(
-                        user_id=uid,
-                        notification_type="system",
-                        title="Twitter enrichment unavailable",
-                        body=bird_error[:200],
-                        link="/settings",
-                    ))
-                    await _r.setex(dedup_key, 86400, "1")  # 24h dedup
-                await _r.aclose()
+            # (bird.last_error is deprecated; cookie-expiry now captured on user.twitter_bird_status)
+            if user.twitter_bird_status == "expired":
+                logger.warning("twitter task job: cookies expired for user %s", user.id)
 
             bio_changes = sum(1 for r in activity_records if r.get("bio_changed"))
             await db.commit()
@@ -66,7 +51,6 @@ def poll_twitter_activity(self, user_id: str) -> dict:
             "status": "ok",
             "contacts_processed": len(activity_records),
             "bio_changes": bio_changes,
-            "bird_error": bird_error,
         }
 
     try:

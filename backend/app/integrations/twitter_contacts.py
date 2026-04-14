@@ -16,7 +16,11 @@ _HANDLE_CACHE_TTL = 30 * 24 * 3600  # 30 days
 
 
 async def _cached_resolve_handles(
-    handles: list[str], headers: dict[str, str]
+    handles: list[str],
+    headers: dict[str, str],
+    *,
+    auth_token: str | None = None,
+    ct0: str | None = None,
 ) -> dict[str, str]:
     """Resolve Twitter handles to user IDs via bird CLI.
 
@@ -52,14 +56,14 @@ async def _cached_resolve_handles(
     # Resolve via bird CLI (concurrent batches, no API credits needed)
     from app.integrations.bird import is_available as bird_available, resolve_user_id_bird
 
-    if bird_available():
+    if bird_available() and auth_token and ct0:
         _BIRD_CONCURRENCY = 5
         for i in range(0, len(to_resolve), _BIRD_CONCURRENCY):
             chunk = to_resolve[i : i + _BIRD_CONCURRENCY]
-            resolved = await asyncio.gather(
-                *(resolve_user_id_bird(h) for h in chunk)
+            results = await asyncio.gather(
+                *(resolve_user_id_bird(h, auth_token=auth_token, ct0=ct0) for h in chunk)
             )
-            for handle, twitter_id in zip(chunk, resolved):
+            for handle, (twitter_id, _err) in zip(chunk, results):
                 if twitter_id:
                     result[handle.lower()] = twitter_id
 
@@ -103,7 +107,12 @@ async def _build_twitter_id_to_contact_map(
 
     # Batch resolve only the handles we don't have IDs for
     if needs_resolve:
-        handle_to_id = await _cached_resolve_handles(list(needs_resolve.keys()), headers)
+        from app.services.bird_session import get_cookies
+        cookies = get_cookies(user)
+        auth_token, ct0 = cookies if cookies else (None, None)
+        handle_to_id = await _cached_resolve_handles(
+            list(needs_resolve.keys()), headers, auth_token=auth_token, ct0=ct0,
+        )
         for handle, twitter_id in handle_to_id.items():
             for contact in needs_resolve.get(handle, []):
                 contact.twitter_user_id = twitter_id
