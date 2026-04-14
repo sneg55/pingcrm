@@ -11,6 +11,7 @@ from sqlalchemy import select
 from app.core.database import task_session
 from app.models.contact import Contact
 from app.models.user import User
+from app.services.bird_session import reset_verification_cache
 from app.services.task_jobs.common import _run, logger, notify_sync_failure
 
 
@@ -27,6 +28,8 @@ def poll_twitter_activity(self, user_id: str) -> dict:
     Returns:
         A dict with ``contacts_processed`` and ``events_created`` counts.
     """
+    reset_verification_cache()
+
     async def _poll(uid: uuid.UUID) -> dict:
         from app.integrations.twitter import poll_contacts_activity
         from app.models.notification import Notification
@@ -71,6 +74,8 @@ def poll_twitter_activity(self, user_id: str) -> dict:
 @shared_task(name="app.services.tasks.sync_twitter_dms_for_user", bind=True, max_retries=3, soft_time_limit=900, time_limit=1200)
 def sync_twitter_dms_for_user(self, user_id: str) -> dict:
     """Twitter sync: DMs + mentions + replies + scores + notification."""
+    reset_verification_cache()
+
     async def _sync(uid: uuid.UUID) -> dict:
         from app.integrations.twitter import (
             sync_twitter_dms,
