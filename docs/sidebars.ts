@@ -12,6 +12,7 @@ const sidebars: SidebarsConfig = {
       items: [
         'features/dashboard',
         'features/contacts',
+        'features/map',
         'features/suggestions',
         'features/organizations',
         'features/identity',
