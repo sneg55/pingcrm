@@ -295,6 +295,7 @@ body {
 
 .platform-badge.linkedin { color: var(--linkedin); }
 .platform-badge.meta { color: #1877F2; }
+.platform-badge.twitter { color: #000000; }
 
 .status-chip.disconnected {
   color: var(--text-tertiary);
