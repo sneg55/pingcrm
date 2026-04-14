@@ -3,6 +3,7 @@
 import { GoogleCard } from "./platform-cards/google-card";
 import { TelegramCard } from "./platform-cards/telegram-card";
 import { TwitterCard } from "./platform-cards/twitter-card";
+import { TwitterBirdRow } from "./platform-cards/twitter-bird-row";
 import { LinkedInCard } from "./platform-cards/linkedin-card";
 import { WhatsAppCard } from "./platform-cards/whatsapp-card";
 import { MetaCard } from "./platform-cards/meta-card";
@@ -87,6 +88,8 @@ export function IntegrationsTab({
         handleTwitterConnect={handleTwitterConnect}
         handleTwitterSync={handleTwitterSync}
       />
+
+      <TwitterBirdRow />
 
       <LinkedInCard
         connected={connected}
