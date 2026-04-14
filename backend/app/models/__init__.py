@@ -11,6 +11,9 @@ from app.models.organization import Organization
 from app.models.tag_taxonomy import TagTaxonomy
 from app.models.user import User
 
+# Register SQLAlchemy event listeners (must import to execute @event.listens_for)
+from app.models import listeners  # noqa: F401,E402
+
 __all__ = [
     "User",
     "Contact",
