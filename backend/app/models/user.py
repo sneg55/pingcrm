@@ -27,6 +27,14 @@ class User(Base):
     twitter_token_expires_at: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True), nullable=True
     )
+    twitter_bird_auth_token: Mapped[str | None] = mapped_column(EncryptedString, nullable=True)
+    twitter_bird_ct0: Mapped[str | None] = mapped_column(EncryptedString, nullable=True)
+    twitter_bird_status: Mapped[str] = mapped_column(
+        String(16), nullable=False, default="disconnected", server_default="disconnected"
+    )
+    twitter_bird_checked_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
     telegram_session: Mapped[str | None] = mapped_column(EncryptedString, nullable=True)
     telegram_username: Mapped[str | None] = mapped_column(String, nullable=True)
     telegram_last_synced_at: Mapped[datetime | None] = mapped_column(
