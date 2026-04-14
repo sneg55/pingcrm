@@ -7,13 +7,18 @@ from sqlalchemy import event, inspect
 from sqlalchemy.orm import Session
 
 from app.models.contact import Contact
-from app.services.task_jobs.geocoding import geocode_contact
 
 _log = logging.getLogger(__name__)
 
 
 @event.listens_for(Session, "after_flush")
 def _enqueue_geocode(session: Session, flush_context) -> None:
+    # Lazy import to avoid a circular chain:
+    # app.models.__init__ -> listeners -> task_jobs.geocoding -> models.contact
+    # With the import inside the handler, the module graph is resolved before
+    # the listener ever runs.
+    from app.services.task_jobs.geocoding import geocode_contact
+
     targets: list[Contact] = []
     for obj in session.new:
         if isinstance(obj, Contact) and obj.location:
