@@ -125,6 +125,8 @@ class ContactResponse(ContactBase):
     last_followup_at: datetime | None = None
     user_edited_fields: list[str] = []
     bcc_hash: str | None = None
+    latitude: float | None = None
+    longitude: float | None = None
     created_at: datetime
     updated_at: datetime | None = None
 
@@ -141,6 +143,17 @@ class PaginationMeta(BaseModel):
     page: int
     page_size: int
     total_pages: int
+
+
+class ContactMapPin(BaseModel):
+    id: uuid.UUID
+    full_name: str | None
+    avatar_url: str | None
+    latitude: float
+    longitude: float
+    relationship_score: int
+
+    model_config = {"from_attributes": True}
 
 
 class ContactListResponse(BaseModel):

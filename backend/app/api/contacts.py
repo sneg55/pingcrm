@@ -6,6 +6,7 @@ from app.api.contacts_routes.duplicates import router as duplicates_router
 from app.api.contacts_routes.imports import router as imports_router
 from app.api.contacts_routes.sync import router as sync_router
 from app.api.contacts_routes.messaging import router as messaging_router
+from app.api.contacts_routes.map import router as map_router
 
 router = APIRouter()
 # CRITICAL: Include order matters — static routes BEFORE parameterized
@@ -14,6 +15,7 @@ router.include_router(taxonomy_router)
 router.include_router(listing_router)
 router.include_router(imports_router)
 router.include_router(sync_router)
+router.include_router(map_router)
 router.include_router(crud_router)
 router.include_router(duplicates_router)
 router.include_router(messaging_router)

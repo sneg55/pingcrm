@@ -438,6 +438,11 @@ export function DetailsPanel({
           label="Location"
           value={contact.location}
           onSave={(v) => onSaveField("location", v)}
+          internalHref={
+            contact.latitude != null && contact.longitude != null
+              ? `/map?focus=${contact.id}`
+              : undefined
+          }
         />
         <InlineField
           label="Birthday"

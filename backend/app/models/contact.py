@@ -2,7 +2,7 @@ import hashlib
 import uuid
 from datetime import datetime
 
-from sqlalchemy import DateTime, ForeignKey, Index, Integer, String, Text, func
+from sqlalchemy import DateTime, Float, ForeignKey, Index, Integer, String, Text, func
 from sqlalchemy.dialects.postgresql import ARRAY, JSON, JSONB, UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -51,6 +51,10 @@ class Contact(Base):
     telegram_bio: Mapped[str | None] = mapped_column(Text, nullable=True)
 
     location: Mapped[str | None] = mapped_column(String, nullable=True)
+    latitude: Mapped[float | None] = mapped_column(Float, nullable=True)
+    longitude: Mapped[float | None] = mapped_column(Float, nullable=True)
+    geocoded_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    geocoded_location: Mapped[str | None] = mapped_column(String, nullable=True)
     linkedin_url: Mapped[str | None] = mapped_column(String, nullable=True)
     linkedin_profile_id: Mapped[str | None] = mapped_column(String, nullable=True, index=True)
     linkedin_headline: Mapped[str | None] = mapped_column(String, nullable=True)
