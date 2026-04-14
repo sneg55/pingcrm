@@ -16,9 +16,12 @@ os.environ["DATABASE_URL"] = os.environ.get(
     "postgresql+asyncpg://localhost:5432/pingcrm_test",
 )
 
+from sqlalchemy import text
+
 from app.core.auth import create_access_token, hash_password
 from app.core.database import Base, get_db
 from app.main import fastapi_app as app
+from app.models._triggers import CLEAR_2ND_TIER_FUNCTION, CLEAR_2ND_TIER_TRIGGER
 from app.models.contact import Contact
 from app.models.detected_event import DetectedEvent
 from app.models.follow_up import FollowUpSuggestion
@@ -36,6 +39,8 @@ async def setup_database():
     engine = create_async_engine(os.environ["DATABASE_URL"], echo=False)
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
+        await conn.execute(text(CLEAR_2ND_TIER_FUNCTION))
+        await conn.execute(text(CLEAR_2ND_TIER_TRIGGER))
     yield engine
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.drop_all)
