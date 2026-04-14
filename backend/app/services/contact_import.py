@@ -167,6 +167,8 @@ async def import_linkedin_connections(
     skipped = 0
     errors: list[str] = []
 
+    from app.services.sync_utils import sync_set_field
+
     for i, row in enumerate(reader):
         try:
             first = (row.get("First Name") or "").strip()
@@ -181,15 +183,66 @@ async def import_linkedin_connections(
 
             full_name = f"{first} {last}".strip()
 
-            # Skip if contact with same name and company already exists
-            existing = await db.execute(
-                select(Contact).where(
-                    Contact.user_id == user_id,
-                    Contact.full_name == full_name,
-                    Contact.company == (company or None),
+            # Stable identifiers take precedence over (name, company), which drifts
+            # whenever the contact changes jobs or another sync updates `company`.
+            url_normalized = url.rstrip("/") if url else None
+            slug = None
+            if url_normalized:
+                m = _re.search(r"/in/([^/?]+)", url_normalized)
+                if m:
+                    slug = m.group(1)
+
+            existing_contact: Contact | None = None
+
+            if slug:
+                r = await db.execute(
+                    select(Contact).where(
+                        Contact.user_id == user_id,
+                        Contact.linkedin_profile_id == slug,
+                    )
                 )
-            )
-            if existing.scalars().first():
+                existing_contact = r.scalars().first()
+
+            if not existing_contact and url_normalized:
+                r = await db.execute(
+                    select(Contact).where(
+                        Contact.user_id == user_id,
+                        Contact.linkedin_url == url_normalized,
+                    )
+                )
+                existing_contact = r.scalars().first()
+
+            if not existing_contact and email:
+                r = await db.execute(
+                    select(Contact).where(
+                        Contact.user_id == user_id,
+                        Contact.emails.any(email),
+                    )
+                )
+                existing_contact = r.scalars().first()
+
+            # Last-resort name match — only when the row has no stable identifier.
+            if not existing_contact and not url_normalized and not email:
+                r = await db.execute(
+                    select(Contact).where(
+                        Contact.user_id == user_id,
+                        Contact.full_name == full_name,
+                        Contact.company == (company or None),
+                    )
+                )
+                existing_contact = r.scalars().first()
+
+            if existing_contact:
+                if slug and not existing_contact.linkedin_profile_id:
+                    existing_contact.linkedin_profile_id = slug
+                if url_normalized and not existing_contact.linkedin_url:
+                    existing_contact.linkedin_url = url_normalized
+                if email and email not in (existing_contact.emails or []):
+                    existing_contact.emails = [*(existing_contact.emails or []), email]
+                if company:
+                    sync_set_field(existing_contact, "company", company)
+                if position:
+                    sync_set_field(existing_contact, "title", position)
                 skipped += 1
                 continue
 
@@ -201,7 +254,8 @@ async def import_linkedin_connections(
                 emails=[email] if email else [],
                 company=company or None,
                 title=position or None,
-                linkedin_url=url or None,
+                linkedin_url=url_normalized,
+                linkedin_profile_id=slug,
                 source="linkedin",
             )
             db.add(contact)
