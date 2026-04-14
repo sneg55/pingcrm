@@ -137,6 +137,8 @@ async def test_mention_cursor_saved_after_sync(db: AsyncSession, test_user: User
     """After a successful sync, the newest mention ID is saved to sync_settings."""
     test_user.twitter_username = "testuser"
     test_user.sync_settings = {}
+    test_user.twitter_bird_auth_token = "tok"
+    test_user.twitter_bird_ct0 = "ct0"
     await db.commit()
 
     mock_mentions = [
@@ -149,7 +151,7 @@ async def test_mention_cursor_saved_after_sync(db: AsyncSession, test_user: User
         patch(
             "app.integrations.bird.fetch_mentions_bird",
             new_callable=AsyncMock,
-            return_value=mock_mentions,
+            return_value=(mock_mentions, None),
         ),
         patch(
             "app.integrations.twitter._build_twitter_id_to_contact_map",
@@ -213,6 +215,8 @@ async def test_mention_cursor_not_saved_when_no_mentions(db: AsyncSession, test_
     """When bird returns no mentions, the cursor is not written."""
     test_user.twitter_username = "testuser"
     test_user.sync_settings = {}
+    test_user.twitter_bird_auth_token = "tok"
+    test_user.twitter_bird_ct0 = "ct0"
     await db.commit()
 
     with (
@@ -220,7 +224,7 @@ async def test_mention_cursor_not_saved_when_no_mentions(db: AsyncSession, test_
         patch(
             "app.integrations.bird.fetch_mentions_bird",
             new_callable=AsyncMock,
-            return_value=[],
+            return_value=([], None),
         ),
     ):
         from app.integrations.twitter import sync_twitter_mentions
@@ -240,6 +244,8 @@ async def test_mention_cursor_not_saved_when_no_mentions(db: AsyncSession, test_
 async def test_mentions_sync_makes_no_oauth_calls(db: AsyncSession, test_user: User):
     """sync_twitter_mentions should NOT instantiate httpx.AsyncClient for OAuth API calls."""
     test_user.twitter_username = "testuser"
+    test_user.twitter_bird_auth_token = "tok"
+    test_user.twitter_bird_ct0 = "ct0"
     await db.commit()
 
     with (
@@ -247,7 +253,7 @@ async def test_mentions_sync_makes_no_oauth_calls(db: AsyncSession, test_user: U
         patch(
             "app.integrations.bird.fetch_mentions_bird",
             new_callable=AsyncMock,
-            return_value=[],
+            return_value=([], None),
         ),
         patch("httpx.AsyncClient") as mock_httpx,
     ):
@@ -276,3 +282,115 @@ async def test_replies_sync_makes_no_oauth_calls(db: AsyncSession, test_user: Us
         await sync_twitter_replies(test_user, db)
 
     mock_httpx.assert_not_called()
+
+
+# ---------------------------------------------------------------------------
+# Task 5: per-user cookies + expiry detection for mention sync
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_mention_sync_flips_status_when_whoami_fails(db_session, user_factory, monkeypatch):
+    """When bird mention call fails AND whoami also fails, status flips to expired + 1 notification."""
+    from app.integrations.twitter import sync_twitter_mentions
+    from app.services import bird_session
+
+    user = await user_factory(
+        twitter_username="alice",
+        twitter_user_id="123",
+        twitter_bird_auth_token="bad",
+        twitter_bird_ct0="bad",
+        twitter_bird_status="connected",
+    )
+    bird_session.reset_verification_cache()
+
+    async def _fake_fetch(handle, count=50, *, auth_token, ct0):
+        return [], "bird mentions: exit code 1: unauthorized"
+
+    async def _fake_verify(auth_token, ct0):
+        return False
+
+    monkeypatch.setattr("app.integrations.bird.fetch_mentions_bird", _fake_fetch)
+    monkeypatch.setattr("app.services.bird_session.verify_cookies", _fake_verify)
+    monkeypatch.setattr("app.integrations.bird.is_available", lambda: True)
+
+    await sync_twitter_mentions(user, db_session)
+
+    await db_session.refresh(user)
+    assert user.twitter_bird_status == "expired"
+
+    from app.models.notification import Notification
+    from sqlalchemy import select
+    rows = (await db_session.execute(
+        select(Notification).where(Notification.user_id == user.id)
+    )).scalars().all()
+    assert len(rows) == 1
+    assert rows[0].title == "X cookies expired"
+
+
+@pytest.mark.asyncio
+async def test_mention_sync_transient_failure_leaves_status_connected(
+    db_session, user_factory, monkeypatch,
+):
+    """When bird fails but whoami succeeds → transient, no status change, no notification."""
+    from app.integrations.twitter import sync_twitter_mentions
+    from app.services import bird_session
+
+    user = await user_factory(
+        twitter_username="alice",
+        twitter_user_id="123",
+        twitter_bird_auth_token="good",
+        twitter_bird_ct0="good",
+        twitter_bird_status="connected",
+    )
+    bird_session.reset_verification_cache()
+
+    async def _fake_fetch(handle, count=50, *, auth_token, ct0):
+        return [], "bird mentions: timed out after 20s"
+
+    async def _fake_verify(auth_token, ct0):
+        return True
+
+    monkeypatch.setattr("app.integrations.bird.fetch_mentions_bird", _fake_fetch)
+    monkeypatch.setattr("app.services.bird_session.verify_cookies", _fake_verify)
+    monkeypatch.setattr("app.integrations.bird.is_available", lambda: True)
+
+    await sync_twitter_mentions(user, db_session)
+
+    await db_session.refresh(user)
+    assert user.twitter_bird_status == "connected"
+
+    from app.models.notification import Notification
+    from sqlalchemy import select
+    rows = (await db_session.execute(
+        select(Notification).where(Notification.user_id == user.id)
+    )).scalars().all()
+    assert rows == []
+
+
+@pytest.mark.asyncio
+async def test_mention_sync_skips_when_cookies_missing(
+    db_session, user_factory, monkeypatch,
+):
+    from app.integrations.twitter import sync_twitter_mentions
+
+    user = await user_factory(
+        twitter_username="alice",
+        twitter_user_id="123",
+        twitter_bird_auth_token=None,
+        twitter_bird_ct0=None,
+        twitter_bird_status="disconnected",
+    )
+
+    called = {"n": 0}
+    async def _fake_fetch(*a, **kw):
+        called["n"] += 1
+        return [], None
+
+    monkeypatch.setattr("app.integrations.bird.fetch_mentions_bird", _fake_fetch)
+    monkeypatch.setattr("app.integrations.bird.is_available", lambda: True)
+
+    result = await sync_twitter_mentions(user, db_session)
+
+    assert result == 0
+    assert called["n"] == 0

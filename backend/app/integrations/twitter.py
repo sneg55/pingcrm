@@ -670,7 +670,7 @@ async def sync_twitter_mentions(
     """Sync Twitter mentions via bird CLI. Returns count of new interactions."""
     from app.models.interaction import Interaction
     from app.integrations.bird import fetch_mentions_bird, is_available as bird_available
-    import app.integrations.bird as bird_module
+    from app.services.bird_session import get_cookies, handle_bird_failure
 
     if not user.twitter_username:
         return 0
@@ -692,27 +692,22 @@ async def sync_twitter_mentions(
         await db.flush()
         return 0
 
+    cookies = get_cookies(user)
+    if cookies is None:
+        # User has not connected bird cookies. Skip silently — settings row
+        # already prompts them to connect.
+        return 0
+    auth_token, ct0 = cookies
+
     # Read cursor for delta sync
     sync_settings = user.sync_settings or {}
     mention_cursor = sync_settings.get("twitter_mention_cursor")
 
-    mentions = await fetch_mentions_bird(user.twitter_username, count=50)
-    if not mentions and bird_module.last_error:
-        logger.error(
-            "sync_twitter_mentions: bird CLI failed for user %s: %s",
-            user.id,
-            bird_module.last_error,
-            extra={"provider": "twitter", "operation": "mentions"},
-        )
-        from app.models.notification import Notification
-        db.add(Notification(
-            user_id=user.id,
-            notification_type="system",
-            title="Twitter mention sync failed",
-            body=f"bird CLI error: {bird_module.last_error[:200]}",
-            link="/settings",
-        ))
-        await db.flush()
+    mentions, bird_error = await fetch_mentions_bird(
+        user.twitter_username, count=50, auth_token=auth_token, ct0=ct0,
+    )
+    if bird_error:
+        await handle_bird_failure(user, db, bird_error, operation="mentions")
         return 0
 
     if not mentions:

@@ -157,6 +157,35 @@ async def test_suggestion(db: AsyncSession, test_user: User, test_contact: Conta
 
 
 @pytest_asyncio.fixture(loop_scope="function")
+async def db_session(setup_database):
+    """Alias for db — used by Task 5+ tests."""
+    session_factory = async_sessionmaker(
+        bind=setup_database, class_=AsyncSession, expire_on_commit=False
+    )
+    async with session_factory() as session:
+        yield session
+
+
+@pytest_asyncio.fixture(loop_scope="function")
+def user_factory(db_session: AsyncSession):
+    """Factory fixture for creating users with arbitrary fields."""
+    async def _factory(**kwargs) -> User:
+        defaults = dict(
+            id=uuid.uuid4(),
+            email=f"user_{uuid.uuid4().hex[:8]}@example.com",
+            hashed_password=hash_password("testpass123"),
+            full_name="Test User",
+        )
+        defaults.update(kwargs)
+        user = User(**defaults)
+        db_session.add(user)
+        await db_session.commit()
+        await db_session.refresh(user)
+        return user
+    return _factory
+
+
+@pytest_asyncio.fixture(loop_scope="function")
 async def test_notification(db: AsyncSession, test_user: User) -> Notification:
     """Create and return a test notification."""
     notif = Notification(
