@@ -3,7 +3,7 @@
 import { useCallback, useMemo, useRef, useState } from "react";
 import type { MapRef } from "react-map-gl/mapbox";
 import type { MapMouseEvent } from "mapbox-gl";
-import Map, { Layer, Source } from "react-map-gl/mapbox";
+import Map, { Layer, Marker, Source } from "react-map-gl/mapbox";
 import "mapbox-gl/dist/mapbox-gl.css";
 
 import type { components } from "@/lib/api-types";
@@ -54,6 +54,11 @@ export function ContactMap({
       })),
     }),
     [pins],
+  );
+
+  const hoveredPin = useMemo(
+    () => (hoveredId ? pins.find((p) => p.id === hoveredId) ?? null : null),
+    [hoveredId, pins],
   );
 
   const emitBounds = useCallback(() => {
@@ -159,6 +164,18 @@ export function ContactMap({
           }}
         />
       </Source>
+      {hoveredPin && (
+        <Marker
+          longitude={hoveredPin.longitude}
+          latitude={hoveredPin.latitude}
+          anchor="center"
+        >
+          <div className="relative pointer-events-none">
+            <span className="absolute inset-0 -m-2 rounded-full bg-red-500/30 animate-ping" />
+            <span className="block h-4 w-4 rounded-full bg-red-600 ring-2 ring-white shadow" />
+          </div>
+        </Marker>
+      )}
     </Map>
   );
 }
