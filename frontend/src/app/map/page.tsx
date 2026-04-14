@@ -1,9 +1,9 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { Suspense, useCallback, useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
+import dynamic from "next/dynamic";
 
-import { ContactMap } from "@/components/map/contact-map";
 import { MapSidebar } from "@/components/map/map-sidebar";
 import { ContactPinPopover } from "@/components/map/contact-pin-popover";
 import { useMapConfig } from "@/hooks/use-map-config";
@@ -13,7 +13,12 @@ import type { components } from "@/lib/api-types";
 
 type Pin = components["schemas"]["ContactMapPin"];
 
-export default function MapPage() {
+const ContactMap = dynamic(
+  () => import("@/components/map/contact-map").then((m) => m.ContactMap),
+  { ssr: false, loading: () => <div className="h-full w-full bg-stone-50 dark:bg-stone-900" /> },
+);
+
+function MapPageInner() {
   const { data: config, isLoading: configLoading } = useMapConfig();
   const searchParams = useSearchParams();
   const focusId = searchParams.get("focus");
@@ -79,5 +84,13 @@ export default function MapPage() {
         selectedId={selected?.id ?? null}
       />
     </div>
+  );
+}
+
+export default function MapPage() {
+  return (
+    <Suspense fallback={<div className="p-8">Loading map…</div>}>
+      <MapPageInner />
+    </Suspense>
   );
 }
