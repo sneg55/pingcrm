@@ -5,7 +5,7 @@
 # Usage: bash scripts/check-as-any.sh
 # Update BASELINE when intentionally adding/removing as-any casts.
 
-BASELINE=101  # Updated 2026-04-14: +2 for TwitterBirdRow (cookies endpoints not yet in generated API types)
+BASELINE=99
 
 COUNT=$(grep -rn "as any" src/ --include="*.ts" --include="*.tsx" \
   | grep -v "node_modules" \

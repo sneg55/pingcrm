@@ -19,7 +19,7 @@ export function TwitterBirdRow() {
   const [showInstallModal, setShowInstallModal] = useState(false);
 
   const refresh = useCallback(async () => {
-    const result = await (client as any).GET("/api/v1/integrations/twitter/cookies", {});
+    const result = await client.GET("/api/v1/integrations/twitter/cookies", {});
     if (result.data?.data) {
       setState(result.data.data as BirdStatusData);
     }
@@ -80,7 +80,7 @@ export function TwitterBirdRow() {
   async function onDisconnect() {
     setBusy(true);
     try {
-      await (client as any).DELETE("/api/v1/integrations/twitter/cookies", {});
+      await client.DELETE("/api/v1/integrations/twitter/cookies", {});
       await refresh();
     } finally {
       setBusy(false);
