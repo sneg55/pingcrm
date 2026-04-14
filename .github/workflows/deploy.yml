@@ -126,16 +126,12 @@ jobs:
           # NOTE: a 'deploy' user with Docker access must be set up on the server
           username: deploy
           key: ${{ secrets.SSH_PRIVATE_KEY }}
-          envs: GITHUB_TOKEN,GITHUB_ACTOR,BIRD_AUTH_TOKEN,BIRD_CT0
+          envs: GITHUB_TOKEN,GITHUB_ACTOR
           script: |
             cd /opt/pingcrm
             
             # Login to GHCR
             echo "$GITHUB_TOKEN" | docker login ghcr.io -u "$GITHUB_ACTOR" --password-stdin
-            
-            # Update bird CLI credentials
-            grep -q "^AUTH_TOKEN=" .env && sed -i "s/^AUTH_TOKEN=.*/AUTH_TOKEN=$BIRD_AUTH_TOKEN/" .env || echo "AUTH_TOKEN=$BIRD_AUTH_TOKEN" >> .env
-            grep -q "^CT0=" .env && sed -i "s/^CT0=.*/CT0=$BIRD_CT0/" .env || echo "CT0=$BIRD_CT0" >> .env
             
             # Pull latest images
             docker compose -f docker-compose.prod.yml pull
@@ -148,5 +144,3 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GITHUB_ACTOR: ${{ github.actor }}
-          BIRD_AUTH_TOKEN: ${{ secrets.BIRD_AUTH_TOKEN }}
-          BIRD_CT0: ${{ secrets.BIRD_CT0 }}
