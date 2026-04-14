@@ -63,6 +63,8 @@ services:
       CT0: ${CT0:-}
       WHATSAPP_SIDECAR_URL: http://whatsapp-sidecar:3001
       WHATSAPP_WEBHOOK_SECRET: ${WHATSAPP_WEBHOOK_SECRET}
+      MAPBOX_SECRET_TOKEN: ${MAPBOX_SECRET_TOKEN:-}
+      MAPBOX_PUBLIC_TOKEN: ${MAPBOX_PUBLIC_TOKEN:-}
     volumes:
       - avatars:/app/static/avatars
     depends_on:
@@ -98,6 +100,8 @@ services:
       ENCRYPTION_KEY: ${ENCRYPTION_KEY}
       AUTH_TOKEN: ${AUTH_TOKEN:-}
       CT0: ${CT0:-}
+      MAPBOX_SECRET_TOKEN: ${MAPBOX_SECRET_TOKEN:-}
+      MAPBOX_PUBLIC_TOKEN: ${MAPBOX_PUBLIC_TOKEN:-}
     volumes:
       - avatars:/app/static/avatars
     depends_on:
