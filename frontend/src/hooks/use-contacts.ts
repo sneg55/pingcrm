@@ -19,6 +19,8 @@ export interface Contact {
   telegram_bio: string | null;
   telegram_last_seen_at: string | null;
   location: string | null;
+  latitude?: number | null;
+  longitude?: number | null;
   birthday: string | null;
   linkedin_url: string | null;
   whatsapp_phone: string | null;
