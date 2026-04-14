@@ -11,6 +11,14 @@ PingCRM connects to Twitter (X) using OAuth 2.0 with PKCE for secure access to D
 
 Twitter uses the OAuth 2.0 Authorization Code flow with PKCE (Proof Key for Code Exchange). This flow does not require a client secret to be stored on the server, improving security. After authorization, PingCRM stores a refresh token to maintain access.
 
+## Connecting your X account (bird CLI)
+
+Mention, reply, and bio sync require the PingCRM Chrome extension. OAuth only covers DMs; the rest uses the `bird` CLI with your X browser cookies.
+
+After installing the extension, open **Settings → Connected accounts** and click **Connect X** on the X row. The extension reads your `x.com` cookies in the browser and sends them to PingCRM (encrypted at rest with Fernet).
+
+Cookies refresh automatically whenever X rotates them, as long as you're signed in to x.com in the same browser — the extension listens for cookie changes and re-pushes silently. If you sign out of X or clear cookies, the row shows **X cookies expired** with a **Refresh** button. Click it, sign back in to x.com if prompted, and the connection self-repairs.
+
 ## DM Sync
 
 Direct message conversations are imported as interactions. Each conversation captures participants, message content, and timestamps. Conversations are deduplicated by Twitter conversation ID. Per-contact sync uses the targeted `/dm_conversations/with/:participant_id` endpoint for efficiency.
