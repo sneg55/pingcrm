@@ -184,12 +184,16 @@ async def test_reply_cursor_saved_after_sync(db: AsyncSession, test_user: User):
         {"id": "150", "text": "@friend earlier", "created_at": "2026-03-24T08:00:00Z", "in_reply_to_user_id": "888"},
     ]
 
+    test_user.twitter_bird_auth_token = "tok"
+    test_user.twitter_bird_ct0 = "ct0"
+    await db.commit()
+
     with (
         patch("app.integrations.bird.is_available", return_value=True),
         patch(
             "app.integrations.bird.fetch_user_replies_bird",
             new_callable=AsyncMock,
-            return_value=mock_replies,
+            return_value=(mock_replies, None),
         ),
         patch(
             "app.integrations.twitter._build_twitter_id_to_contact_map",
@@ -267,6 +271,8 @@ async def test_mentions_sync_makes_no_oauth_calls(db: AsyncSession, test_user: U
 async def test_replies_sync_makes_no_oauth_calls(db: AsyncSession, test_user: User):
     """sync_twitter_replies should NOT instantiate httpx.AsyncClient for OAuth API calls."""
     test_user.twitter_username = "testuser"
+    test_user.twitter_bird_auth_token = "tok"
+    test_user.twitter_bird_ct0 = "ct0"
     await db.commit()
 
     with (
@@ -274,7 +280,7 @@ async def test_replies_sync_makes_no_oauth_calls(db: AsyncSession, test_user: Us
         patch(
             "app.integrations.bird.fetch_user_replies_bird",
             new_callable=AsyncMock,
-            return_value=[],
+            return_value=([], None),
         ),
         patch("httpx.AsyncClient") as mock_httpx,
     ):
@@ -394,3 +400,91 @@ async def test_mention_sync_skips_when_cookies_missing(
 
     assert result == 0
     assert called["n"] == 0
+
+
+# ---------------------------------------------------------------------------
+# Task 6: per-user cookies + expiry detection for reply sync
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_reply_sync_skips_when_cookies_missing(db_session, user_factory, monkeypatch):
+    from app.integrations.twitter import sync_twitter_replies
+
+    user = await user_factory(
+        twitter_username="alice",
+        twitter_user_id="123",
+        twitter_bird_auth_token=None,
+        twitter_bird_ct0=None,
+        twitter_bird_status="disconnected",
+    )
+    called = {"n": 0}
+    async def _fake_fetch(*a, **kw):
+        called["n"] += 1
+        return [], None
+    monkeypatch.setattr("app.integrations.bird.fetch_user_replies_bird", _fake_fetch)
+    monkeypatch.setattr("app.integrations.bird.is_available", lambda: True)
+
+    result = await sync_twitter_replies(user, db_session)
+    assert result == 0
+    assert called["n"] == 0
+
+
+@pytest.mark.asyncio
+async def test_reply_sync_transient_failure_leaves_status_connected(
+    db_session, user_factory, monkeypatch,
+):
+    from app.integrations.twitter import sync_twitter_replies
+    from app.services import bird_session
+
+    user = await user_factory(
+        twitter_username="alice",
+        twitter_user_id="123",
+        twitter_bird_auth_token="good",
+        twitter_bird_ct0="good",
+        twitter_bird_status="connected",
+    )
+    bird_session.reset_verification_cache()
+
+    async def _fake_fetch(handle, count=50, *, auth_token, ct0):
+        return [], "bird user-tweets: timed out after 20s"
+    async def _fake_verify(auth_token, ct0):
+        return True
+
+    monkeypatch.setattr("app.integrations.bird.fetch_user_replies_bird", _fake_fetch)
+    monkeypatch.setattr("app.services.bird_session.verify_cookies", _fake_verify)
+    monkeypatch.setattr("app.integrations.bird.is_available", lambda: True)
+
+    await sync_twitter_replies(user, db_session)
+    await db_session.refresh(user)
+    assert user.twitter_bird_status == "connected"
+
+
+@pytest.mark.asyncio
+async def test_reply_sync_flips_status_when_whoami_fails(
+    db_session, user_factory, monkeypatch,
+):
+    from app.integrations.twitter import sync_twitter_replies
+    from app.services import bird_session
+
+    user = await user_factory(
+        twitter_username="alice",
+        twitter_user_id="123",
+        twitter_bird_auth_token="bad",
+        twitter_bird_ct0="bad",
+        twitter_bird_status="connected",
+    )
+    bird_session.reset_verification_cache()
+
+    async def _fake_fetch(handle, count=50, *, auth_token, ct0):
+        return [], "bird user-tweets: exit code 1: unauthorized"
+    async def _fake_verify(auth_token, ct0):
+        return False
+
+    monkeypatch.setattr("app.integrations.bird.fetch_user_replies_bird", _fake_fetch)
+    monkeypatch.setattr("app.services.bird_session.verify_cookies", _fake_verify)
+    monkeypatch.setattr("app.integrations.bird.is_available", lambda: True)
+
+    await sync_twitter_replies(user, db_session)
+    await db_session.refresh(user)
+    assert user.twitter_bird_status == "expired"

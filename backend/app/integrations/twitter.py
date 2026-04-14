@@ -793,7 +793,7 @@ async def sync_twitter_replies(
     """Sync outbound replies to contacts' tweets via bird CLI. Returns count of new interactions."""
     from app.models.interaction import Interaction
     from app.integrations.bird import fetch_user_replies_bird, is_available as bird_available
-    import app.integrations.bird as bird_module
+    from app.services.bird_session import get_cookies, handle_bird_failure
 
     if not user.twitter_username:
         return 0
@@ -815,27 +815,20 @@ async def sync_twitter_replies(
         await db.flush()
         return 0
 
+    cookies = get_cookies(user)
+    if cookies is None:
+        return 0
+    auth_token, ct0 = cookies
+
     # Read cursor for delta sync
     sync_settings = user.sync_settings or {}
     reply_cursor = sync_settings.get("twitter_reply_cursor")
 
-    replies = await fetch_user_replies_bird(user.twitter_username, count=50)
-    if not replies and bird_module.last_error:
-        logger.error(
-            "sync_twitter_replies: bird CLI failed for user %s: %s",
-            user.id,
-            bird_module.last_error,
-            extra={"provider": "twitter", "operation": "replies"},
-        )
-        from app.models.notification import Notification
-        db.add(Notification(
-            user_id=user.id,
-            notification_type="system",
-            title="Twitter reply sync failed",
-            body=f"bird CLI error: {bird_module.last_error[:200]}",
-            link="/settings",
-        ))
-        await db.flush()
+    replies, bird_error = await fetch_user_replies_bird(
+        user.twitter_username, count=50, auth_token=auth_token, ct0=ct0,
+    )
+    if bird_error:
+        await handle_bird_failure(user, db, bird_error, operation="replies")
         return 0
 
     if not replies:
