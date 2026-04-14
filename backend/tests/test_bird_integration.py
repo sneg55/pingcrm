@@ -273,16 +273,17 @@ def test_extract_tweets_none():
 @pytest.mark.asyncio
 async def test_fetch_user_tweets_empty_handle():
     """Empty handle short-circuits before any subprocess call."""
-    result = await fetch_user_tweets_bird("")
+    result, err = await fetch_user_tweets_bird("", auth_token="a", ct0="b")
     assert result == []
+    assert err is None
 
 
 @pytest.mark.asyncio
 async def test_fetch_user_tweets_strips_at_sign(monkeypatch):
     """@ prefix is stripped, then re-added when calling the CLI."""
     monkeypatch.setattr("shutil.which", lambda _name: None)
-    # CLI absent → empty list, but no crash
-    result = await fetch_user_tweets_bird("@elonmusk")
+    # CLI absent → empty list, error string
+    result, err = await fetch_user_tweets_bird("@elonmusk", auth_token="a", ct0="b")
     assert result == []
 
 
@@ -295,21 +296,23 @@ async def test_fetch_user_tweets_success(monkeypatch):
         return BirdResult(data=tweets, error=None)
 
     with patch.object(bird_mod, "_run_bird", new=_fake_run):
-        result = await fetch_user_tweets_bird("elonmusk", count=2)
+        result, err = await fetch_user_tweets_bird("elonmusk", count=2, auth_token="a", ct0="b")
 
     assert result == tweets
+    assert err is None
 
 
 @pytest.mark.asyncio
 async def test_fetch_user_tweets_cli_unavailable(monkeypatch):
-    """Returns [] when _run_bird returns BirdResult with None data (CLI not found)."""
+    """Returns ([], error) when _run_bird returns BirdResult with error."""
     async def _fake_run(*args, **kwargs):
         return BirdResult(data=None, error="bird CLI not found")
 
     with patch.object(bird_mod, "_run_bird", new=_fake_run):
-        result = await fetch_user_tweets_bird("elonmusk")
+        result, err = await fetch_user_tweets_bird("elonmusk", auth_token="a", ct0="b")
 
     assert result == []
+    assert err == "bird CLI not found"
 
 
 # ---------------------------------------------------------------------------
@@ -319,20 +322,22 @@ async def test_fetch_user_tweets_cli_unavailable(monkeypatch):
 
 @pytest.mark.asyncio
 async def test_fetch_user_profile_empty_handle():
-    result = await fetch_user_profile_bird("")
-    assert result == {}
+    profile, err = await fetch_user_profile_bird("", auth_token="a", ct0="b")
+    assert profile == {}
+    assert err is None
 
 
 @pytest.mark.asyncio
 async def test_fetch_user_profile_cli_unavailable(monkeypatch):
-    """Returns empty dict when CLI is absent."""
+    """Returns ({}, error) when CLI is absent."""
     async def _fake_run(*args, **kwargs):
         return BirdResult(data=None, error="bird CLI not found")
 
     with patch.object(bird_mod, "_run_bird", new=_fake_run):
-        result = await fetch_user_profile_bird("elonmusk")
+        profile, err = await fetch_user_profile_bird("elonmusk", auth_token="a", ct0="b")
 
-    assert result == {}
+    assert profile == {}
+    assert err == "bird CLI not found"
 
 
 @pytest.mark.asyncio
@@ -366,8 +371,9 @@ async def test_fetch_user_profile_parses_full_response(monkeypatch):
         return BirdResult(data=[tweet_with_raw], error=None)
 
     with patch.object(bird_mod, "_run_bird", new=_fake_run):
-        profile = await fetch_user_profile_bird("elonmusk")
+        profile, err = await fetch_user_profile_bird("elonmusk", auth_token="a", ct0="b")
 
+    assert err is None
     assert profile["name"] == "Elon Musk"
     assert profile["username"] == "elonmusk"
     assert profile["description"] == "CEO of X, SpaceX"
@@ -387,10 +393,11 @@ async def test_fetch_user_profile_missing_raw(monkeypatch):
         return BirdResult(data=[{"id": "99", "text": "hello"}], error=None)
 
     with patch.object(bird_mod, "_run_bird", new=_fake_run):
-        profile = await fetch_user_profile_bird("someone")
+        profile, err = await fetch_user_profile_bird("someone", auth_token="a", ct0="b")
 
     # No crash; result may be empty or partial
     assert isinstance(profile, dict)
+    assert err is None
 
 
 # ---------------------------------------------------------------------------
@@ -489,3 +496,66 @@ async def test_verify_cookies_false_on_exit_nonzero(monkeypatch):
 
     import app.integrations.bird as _bird
     assert await _bird.verify_cookies("a", "b") is False
+
+
+# ---------------------------------------------------------------------------
+# New in Task 4: (value, error) tuple returns + required cookie kwargs
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_fetch_mentions_returns_list_and_none_error(monkeypatch):
+    monkeypatch.setattr("shutil.which", lambda _name: "/usr/local/bin/bird")
+    proc = _make_proc(returncode=0, stdout=b'[{"id":"1","authorId":"2","text":"hi","createdAt":"2026-01-01"}]')
+
+    async def _fake_exec(*args, **kwargs):
+        return proc
+    async def _wait_for(coro, timeout):
+        return await coro
+    monkeypatch.setattr("asyncio.create_subprocess_exec", _fake_exec)
+    monkeypatch.setattr("asyncio.wait_for", _wait_for)
+
+    import app.integrations.bird as _bird
+    mentions, err = await _bird.fetch_mentions_bird(
+        "alice", count=10, auth_token="a", ct0="b",
+    )
+    assert err is None
+    assert mentions == [{"id": "1", "author_id": "2", "text": "hi", "created_at": "2026-01-01"}]
+
+
+@pytest.mark.asyncio
+async def test_fetch_mentions_returns_error_string_on_failure(monkeypatch):
+    monkeypatch.setattr("shutil.which", lambda _name: "/usr/local/bin/bird")
+    proc = _make_proc(returncode=1, stdout=b"", stderr=b"401")
+
+    async def _fake_exec(*args, **kwargs):
+        return proc
+    async def _wait_for(coro, timeout):
+        return await coro
+    monkeypatch.setattr("asyncio.create_subprocess_exec", _fake_exec)
+    monkeypatch.setattr("asyncio.wait_for", _wait_for)
+
+    import app.integrations.bird as _bird
+    mentions, err = await _bird.fetch_mentions_bird(
+        "alice", count=10, auth_token="a", ct0="b",
+    )
+    assert mentions == []
+    assert err is not None and "exit code 1" in err
+
+
+@pytest.mark.asyncio
+async def test_fetch_user_profile_returns_empty_and_error_on_bird_failure(monkeypatch):
+    monkeypatch.setattr("shutil.which", lambda _name: "/usr/local/bin/bird")
+    proc = _make_proc(returncode=1, stdout=b"", stderr=b"boom")
+
+    async def _fake_exec(*args, **kwargs):
+        return proc
+    async def _wait_for(coro, timeout):
+        return await coro
+    monkeypatch.setattr("asyncio.create_subprocess_exec", _fake_exec)
+    monkeypatch.setattr("asyncio.wait_for", _wait_for)
+
+    import app.integrations.bird as _bird
+    profile, err = await _bird.fetch_user_profile_bird("alice", auth_token="a", ct0="b")
+    assert profile == {}
+    assert err is not None

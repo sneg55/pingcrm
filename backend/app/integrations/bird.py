@@ -160,138 +160,111 @@ def _extract_tweets(data: dict | list | None) -> list[dict[str, Any]]:
 
 
 # ---------------------------------------------------------------------------
-# Public helpers
+# Public helpers — all return (value, error) tuples. error is None on success.
 # ---------------------------------------------------------------------------
-# Transitional shim: read cookies from env vars when not explicitly supplied.
-# Task 4 will thread per-user cookies through all callers and remove these
-# os.getenv() fallbacks.
 
 
-async def resolve_user_id_bird(handle: str) -> str | None:
-    """Resolve a Twitter handle to a numeric user ID via bird CLI.
-
-    Uses ``bird user-tweets --json-full`` to extract ``rest_id`` from the
-    GraphQL user object.  Returns the ID string or None on failure.
-    """
+async def resolve_user_id_bird(
+    handle: str, *, auth_token: str, ct0: str,
+) -> tuple[str | None, str | None]:
+    """Resolve a Twitter handle to a numeric user ID. Returns (id, error)."""
     handle = handle.lstrip("@").strip()
     if not handle:
-        return None
+        return None, None
     result = await _run_bird(
         "user-tweets", f"@{handle}", "-n", "1", "--json-full",
-        auth_token=os.getenv("AUTH_TOKEN", ""),
-        ct0=os.getenv("CT0", ""),
+        auth_token=auth_token, ct0=ct0,
     )
+    if result.error:
+        return None, result.error
     tweets = _extract_tweets(result.data)
     if not tweets:
-        return None
+        return None, None
     user = (
-        tweets[0]
-        .get("_raw", {})
-        .get("core", {})
-        .get("user_results", {})
-        .get("result", {})
+        tweets[0].get("_raw", {}).get("core", {}).get("user_results", {}).get("result", {})
     )
     rest_id = user.get("rest_id")
-    return str(rest_id) if rest_id else None
+    return (str(rest_id) if rest_id else None), None
 
 
-async def fetch_user_tweets_bird(handle: str, count: int = 5) -> list[dict[str, Any]]:
+async def fetch_user_tweets_bird(
+    handle: str, count: int = 5, *, auth_token: str, ct0: str,
+) -> tuple[list[dict[str, Any]], str | None]:
     """Fetch a user's recent tweets via ``bird user-tweets``."""
     handle = handle.lstrip("@").strip()
     if not handle:
-        return []
+        return [], None
     result = await _run_bird(
         "user-tweets", f"@{handle}", "-n", str(count),
-        auth_token=os.getenv("AUTH_TOKEN", ""),
-        ct0=os.getenv("CT0", ""),
+        auth_token=auth_token, ct0=ct0,
     )
-    return _extract_tweets(result.data)
+    if result.error:
+        return [], result.error
+    return _extract_tweets(result.data), None
 
 
-async def fetch_user_profile_bird(handle: str) -> dict[str, Any]:
-    """Fetch a user's profile via ``bird user-tweets --json-full``.
-
-    The ``--json-full`` flag includes the raw GraphQL response which contains
-    the full user profile (bio, avatar, location, metrics) extracted from
-    cookie-based auth — no API credits needed.
-
-    Falls back to ``bird about`` (account origin) + Twitter API if the
-    full response doesn't contain user data.
-
-    Returns a dict with normalised keys:
-    ``description``, ``location``, ``profileImageUrl``, ``profile_image_url``,
-    ``name``, ``username``, ``public_metrics``.
-    """
+async def fetch_user_profile_bird(
+    handle: str, *, auth_token: str, ct0: str,
+) -> tuple[dict[str, Any], str | None]:
+    """Fetch a user's profile via ``bird user-tweets --json-full``."""
     handle = handle.lstrip("@").strip()
     if not handle:
-        return {}
+        return {}, None
 
-    result_obj: dict[str, Any] = {}
-
-    # Primary: bird user-tweets --json-full → extract profile from _raw
     result = await _run_bird(
         "user-tweets", f"@{handle}", "-n", "1", "--json-full",
-        auth_token=os.getenv("AUTH_TOKEN", ""),
-        ct0=os.getenv("CT0", ""),
+        auth_token=auth_token, ct0=ct0,
     )
+    if result.error:
+        return {}, result.error
+
+    out: dict[str, Any] = {}
     tweets = _extract_tweets(result.data)
-    if tweets:
-        raw = tweets[0].get("_raw", {})
-        user = raw.get("core", {}).get("user_results", {}).get("result", {})
-        legacy = user.get("legacy", {})
+    if not tweets:
+        return out, None
 
-        # Bio: user.profile_bio.description
-        bio = user.get("profile_bio", {}).get("description", "")
-        if bio:
-            result_obj["description"] = bio
+    raw = tweets[0].get("_raw", {})
+    user = raw.get("core", {}).get("user_results", {}).get("result", {})
+    legacy = user.get("legacy", {})
 
-        # Location: user.location.location
-        loc = user.get("location", {}).get("location", "")
-        if loc:
-            result_obj["location"] = loc
+    bio = user.get("profile_bio", {}).get("description", "")
+    if bio:
+        out["description"] = bio
+    loc = user.get("location", {}).get("location", "")
+    if loc:
+        out["location"] = loc
+    avatar = user.get("avatar", {}).get("image_url", "")
+    if avatar:
+        avatar_hires = avatar.replace("_normal.", "_400x400.")
+        out["profile_image_url"] = avatar_hires
+        out["profileImageUrl"] = avatar_hires
+    if legacy.get("name"):
+        out["name"] = legacy["name"]
+    if legacy.get("screen_name"):
+        out["username"] = legacy["screen_name"]
+    metrics = {}
+    for k in ("followers_count", "friends_count", "statuses_count", "listed_count"):
+        if legacy.get(k) is not None:
+            metrics[k] = legacy[k]
+    if metrics:
+        out["public_metrics"] = metrics
 
-        # Avatar: user.avatar.image_url
-        avatar = user.get("avatar", {}).get("image_url", "")
-        if avatar:
-            avatar_hires = avatar.replace("_normal.", "_400x400.")
-            result_obj["profile_image_url"] = avatar_hires
-            result_obj["profileImageUrl"] = avatar_hires
-
-        # Name/username from legacy
-        if legacy.get("name"):
-            result_obj["name"] = legacy["name"]
-        if legacy.get("screen_name"):
-            result_obj["username"] = legacy["screen_name"]
-
-        # Metrics from legacy
-        metrics = {}
-        for k in ("followers_count", "friends_count", "statuses_count", "listed_count"):
-            if legacy.get(k) is not None:
-                metrics[k] = legacy[k]
-        if metrics:
-            result_obj["public_metrics"] = metrics
-
-    # Note: bird CLI doesn't have an 'about' command for user profiles
-    # Location must come from the user-tweets result's embedded user data
-
-    return result_obj
+    return out, None
 
 
-async def fetch_mentions_bird(handle: str, count: int = 50) -> list[dict[str, Any]]:
-    """Fetch tweets mentioning a user via ``bird mentions``.
-
-    Returns a normalized list of dicts with keys:
-    ``id``, ``author_id``, ``text``, ``created_at``.
-    Returns empty list on failure (last_error set).
-    """
+async def fetch_mentions_bird(
+    handle: str, count: int = 50, *, auth_token: str, ct0: str,
+) -> tuple[list[dict[str, Any]], str | None]:
+    """Fetch tweets mentioning a user. Returns (normalized list, error)."""
     handle = handle.lstrip("@").strip()
     if not handle:
-        return []
+        return [], None
     result = await _run_bird(
         "mentions", "-u", f"@{handle}", "-n", str(count),
-        auth_token=os.getenv("AUTH_TOKEN", ""),
-        ct0=os.getenv("CT0", ""),
+        auth_token=auth_token, ct0=ct0,
     )
+    if result.error:
+        return [], result.error
     tweets = _extract_tweets(result.data)
     out: list[dict[str, Any]] = []
     for t in tweets:
@@ -304,31 +277,27 @@ async def fetch_mentions_bird(handle: str, count: int = 50) -> list[dict[str, An
             "text": t.get("text") or "",
             "created_at": t.get("createdAt") or t.get("created_at") or "",
         })
-    return out
+    return out, None
 
 
-async def fetch_user_replies_bird(handle: str, count: int = 50) -> list[dict[str, Any]]:
-    """Fetch a user's recent tweets via ``bird user-tweets``, filtered to replies only.
-
-    Returns a normalized list of dicts with keys:
-    ``id``, ``text``, ``created_at``, ``in_reply_to_user_id``.
-    Returns empty list on failure (last_error set).
-    """
+async def fetch_user_replies_bird(
+    handle: str, count: int = 50, *, auth_token: str, ct0: str,
+) -> tuple[list[dict[str, Any]], str | None]:
+    """Fetch a user's recent replies via ``bird user-tweets``, filtered."""
     handle = handle.lstrip("@").strip()
     if not handle:
-        return []
+        return [], None
     result = await _run_bird(
         "user-tweets", f"@{handle}", "-n", str(count),
-        auth_token=os.getenv("AUTH_TOKEN", ""),
-        ct0=os.getenv("CT0", ""),
+        auth_token=auth_token, ct0=ct0,
     )
+    if result.error:
+        return [], result.error
     tweets = _extract_tweets(result.data)
     out: list[dict[str, Any]] = []
     for t in tweets:
-        # Filter to replies only
         in_reply_to = t.get("inReplyToId") or t.get("in_reply_to_user_id")
         if not in_reply_to:
-            # Check referenced_tweets for reply type
             refs = t.get("referenced_tweets") or t.get("referencedTweets") or []
             is_reply = any(r.get("type") == "replied_to" for r in refs)
             if not is_reply:
@@ -342,4 +311,4 @@ async def fetch_user_replies_bird(handle: str, count: int = 50) -> list[dict[str
             "created_at": t.get("createdAt") or t.get("created_at") or "",
             "in_reply_to_user_id": str(in_reply_to) if in_reply_to else "",
         })
-    return out
+    return out, None
