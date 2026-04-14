@@ -348,3 +348,13 @@ class McpKeyRevokedData(BaseModel):
 
 class McpKeyStatusData(BaseModel):
     has_key: bool
+
+
+# ---------------------------------------------------------------------------
+# twitter_cookies.py payload types
+# ---------------------------------------------------------------------------
+
+
+class TwitterBirdStatusData(BaseModel):
+    status: str  # "disconnected" | "connected" | "expired"
+    checked_at: datetime | None = None

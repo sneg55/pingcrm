@@ -1951,6 +1951,25 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/integrations/twitter/cookies": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Status */
+        get: operations["get_status_api_v1_integrations_twitter_cookies_get"];
+        put?: never;
+        /** Push Cookies */
+        post: operations["push_cookies_api_v1_integrations_twitter_cookies_post"];
+        /** Clear Cookies */
+        delete: operations["clear_cookies_api_v1_integrations_twitter_cookies_delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/errors": {
         parameters: {
             query?: never;
@@ -2410,6 +2429,13 @@ export interface components {
             source?: string | null;
             /** Organization Id */
             organization_id?: string | null;
+        };
+        /** CookiesInput */
+        CookiesInput: {
+            /** Auth Token */
+            auth_token: string;
+            /** Ct0 */
+            ct0: string;
         };
         /** CsvImportResult */
         CsvImportResult: {
@@ -2892,6 +2918,16 @@ export interface components {
         /** Envelope[TwitterAuthUrlData] */
         Envelope_TwitterAuthUrlData_: {
             data?: components["schemas"]["TwitterAuthUrlData"] | null;
+            /** Error */
+            error?: string | null;
+            /** Meta */
+            meta?: {
+                [key: string]: unknown;
+            } | null;
+        };
+        /** Envelope[TwitterBirdStatusData] */
+        Envelope_TwitterBirdStatusData_: {
+            data?: components["schemas"]["TwitterBirdStatusData"] | null;
             /** Error */
             error?: string | null;
             /** Meta */
@@ -3890,6 +3926,13 @@ export interface components {
             /** State */
             state: string;
         };
+        /** TwitterBirdStatusData */
+        TwitterBirdStatusData: {
+            /** Status */
+            status: string;
+            /** Checked At */
+            checked_at?: string | null;
+        };
         /** TwitterCallbackRequest */
         TwitterCallbackRequest: {
             /** Code */
@@ -4035,6 +4078,23 @@ export interface components {
             whatsapp_phone?: string | null;
             /** Linkedin Extension Paired At */
             linkedin_extension_paired_at?: string | null;
+            /**
+             * Meta Connected
+             * @default false
+             */
+            meta_connected: boolean;
+            /** Meta Connected Name */
+            meta_connected_name?: string | null;
+            /**
+             * Meta Sync Facebook
+             * @default true
+             */
+            meta_sync_facebook: boolean;
+            /**
+             * Meta Sync Instagram
+             * @default true
+             */
+            meta_sync_instagram: boolean;
             /**
              * Google Accounts
              * @default []
@@ -7268,6 +7328,79 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_status_api_v1_integrations_twitter_cookies_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope_TwitterBirdStatusData_"];
+                };
+            };
+        };
+    };
+    push_cookies_api_v1_integrations_twitter_cookies_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CookiesInput"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope_TwitterBirdStatusData_"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    clear_cookies_api_v1_integrations_twitter_cookies_delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope_TwitterBirdStatusData_"];
                 };
             };
         };
