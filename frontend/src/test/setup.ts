@@ -141,6 +141,8 @@ vi.mock("lucide-react", () => {
     Loader2: makeIcon("Loader2"),
     Wand2: makeIcon("Wand2"),
     RotateCcw: makeIcon("RotateCcw"),
+    // map page
+    MapPinned: makeIcon("MapPinned"),
     // organizations page
     BarChart3: makeIcon("BarChart3"),
     MessageSquare: makeIcon("MessageSquare"),

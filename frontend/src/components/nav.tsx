@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useAuth } from "@/hooks/use-auth";
-import { LayoutDashboard, Users, Building2, Sparkles, GitMerge, Settings, Bell, LogOut, ChevronDown, Archive, Search, Menu, X } from "lucide-react";
+import { Archive, Bell, Building2, ChevronDown, GitMerge, LayoutDashboard, LogOut, MapPinned, Menu, Search, Settings, Sparkles, Users, X } from "lucide-react";
 import { useUnreadCount } from "@/hooks/use-notifications";
 import { useContacts } from "@/hooks/use-contacts";
 import { useTelegramSyncProgress } from "@/hooks/use-telegram-sync";
@@ -30,6 +30,7 @@ const navLinks = [
       { href: "/identity", label: "Resolve Duplicates", icon: GitMerge },
     ],
   },
+  { href: "/map", label: "Map", icon: MapPinned },
   { href: "/organizations", label: "Orgs", icon: Building2 },
   { href: "/settings", label: "Settings", icon: Settings },
 ];
