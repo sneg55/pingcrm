@@ -6,7 +6,10 @@
  * Each module exposes its public functions as globals (no ES module syntax).
  */
 
-importScripts("../lib/storage.js", "voyager-client.js", "sync-utils.js", "sync.js", "pairing.js", "meta-client.js", "meta-sync-utils.js", "sync-facebook.js", "sync-instagram.js");
+importScripts("../lib/storage.js", "voyager-client.js", "sync-utils.js", "sync.js", "pairing.js", "meta-client.js", "meta-sync-utils.js", "sync-facebook.js", "sync-instagram.js", "twitter-sync.js");
+
+// Start Twitter cookie watcher immediately after all modules are loaded.
+initTwitterCookieWatcher();
 
 // ── Suggestion cache (TTL-based, lazy refresh) ─────────────────────────────
 let _suggestionCache = null;
@@ -382,6 +385,20 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
         console.warn("[SW] Meta cookie refresh failed:", e.message);
       }
       sendResponse({ ok: true });
+    })();
+    return true;
+  }
+
+  // CONNECT_TWITTER / REFRESH_TWITTER_COOKIES — push x.com cookies to backend
+  if (message.type === "pingcrm:connect-twitter" || message.type === "pingcrm:refresh-twitter-cookies") {
+    (async () => {
+      try {
+        const result = await connectTwitter();
+        sendResponse(result);
+      } catch (e) {
+        console.warn("[SW] Twitter cookie push error:", e.message);
+        sendResponse({ ok: false, reason: e.message });
+      }
     })();
     return true;
   }
