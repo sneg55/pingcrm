@@ -142,7 +142,7 @@ function _parseParticipants(conversation) {
 /**
  * Convert a message (from GraphQL or Dash) into the shape expected by /linkedin/push.
  */
-function _eventToMessage(msg, conversationUrn, partnerPublicId, partnerName) {
+function _eventToMessage(msg, conversationUrn, partnerPublicId, partnerName, selfUrnSuffix) {
   // GraphQL format: body.text or body.attributedBody.text
   const text = msg?.body?.text
     ?? msg?.body?.attributedBody?.text
@@ -154,13 +154,29 @@ function _eventToMessage(msg, conversationUrn, partnerPublicId, partnerName) {
   const sender = msg?.sender?.memberProfile
     ?? msg?.from?.["com.linkedin.voyager.messaging.MessagingMember"]?.miniProfile
     ?? {};
+
+  // Direction: compare sender identity to the logged-in user (self), not to the
+  // conversation partner. The sender-vs-partner comparison was fragile — when
+  // publicIdentifier was null (ACo-anonymized profiles) or when partner
+  // resolution picked the wrong participant, every message in the thread got
+  // flipped to the opposite side. Matching against the stable self URN
+  // decouples direction from partner identification.
+  const senderUrn = msg?.sender?.hostIdentityUrn ?? sender?.entityUrn ?? null;
+  const senderUrnSuffix = senderUrn ? senderUrn.split(":").pop() : null;
   const senderPublicId = sender?.publicIdentifier ?? null;
+
+  let isFromSelf;
+  if (selfUrnSuffix && senderUrnSuffix) {
+    isFromSelf = senderUrnSuffix === selfUrnSuffix;
+  } else {
+    isFromSelf = !!(senderPublicId && partnerPublicId && senderPublicId !== partnerPublicId);
+  }
 
   return {
     conversation_id: conversationUrn,
     profile_id: partnerPublicId,
     profile_name: partnerName ?? partnerPublicId ?? "",
-    direction: senderPublicId === partnerPublicId ? "inbound" : "outbound",
+    direction: isFromSelf ? "outbound" : "inbound",
     content_preview: String(text).substring(0, 500),
     timestamp: createdAt ? new Date(createdAt).toISOString() : new Date().toISOString(),
     source: "voyager",

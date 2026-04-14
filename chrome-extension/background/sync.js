@@ -293,7 +293,7 @@ async function _processConversations(conversations, liAt, jsessionid, selfUrn, i
         const createdAt = event?.createdAt ?? event?.deliveredAt ?? 0;
         if (!isFirstSync && createdAt <= cutoffMs) continue;
 
-        const msg = _eventToMessage(event, convUrn, partnerPublicId, partnerName);
+        const msg = _eventToMessage(event, convUrn, partnerPublicId, partnerName, selfUrnSuffix);
         allMessages.push(msg);
 
         if (createdAt > newestTimestamp) newestTimestamp = createdAt;
@@ -302,7 +302,7 @@ async function _processConversations(conversations, liAt, jsessionid, selfUrn, i
       // First sync, older conversation: use only the last message preview
       const lastMsg = conv?.lastMessage ?? conv?.lastEvent ?? null;
       if (lastMsg) {
-        const previewMsg = _eventToMessage(lastMsg, convUrn, partnerPublicId, partnerName);
+        const previewMsg = _eventToMessage(lastMsg, convUrn, partnerPublicId, partnerName, selfUrnSuffix);
         allMessages.push(previewMsg);
       }
     }
