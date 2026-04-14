@@ -42,10 +42,17 @@ async function _pushTwitterCookies(cookies) {
     });
     if (!resp.ok) {
       console.warn('[pingcrm] twitter cookie push failed, status:', resp.status);
+      await chrome.storage.local.set({ twitterCookiesValid: false });
       return { ok: false, reason: `http_${resp.status}` };
     }
     const json = await resp.json();
-    return { ok: true, status: json.data?.status };
+    const status = json.data?.status;
+    await chrome.storage.local.set({
+      twitterCookiesValid: status === 'connected',
+      twitterStatus: status || 'disconnected',
+      lastTwitterSync: new Date().toISOString(),
+    });
+    return { ok: true, status };
   } catch (err) {
     console.warn('[pingcrm] twitter cookie push failed', err);
     return { ok: false, reason: 'network' };
@@ -70,6 +77,10 @@ function _scheduleTwitterRefresh() {
 async function connectTwitter() {
   const cookies = await _readTwitterCookies();
   if (!cookies) {
+    await chrome.storage.local.set({
+      twitterCookiesValid: false,
+      twitterStatus: 'disconnected',
+    });
     return { ok: false, reason: 'signed_out' };
   }
   return await _pushTwitterCookies(cookies);

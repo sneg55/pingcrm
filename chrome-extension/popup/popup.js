@@ -50,6 +50,15 @@
   const lastIgSyncEl = document.getElementById("last-ig-sync-el");
   const metaSyncBtn = document.getElementById("meta-sync-btn");
   const metaHint = document.getElementById("meta-hint");
+
+  // ── Twitter/X elements ──
+  const twitterStatusChip = document.getElementById("twitter-status");
+  const twitterStatusText = document.getElementById("twitter-status-text");
+  const twitterCookieStatusEl = document.getElementById("twitter-cookie-status-el");
+  const lastTwitterSyncEl = document.getElementById("last-twitter-sync-el");
+  const twitterSyncBtn = document.getElementById("twitter-sync-btn");
+  const twitterHint = document.getElementById("twitter-hint");
+
   const versionFooter = document.getElementById("version-footer");
 
   // ════════════════════════════════════════════
@@ -78,6 +87,9 @@
       "metaCookiesValid",
       "lastFacebookSync",
       "lastInstagramSync",
+      "twitterCookiesValid",
+      "twitterStatus",
+      "lastTwitterSync",
     ]);
 
     // No token → unpaired view
@@ -160,6 +172,9 @@
     // Meta section
     renderMetaSection(state);
 
+    // Twitter section
+    renderTwitterSection(state);
+
     // Version footer
     const manifest = chrome.runtime.getManifest();
     versionFooter.textContent = `v${manifest.version}`;
@@ -188,6 +203,30 @@
 
     lastIgSyncEl.textContent = state.lastInstagramSync
       ? timeAgo(new Date(state.lastInstagramSync))
+      : "—";
+  }
+
+  function renderTwitterSection(state) {
+    const status = state.twitterStatus || "disconnected";
+    const valid = status === "connected";
+    const expired = status === "expired";
+
+    twitterCookieStatusEl.innerHTML = valid
+      ? '<span class="cookie-dot valid"></span> Valid'
+      : expired
+        ? '<span class="cookie-dot expired"></span> Expired'
+        : '<span class="cookie-dot expired"></span> Not detected';
+
+    twitterStatusChip.className = valid ? "status-chip connected" : "status-chip disconnected";
+    twitterStatusText.textContent = valid ? "Connected" : expired ? "Expired" : "Not connected";
+
+    const label = twitterSyncBtn.querySelector(".btn-label");
+    label.textContent = valid ? "Refresh" : expired ? "Reconnect" : "Connect X";
+
+    twitterHint.classList.toggle("hidden", valid);
+
+    lastTwitterSyncEl.textContent = state.lastTwitterSync
+      ? timeAgo(new Date(state.lastTwitterSync))
       : "—";
   }
 
@@ -361,6 +400,36 @@
       console.error("[PingCRM Popup] META_SYNC_NOW error:", e.message);
     } finally {
       setLoading(metaSyncBtn, false);
+      await render();
+    }
+  });
+
+  // ════════════════════════════════════════════
+  // Connected: Twitter Sync
+  // ════════════════════════════════════════════
+
+  twitterSyncBtn.addEventListener("click", async () => {
+    setLoading(twitterSyncBtn, true);
+
+    try {
+      const response = await chrome.runtime.sendMessage({ type: "pingcrm:connect-twitter" });
+      if (!response || !response.ok) {
+        const label = twitterSyncBtn.querySelector(".btn-label");
+        const original = label.textContent;
+        if (response?.reason === "signed_out") {
+          label.textContent = "Sign in at x.com first";
+          chrome.tabs.create({ url: "https://x.com/login" });
+        } else if (response?.reason === "not_paired") {
+          label.textContent = "Pair extension first";
+        } else {
+          label.textContent = "Connect failed";
+        }
+        setTimeout(() => { label.textContent = original; }, 4000);
+      }
+    } catch (e) {
+      console.error("[PingCRM Popup] twitter connect error:", e.message);
+    } finally {
+      setLoading(twitterSyncBtn, false);
       await render();
     }
   });
