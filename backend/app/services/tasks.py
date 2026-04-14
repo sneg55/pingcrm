@@ -59,6 +59,10 @@ from app.services.task_jobs.whatsapp import (
     sync_whatsapp_backfill,
     check_whatsapp_sessions,
 )
+from app.services.task_jobs.geocoding import (
+    geocode_contact,
+    backfill_all_contacts,
+)
 
 __all__ = [
     # common
@@ -105,4 +109,7 @@ __all__ = [
     # whatsapp
     "sync_whatsapp_backfill",
     "check_whatsapp_sessions",
+    # geocoding
+    "geocode_contact",
+    "backfill_all_contacts",
 ]
