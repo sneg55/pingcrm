@@ -111,22 +111,19 @@ async def test_check_health_timeout(monkeypatch):
 
 @pytest.mark.asyncio
 async def test_run_bird_cli_not_found(monkeypatch):
-    """When bird is absent, _run_bird returns BirdResult with error and sets last_error."""
+    """When bird is absent, _run_bird returns BirdResult with error."""
     monkeypatch.setattr("shutil.which", lambda _name: None)
-    bird_mod.last_error = None
 
     result = await _run_bird("user-tweets", "@someone", auth_token="a", ct0="b")
 
     assert result.data is None
     assert result.error is not None
     assert "not found" in result.error
-    assert bird_mod.last_error is not None
-    assert "not found" in bird_mod.last_error
 
 
 @pytest.mark.asyncio
 async def test_run_bird_success_returns_parsed_json(monkeypatch):
-    """Successful CLI run returns BirdResult with data and clears last_error."""
+    """Successful CLI run returns BirdResult with parsed data and no error."""
     monkeypatch.setattr("shutil.which", lambda _name: "/usr/local/bin/bird")
 
     payload = [{"id": "1", "text": "Hello world"}]
@@ -140,15 +137,12 @@ async def test_run_bird_success_returns_parsed_json(monkeypatch):
             return await coro_or_fut
         return await coro_or_fut
 
-    bird_mod.last_error = "previous error"
-
     with patch("asyncio.create_subprocess_exec", new=_fake_exec), \
          patch("asyncio.wait_for", side_effect=_fake_wait_for):
         result = await _run_bird("user-tweets", "@someone", auth_token="a", ct0="b")
 
     assert result.data == payload
     assert result.error is None
-    assert bird_mod.last_error is None
 
 
 @pytest.mark.asyncio
@@ -166,8 +160,6 @@ async def test_run_bird_nonzero_exit_returns_none(monkeypatch):
             return await coro_or_fut
         return await coro_or_fut
 
-    bird_mod.last_error = None
-
     with patch("asyncio.create_subprocess_exec", new=_fake_exec), \
          patch("asyncio.wait_for", side_effect=_fake_wait_for):
         result = await _run_bird("user-tweets", "@someone", auth_token="a", ct0="b")
@@ -175,8 +167,6 @@ async def test_run_bird_nonzero_exit_returns_none(monkeypatch):
     assert result.data is None
     assert result.error is not None
     assert "exit code 1" in result.error
-    assert bird_mod.last_error is not None
-    assert "exit code 1" in bird_mod.last_error
 
 
 @pytest.mark.asyncio
@@ -201,8 +191,6 @@ async def test_run_bird_invalid_json_returns_none(monkeypatch):
     assert result.data is None
     assert result.error is not None
     assert "invalid JSON" in result.error
-    assert bird_mod.last_error is not None
-    assert "invalid JSON" in bird_mod.last_error
 
 
 @pytest.mark.asyncio
@@ -216,8 +204,6 @@ async def test_run_bird_timeout(monkeypatch):
     assert result.data is None
     assert result.error is not None
     assert "timed out" in result.error
-    assert bird_mod.last_error is not None
-    assert "timed out" in bird_mod.last_error
 
 
 @pytest.mark.asyncio
@@ -238,8 +224,6 @@ async def test_run_bird_os_error(monkeypatch):
     assert result.data is None
     assert result.error is not None
     assert "OS error" in result.error
-    assert bird_mod.last_error is not None
-    assert "OS error" in bird_mod.last_error
 
 
 # ---------------------------------------------------------------------------

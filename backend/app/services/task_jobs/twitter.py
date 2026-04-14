@@ -43,7 +43,6 @@ def poll_twitter_activity(self, user_id: str) -> dict:
 
             activity_records = await poll_contacts_activity(user, db)
 
-            # (bird.last_error is deprecated; cookie-expiry now captured on user.twitter_bird_status)
             if user.twitter_bird_status == "expired":
                 logger.warning("twitter task job: cookies expired for user %s", user.id)
 

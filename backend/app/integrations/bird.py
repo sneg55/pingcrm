@@ -4,16 +4,14 @@ Uses the ``bird`` CLI (@steipete/bird v0.8.0) which authenticates via per-call
 cookies passed as ``--auth-token`` and ``--ct0`` CLI flags, bypassing X API
 rate limits and credit restrictions.
 
-All functions are best-effort and return empty results on failure.
-Failures are tracked via ``last_error`` (deprecated shim, removed in a later
-task) so callers can surface them to users.
+All public helpers return ``(value, error)`` tuples — callers use the error
+string to decide whether to surface a user-facing failure.
 """
 from __future__ import annotations
 
 import asyncio
 import json
 import logging
-import os
 import shutil
 from dataclasses import dataclass
 from typing import Any
@@ -21,11 +19,6 @@ from typing import Any
 logger = logging.getLogger(__name__)
 
 _BIRD_TIMEOUT = 20  # seconds
-
-# Deprecated: module-level error shim kept for backward-compat until Task 7.
-# _run_bird sets / clears this on each call so existing callers that read
-# ``bird.last_error`` keep working.
-last_error: str | None = None
 
 
 @dataclass
@@ -73,15 +66,11 @@ async def _run_bird(*args: str, auth_token: str, ct0: str) -> BirdResult:
     so that concurrent per-user calls remain isolated.
 
     Returns a :class:`BirdResult` with ``data`` on success or ``error`` on
-    failure.  Also writes to the module-global ``last_error`` for backward
-    compatibility with callers that have not yet been migrated (Task 4+).
+    failure.
     """
-    global last_error
-
     bird_path = shutil.which("bird")
     if not bird_path:
         msg = "bird CLI not found on PATH — Twitter enrichment is unavailable"
-        last_error = msg
         logger.warning(msg)
         return BirdResult(data=None, error=msg)
 
@@ -111,29 +100,24 @@ async def _run_bird(*args: str, auth_token: str, ct0: str) -> BirdResult:
         )
     except asyncio.TimeoutError:
         msg = f"bird {args[0]}: timed out after {_BIRD_TIMEOUT}s"
-        last_error = msg
         logger.warning(msg)
         return BirdResult(data=None, error=msg)
     except OSError as exc:
         msg = f"bird {args[0]}: OS error: {exc}"
-        last_error = msg
         logger.warning(msg)
         return BirdResult(data=None, error=msg)
 
     if proc.returncode != 0:
         stderr_text = stderr.decode(errors="replace")[:200]
         msg = f"bird {args[0]}: exit code {proc.returncode}: {stderr_text}"
-        last_error = msg
         logger.warning(msg)
         return BirdResult(data=None, error=msg)
 
     try:
-        last_error = None  # success — clear any previous error
         data = json.loads(stdout.decode())
         return BirdResult(data=data, error=None)
     except (json.JSONDecodeError, ValueError) as exc:
         msg = f"bird {args[0]}: invalid JSON output: {exc}"
-        last_error = msg
         logger.warning(msg)
         return BirdResult(data=None, error=msg)
 
