@@ -211,6 +211,11 @@ createdb pingcrm_test  # PostgreSQL test database (or set TEST_DATABASE_URL)
 cd backend && pytest
 cd frontend && npm install && npm test
 
+# Pre-push hook (.githooks/pre-push) uses backend/.venv's pytest, not system Python.
+# Any new test dependency added to requirements-test.txt must also be installed in
+# the venv or the hook will fail at push time:
+cd backend && source .venv/bin/activate && pip install -r requirements-test.txt
+
 # Celery worker + beat (combined, for development)
 cd backend && celery -A worker.celery_app worker --beat --loglevel=info
 
@@ -244,6 +249,9 @@ See @.claude/rules/exception-handling.md for the full policy (logging requiremen
 - **No debug endpoints in prod** — never add debug/temporary endpoints unless the user explicitly asks
 - **Twitter polling strategy** — cron only polls bios via bird CLI; tweet fetching + LLM classification is on-demand for suggestion generation (not daily)
 - **No silent errors** — when editing any file, also fix existing silent error patterns in that file (bare `except:`, `except: pass`, empty `catch {}`, catch-with-only-console.log). Every exception handler must log with context and either re-raise or return a sentinel. See `.claude/rules/exception-handling.md`. Add `# silent-ok` or `// silent-ok` only for genuinely intentional cases.
+- **Register new Celery tasks in `app/services/tasks.py`** — Celery discovers tasks via `include=["app.services.tasks"]` in `app/core/celery_app.py`. Tasks defined in `app/services/task_jobs/<module>.py` only get registered when re-exported from `tasks.py` (both the import and the `__all__` list). Skipping this causes `.delay()` to silently enqueue to a task name no worker consumes.
+- **Update the route-inventory snapshot when adding contact routes** — `backend/tests/test_route_inventory.py` keeps two lists (`expected` and `must_be_before_param`) that mirror `/api/v1/contacts/*` paths. Adding any sub-router under `contacts_routes/` requires appending to both. The pre-push hook catches this.
+- **Avoid circular imports via `app/models/__init__.py`** — that file eagerly imports every model. A listener in `app/models/` (e.g., `listeners.py`) that imports from `app/services/` risks a partial-init cycle whenever the service transitively imports a model. Lazy-import the service inside the handler body, not at module top level.
 
 ### Platform Integrations
 1. **Gmail** - OAuth + Gmail API for per-message email sync + BCC logging
