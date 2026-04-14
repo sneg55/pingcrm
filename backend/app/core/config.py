@@ -42,6 +42,9 @@ class Settings(BaseSettings):
 
     APOLLO_API_KEY: str = ""
 
+    MAPBOX_SECRET_TOKEN: str = ""  # server-side geocoding
+    MAPBOX_PUBLIC_TOKEN: str = ""  # surfaced to browser for map tiles
+
     ENCRYPTION_KEY: str = ""
 
     CORS_ORIGINS: list[str] = ["http://localhost:3000", "http://127.0.0.1:3000"]
