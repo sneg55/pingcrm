@@ -288,12 +288,12 @@ async def test_import_linkedin_connections_no_preamble(db: AsyncSession, user: U
 
 @pytest.mark.asyncio
 async def test_import_linkedin_connections_duplicate_detection(db: AsyncSession, user: User):
-    """A contact that already exists (same full_name + company) is skipped."""
-    # Pre-create the contact
+    """A contact that already exists (matched by email) is skipped, not re-created."""
     existing = Contact(
         user_id=user.id,
         full_name="Hank Pym",
         company="Pym Tech",
+        emails=["hank@pymtech.com"],
         source="manual",
     )
     db.add(existing)
@@ -302,6 +302,31 @@ async def test_import_linkedin_connections_duplicate_detection(db: AsyncSession,
     csv_bytes = (
         "First Name,Last Name,Email Address,Company,Position,Connected On,URL\n"
         "Hank,Pym,hank@pymtech.com,Pym Tech,Scientist,01 Jan 2020,\n"
+    ).encode()
+
+    result = await import_linkedin_connections(csv_bytes, user.id, db)
+
+    assert result["created"] == 0
+    assert result["skipped"] == 1
+    assert result["errors"] == []
+
+
+@pytest.mark.asyncio
+async def test_import_linkedin_connections_dedup_by_linkedin_slug(db: AsyncSession, user: User):
+    """A contact with a matching linkedin_profile_id is skipped even if company drifts."""
+    existing = Contact(
+        user_id=user.id,
+        full_name="Hank Pym",
+        company="Old Employer",
+        linkedin_profile_id="hank-pym",
+        source="manual",
+    )
+    db.add(existing)
+    await db.flush()
+
+    csv_bytes = (
+        "First Name,Last Name,Email Address,Company,Position,Connected On,URL\n"
+        "Hank,Pym,,Pym Tech,Scientist,01 Jan 2020,https://www.linkedin.com/in/hank-pym/\n"
     ).encode()
 
     result = await import_linkedin_connections(csv_bytes, user.id, db)
