@@ -217,7 +217,7 @@ async def test_compose_followup_success_returns_stripped_text(mock_db: AsyncMock
 
 @pytest.mark.asyncio
 async def test_compose_followup_uses_correct_model_and_token_limit(mock_db: AsyncMock):
-    """Anthropic messages.create must use claude-sonnet-4-20250514 with max_tokens=200."""
+    """Anthropic messages.create must use claude-sonnet-4-6 with max_tokens=200."""
     contact = _make_contact()
     _configure_db(mock_db, contact, [])
 
@@ -236,7 +236,7 @@ async def test_compose_followup_uses_correct_model_and_token_limit(mock_db: Asyn
         )
 
     kwargs = mock_client.messages.create.call_args.kwargs
-    assert kwargs["model"] == "claude-sonnet-4-20250514"
+    assert kwargs["model"] == "claude-sonnet-4-6"
     assert kwargs["max_tokens"] == 200
 
 

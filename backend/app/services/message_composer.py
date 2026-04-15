@@ -322,7 +322,7 @@ Message:"""
     try:
         message = await _call_anthropic_with_retry(
             client,
-            model="claude-sonnet-4-20250514",
+            model="claude-sonnet-4-6",
             max_tokens=200,
             messages=[{"role": "user", "content": prompt}],
         )

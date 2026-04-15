@@ -158,7 +158,7 @@ async def classify_tweet(tweet_text: str, contact_name: str) -> dict[str, Any]:
         client = _get_anthropic_client()
         message = await _call_anthropic_with_retry(
             client,
-            model="claude-sonnet-4-20250514",
+            model="claude-sonnet-4-6",
             max_tokens=256,
             system=_SYSTEM_PROMPT,
             messages=[{"role": "user", "content": prompt}],
@@ -210,7 +210,7 @@ async def classify_bio_change(
         client = _get_anthropic_client()
         message = await _call_anthropic_with_retry(
             client,
-            model="claude-sonnet-4-20250514",
+            model="claude-sonnet-4-6",
             max_tokens=256,
             system=_SYSTEM_PROMPT,
             messages=[{"role": "user", "content": prompt}],
