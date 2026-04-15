@@ -125,11 +125,42 @@ async def _run_bird(*args: str, auth_token: str, ct0: str) -> BirdResult:
 async def verify_cookies(auth_token: str, ct0: str) -> bool:
     """Verify that a set of Twitter cookies is valid by running ``bird whoami``.
 
-    Calls ``bird --auth-token <auth_token> --ct0 <ct0> whoami --json`` and
-    returns ``True`` iff the command exits with code 0.
+    ``bird whoami`` does not support ``--json`` and emits plain text, so we
+    can't go through ``_run_bird`` (which appends ``--json`` and JSON-decodes
+    stdout). Shell out directly and treat exit code 0 as valid.
     """
-    result = await _run_bird("whoami", auth_token=auth_token, ct0=ct0)
-    return result.error is None
+    bird_path = shutil.which("bird")
+    if not bird_path:
+        logger.warning("bird CLI not found on PATH — cannot verify Twitter cookies")
+        return False
+
+    try:
+        proc = await asyncio.wait_for(
+            asyncio.create_subprocess_exec(
+                bird_path,
+                "--auth-token", auth_token,
+                "--ct0", ct0,
+                "whoami",
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE,
+            ),
+            timeout=_BIRD_TIMEOUT,
+        )
+        _, stderr = await asyncio.wait_for(proc.communicate(), timeout=_BIRD_TIMEOUT)
+    except asyncio.TimeoutError:
+        logger.warning("bird whoami: timed out after %ds", _BIRD_TIMEOUT)
+        return False
+    except OSError as exc:
+        logger.warning("bird whoami: OS error: %s", exc)
+        return False
+
+    if proc.returncode != 0:
+        logger.warning(
+            "bird whoami: exit code %d: %s",
+            proc.returncode, stderr.decode(errors="replace")[:200],
+        )
+        return False
+    return True
 
 
 def _extract_tweets(data: dict | list | None) -> list[dict[str, Any]]:

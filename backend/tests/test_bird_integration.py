@@ -447,6 +447,33 @@ async def test_run_bird_returns_error_on_nonzero_exit(monkeypatch):
 
 
 @pytest.mark.asyncio
+async def test_verify_cookies_does_not_pass_json_flag_to_whoami(monkeypatch):
+    """bird 0.8.0's `whoami` subcommand rejects --json ("unknown option").
+
+    verify_cookies must shell out without --json; otherwise every prod call
+    fails with exit 1 and users see status=expired even when logged in.
+    """
+    monkeypatch.setattr("shutil.which", lambda _name: "/usr/local/bin/bird")
+    captured: dict = {}
+    proc = _make_proc(returncode=0, stdout=b"Logged in as @alice\n")
+
+    async def _fake_exec(*args, **kwargs):
+        captured["args"] = args
+        return proc
+
+    async def _wait_for(coro, timeout):
+        return await coro
+
+    monkeypatch.setattr("asyncio.create_subprocess_exec", _fake_exec)
+    monkeypatch.setattr("asyncio.wait_for", _wait_for)
+
+    import app.integrations.bird as _bird
+    assert await _bird.verify_cookies("a", "b") is True
+    assert "--json" not in captured["args"]
+    assert "whoami" in captured["args"]
+
+
+@pytest.mark.asyncio
 async def test_verify_cookies_true_on_exit_zero(monkeypatch):
     monkeypatch.setattr("shutil.which", lambda _name: "/usr/local/bin/bird")
     proc = _make_proc(returncode=0, stdout=b'{"username":"alice"}')
