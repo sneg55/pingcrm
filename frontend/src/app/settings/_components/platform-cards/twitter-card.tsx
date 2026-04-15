@@ -43,11 +43,11 @@ export function TwitterCard({
           </div>
           <div>
             <div className="flex items-center gap-2.5">
-              <h3 className="text-sm font-semibold text-stone-900 dark:text-stone-100">Twitter / X</h3>
+              <h3 className="text-sm font-semibold text-stone-900 dark:text-stone-100">Twitter / X — DMs</h3>
               <ConnectionBadge connected={connected.twitter} />
             </div>
             <p className="text-xs text-stone-500 dark:text-stone-400 mt-0.5">
-              Sync DMs, mentions, and bio changes from X.
+              Sync direct messages via the X API (OAuth).
             </p>
             {connected.twitter && connected.twitter_username && (
               <p className="text-xs text-teal-600 dark:text-teal-400 mt-1">

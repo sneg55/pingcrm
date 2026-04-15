@@ -897,7 +897,7 @@ describe("SettingsPage", () => {
 
     render(<SettingsPage />);
     await waitFor(() => {
-      expect(screen.getByText("Twitter / X")).toBeInTheDocument();
+      expect(screen.getByText("Twitter / X — DMs")).toBeInTheDocument();
     });
 
     // Twitter is the third card - third Connect button
@@ -919,7 +919,7 @@ describe("SettingsPage", () => {
 
     render(<SettingsPage />);
     await waitFor(() => {
-      expect(screen.getByText("Twitter / X")).toBeInTheDocument();
+      expect(screen.getByText("Twitter / X — DMs")).toBeInTheDocument();
     });
 
     const connectButtons = screen.getAllByText("Connect");
@@ -940,7 +940,7 @@ describe("SettingsPage", () => {
 
     render(<SettingsPage />);
     await waitFor(() => {
-      expect(screen.getByText("Twitter / X")).toBeInTheDocument();
+      expect(screen.getByText("Twitter / X — DMs")).toBeInTheDocument();
     });
 
     const connectButtons = screen.getAllByText("Connect");
@@ -955,7 +955,7 @@ describe("SettingsPage", () => {
   it("sync now button is not shown when Twitter not connected", async () => {
     render(<SettingsPage />);
     await waitFor(() => {
-      expect(screen.getByText("Twitter / X")).toBeInTheDocument();
+      expect(screen.getByText("Twitter / X — DMs")).toBeInTheDocument();
     });
     // When not connected, all three platforms show "Connect" buttons, no "Sync now"
     expect(screen.queryByText("Sync now")).not.toBeInTheDocument();
@@ -1041,7 +1041,7 @@ describe("SettingsPage", () => {
       expect(screen.getByText("Gmail")).toBeInTheDocument();
     });
     expect(screen.getByText("Telegram")).toBeInTheDocument();
-    expect(screen.getByText("Twitter / X")).toBeInTheDocument();
+    expect(screen.getByText("Twitter / X — DMs")).toBeInTheDocument();
     // Import-tab content should NOT be visible
     expect(screen.queryByText("CSV Import")).not.toBeInTheDocument();
   });

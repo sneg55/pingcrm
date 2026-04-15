@@ -8,7 +8,7 @@ from fastapi import APIRouter, Depends
 from pydantic import BaseModel, Field
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.auth import get_current_user
+from app.core.auth import get_extension_or_web_user
 from app.core.database import get_db
 from app.integrations.bird import verify_cookies
 from app.models.user import User
@@ -30,7 +30,7 @@ class CookiesInput(BaseModel):
 @router.post("", response_model=Envelope[TwitterBirdStatusData])
 async def push_cookies(
     body: CookiesInput,
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(get_extension_or_web_user),
     db: AsyncSession = Depends(get_db),
 ) -> Envelope[TwitterBirdStatusData]:
     current_user.twitter_bird_auth_token = body.auth_token
@@ -54,7 +54,7 @@ async def push_cookies(
 
 @router.delete("", response_model=Envelope[TwitterBirdStatusData])
 async def clear_cookies(
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(get_extension_or_web_user),
     db: AsyncSession = Depends(get_db),
 ) -> Envelope[TwitterBirdStatusData]:
     current_user.twitter_bird_auth_token = None
@@ -70,7 +70,7 @@ async def clear_cookies(
 
 @router.get("", response_model=Envelope[TwitterBirdStatusData])
 async def get_status(
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(get_extension_or_web_user),
 ) -> Envelope[TwitterBirdStatusData]:
     return {
         "data": TwitterBirdStatusData(

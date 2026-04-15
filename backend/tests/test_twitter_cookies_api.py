@@ -1,9 +1,13 @@
 """TDD tests for POST / DELETE / GET /api/v1/integrations/twitter/cookies."""
 from __future__ import annotations
 
+from datetime import timedelta
+
 import pytest
 from httpx import AsyncClient
+from jose import jwt
 
+from app.core.config import settings
 from app.models.user import User
 
 
@@ -96,6 +100,38 @@ async def test_get_status_returns_current_state(
     )
     assert resp.status_code == 200
     assert resp.json()["data"]["status"] == "expired"
+
+
+@pytest.mark.asyncio
+async def test_post_cookies_accepts_extension_audience_token(
+    client: AsyncClient,
+    test_user: User,
+    monkeypatch,
+):
+    """Extension-issued JWTs (aud: pingcrm-extension) must be accepted —
+    the Chrome extension is the only caller that writes cookies here."""
+    async def _fake_verify(a, c):
+        return True
+
+    monkeypatch.setattr("app.api.twitter_cookies.verify_cookies", _fake_verify)
+
+    from datetime import UTC, datetime
+    token = jwt.encode(
+        {
+            "sub": str(test_user.id),
+            "aud": "pingcrm-extension",
+            "exp": datetime.now(UTC) + timedelta(days=30),
+        },
+        settings.SECRET_KEY,
+        algorithm=settings.ALGORITHM,
+    )
+    resp = await client.post(
+        "/api/v1/integrations/twitter/cookies",
+        json={"auth_token": "abc", "ct0": "xyz"},
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert resp.status_code == 200, resp.text
+    assert resp.json()["data"]["status"] == "connected"
 
 
 @pytest.mark.asyncio
