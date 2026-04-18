@@ -100,14 +100,14 @@ def build_contact_filter_query(
             dt_from = datetime.strptime(date_from, "%Y-%m-%d").replace(tzinfo=UTC)
             base_query = base_query.where(Contact.created_at >= dt_from)
         except ValueError:
-            pass
+            pass  # silent-ok: invalid date string — filter simply not applied
 
     if date_to:
         try:
             dt_to = datetime.strptime(date_to, "%Y-%m-%d").replace(tzinfo=UTC) + timedelta(days=1)
             base_query = base_query.where(Contact.created_at < dt_to)
         except ValueError:
-            pass
+            pass  # silent-ok: invalid date string — filter simply not applied
 
     if has_interactions is True:
         base_query = base_query.where(Contact.last_interaction_at.isnot(None))
@@ -163,7 +163,11 @@ async def list_contacts_paginated(
     include_archived: bool = False,
     sort_by: str = "score",
 ) -> ContactListResponse:
-    """Execute a filtered, paginated contact query and return the response model."""
+    """Execute a filtered, paginated contact query and return the response model.
+
+    Archive handling (``archived_only`` / ``include_archived``) is forwarded to
+    :func:`build_contact_filter_query`; see that function for the precedence rules.
+    """
     base_query = build_contact_filter_query(
         user_id,
         search=search,
