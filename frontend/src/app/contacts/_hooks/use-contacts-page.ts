@@ -23,6 +23,7 @@ export function useContactsPage() {
   const sourceFilter = searchParams.get("source") ?? "";
   const dateFrom = searchParams.get("date_from") ?? "";
   const dateTo = searchParams.get("date_to") ?? "";
+  const includeArchived = searchParams.get("include_archived") === "1";
   const sortParam = searchParams.get("sort") ?? "score";
   const showFilters = searchParams.get("filters") === "1";
 
@@ -68,12 +69,13 @@ export function useContactsPage() {
     source: sourceFilter || undefined,
     date_from: dateFrom || undefined,
     date_to: dateTo || undefined,
+    include_archived: includeArchived || undefined,
     sort: sortParam,
   });
 
   const contacts = data?.data ?? [];
   const meta = data?.meta;
-  const activeFilterCount = [tagFilter, sourceFilter, dateFrom, dateTo, scoreFilter, priorityFilter].filter(Boolean).length;
+  const activeFilterCount = [tagFilter, sourceFilter, dateFrom, dateTo, scoreFilter, priorityFilter, includeArchived].filter(Boolean).length;
   const stats = statsQuery.data?.total != null ? statsQuery.data : null;
   const activeRelationships = stats ? (stats.strong ?? 0) + (stats.active ?? 0) : 0;
 
@@ -156,6 +158,7 @@ export function useContactsPage() {
             priority: priorityFilter || undefined,
             date_from: dateFrom || undefined,
             date_to: dateTo || undefined,
+            include_archived: includeArchived || undefined,
           },
         },
       });
@@ -182,6 +185,7 @@ export function useContactsPage() {
     sourceFilter,
     dateFrom,
     dateTo,
+    includeArchived,
     sortParam,
     showFilters,
     setParams,
