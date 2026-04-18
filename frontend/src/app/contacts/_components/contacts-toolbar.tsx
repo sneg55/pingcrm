@@ -52,6 +52,7 @@ export interface ContactsToolbarProps {
   sourceFilter: string;
   dateFrom: string;
   dateTo: string;
+  includeArchived: boolean;
   showFilters: boolean;
   activeFilterCount: number;
   // Page (needed for filters toggle)
@@ -78,6 +79,7 @@ export function ContactsToolbar({
   sourceFilter,
   dateFrom,
   dateTo,
+  includeArchived,
   showFilters,
   activeFilterCount,
   page,
@@ -273,6 +275,25 @@ export function ContactsToolbar({
                 </div>
               </div>
             </div>
+          </div>
+
+          <div className="border-t border-stone-100 dark:border-stone-800 mt-4 pt-3 flex items-center justify-between">
+            <label className="flex items-center gap-2 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={includeArchived}
+                onChange={(e) =>
+                  setParams({ include_archived: e.target.checked ? "1" : undefined })
+                }
+                className="w-4 h-4 rounded border-stone-300 dark:border-stone-600 text-teal-600"
+              />
+              <span className="text-xs font-medium text-stone-700 dark:text-stone-300">
+                Include archived contacts
+              </span>
+            </label>
+            <span className="text-[11px] text-stone-400 dark:text-stone-500">
+              Search across active and archived contacts together
+            </span>
           </div>
 
           <div className="flex items-center justify-between mt-4 pt-3 border-t border-stone-100 dark:border-stone-800">

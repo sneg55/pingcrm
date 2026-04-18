@@ -362,4 +362,50 @@ describe("ContactsPage", () => {
       );
     });
   });
+
+  describe("Include Archive toggle", () => {
+    it("renders the include-archived toggle when filters panel is open", () => {
+      currentParams = new URLSearchParams("filters=1");
+      mockUseContacts.mockReturnValue({ data: undefined, isLoading: false, isError: false });
+      renderPage();
+      expect(screen.getByText("Include archived contacts")).toBeInTheDocument();
+    });
+
+    it("toggles include_archived URL param on checkbox click", () => {
+      currentParams = new URLSearchParams("filters=1");
+      mockUseContacts.mockReturnValue({ data: undefined, isLoading: false, isError: false });
+      renderPage();
+      const label = screen.getByText("Include archived contacts");
+      const checkbox = label.closest("label")!.querySelector("input[type='checkbox']")!;
+      fireEvent.click(checkbox);
+      expect(mockReplace).toHaveBeenCalledWith(
+        expect.stringContaining("include_archived=1"),
+        expect.anything()
+      );
+    });
+
+    it("counts include_archived toward activeFilterCount badge", () => {
+      currentParams = new URLSearchParams("include_archived=1");
+      mockUseContacts.mockReturnValue({ data: undefined, isLoading: false, isError: false });
+      renderPage();
+      expect(screen.getByText("1")).toBeInTheDocument();
+    });
+
+    it("renders Archived chip on rows with priority_level=archived", () => {
+      currentParams = new URLSearchParams("include_archived=1");
+      mockUseContacts.mockReturnValue({
+        data: {
+          data: [
+            makeContact({ id: "a1", full_name: "Active Guy", priority_level: "medium" }),
+            makeContact({ id: "a2", full_name: "Archived Guy", priority_level: "archived" }),
+          ],
+          meta: { total: 2, page: 1, page_size: 20, total_pages: 1 },
+        },
+        isLoading: false,
+        isError: false,
+      });
+      renderPage();
+      expect(screen.getAllByText("Archived").length).toBeGreaterThanOrEqual(1);
+    });
+  });
 });

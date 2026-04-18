@@ -103,6 +103,18 @@ function DaysAgo({ dateStr }: { dateStr?: string | null }) {
 }
 
 // ---------------------------------------------------------------------------
+// Archived chip
+// ---------------------------------------------------------------------------
+
+function ArchivedChip() {
+  return (
+    <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[10px] font-medium bg-stone-100 dark:bg-stone-800 text-stone-500 dark:text-stone-400 border border-stone-200 dark:border-stone-700">
+      Archived
+    </span>
+  );
+}
+
+// ---------------------------------------------------------------------------
 // Bulk Action Bar
 // ---------------------------------------------------------------------------
 
@@ -401,6 +413,7 @@ function ContactsPageContent() {
     sourceFilter,
     dateFrom,
     dateTo,
+    includeArchived,
     sortParam,
     showFilters,
     setParams,
@@ -461,6 +474,7 @@ function ContactsPageContent() {
           sourceFilter={sourceFilter}
           dateFrom={dateFrom}
           dateTo={dateTo}
+          includeArchived={includeArchived}
           showFilters={showFilters}
           activeFilterCount={activeFilterCount}
           page={page}
@@ -594,15 +608,22 @@ function ContactsPageContent() {
                   <div className="flex items-center gap-3 min-w-0">
                     <ContactAvatar avatarUrl={contact.avatar_url} name={name} size="sm" />
                     <div className="min-w-0">
-                      <Link
-                        href={`/contacts/${contact.id}`}
-                        className="text-sm font-medium text-stone-900 dark:text-stone-100 hover:text-teal-700 dark:hover:text-teal-400 truncate block"
-                      >
-                        {name}
-                      </Link>
+                      <div className="flex items-center gap-1.5 min-w-0">
+                        <Link
+                          href={`/contacts/${contact.id}`}
+                          className={`text-sm font-medium text-stone-900 dark:text-stone-100 hover:text-teal-700 dark:hover:text-teal-400 truncate block ${
+                            contact.priority_level === "archived" ? "opacity-60" : ""
+                          }`}
+                        >
+                          {name}
+                        </Link>
+                        {contact.priority_level === "archived" && <ArchivedChip />}
+                      </div>
                       <div className="flex items-center gap-1.5">
                         {primaryEmail && (
-                          <p className="text-xs text-stone-400 dark:text-stone-500 truncate">{primaryEmail}</p>
+                          <p className={`text-xs text-stone-400 dark:text-stone-500 truncate ${
+                            contact.priority_level === "archived" ? "opacity-60" : ""
+                          }`}>{primaryEmail}</p>
                         )}
                         <PlatformIcons
                           emails={contact.emails}
@@ -614,7 +635,9 @@ function ContactsPageContent() {
                   </div>
 
                   {/* Company */}
-                  <div className="text-xs text-stone-600 dark:text-stone-300 truncate flex items-center gap-1.5">
+                  <div className={`text-xs text-stone-600 dark:text-stone-300 truncate flex items-center gap-1.5 ${
+                    contact.priority_level === "archived" ? "opacity-60" : ""
+                  }`}>
                     {contact.company ? (
                       <>
                         <CompanyFavicon emails={contact.emails} size="w-3.5 h-3.5" className="shrink-0" />
@@ -663,12 +686,17 @@ function ContactsPageContent() {
                     <ContactAvatar avatarUrl={contact.avatar_url} name={name} size="sm" />
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2">
-                        <p className="text-sm font-medium text-stone-900 dark:text-stone-100 truncate">
+                        <p className={`text-sm font-medium text-stone-900 dark:text-stone-100 truncate ${
+                          contact.priority_level === "archived" ? "opacity-60" : ""
+                        }`}>
                           {name}
                         </p>
+                        {contact.priority_level === "archived" && <ArchivedChip />}
                         <ScoreNumberBadge score={contact.relationship_score} />
                       </div>
-                      <p className="text-xs text-stone-500 dark:text-stone-400 truncate">
+                      <p className={`text-xs text-stone-500 dark:text-stone-400 truncate ${
+                        contact.priority_level === "archived" ? "opacity-60" : ""
+                      }`}>
                         {[contact.title, contact.company].filter(Boolean).join(" at ") || contact.emails?.[0] || ""}
                       </p>
                     </div>
