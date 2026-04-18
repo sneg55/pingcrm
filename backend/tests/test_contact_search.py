@@ -360,3 +360,52 @@ async def test_filter_invalid_date_format_ignored(db: AsyncSession, test_user: U
     results = await _run_query(db, test_user.id, date_from="not-a-date", date_to="also-bad")
 
     assert len(results) == 1
+
+
+@pytest.mark.asyncio
+async def test_include_archived_returns_both(db: AsyncSession, test_user: User):
+    active = _make_contact(test_user.id, full_name="Active Person", priority_level="medium")
+    archived = _make_contact(test_user.id, full_name="Archived Person", priority_level="archived")
+    db.add_all([active, archived])
+    await db.commit()
+
+    results = await _run_query(db, test_user.id, include_archived=True)
+
+    names = {c.full_name for c in results}
+    assert "Active Person" in names
+    assert "Archived Person" in names
+
+
+@pytest.mark.asyncio
+async def test_archived_only_wins_over_include_archived(db: AsyncSession, test_user: User):
+    active = _make_contact(test_user.id, full_name="Active Person", priority_level="medium")
+    archived = _make_contact(test_user.id, full_name="Archived Person", priority_level="archived")
+    db.add_all([active, archived])
+    await db.commit()
+
+    results = await _run_query(
+        db, test_user.id, archived_only=True, include_archived=True
+    )
+
+    assert len(results) == 1
+    assert results[0].full_name == "Archived Person"
+
+
+@pytest.mark.asyncio
+async def test_include_archived_with_search_matches_both(db: AsyncSession, test_user: User):
+    active = _make_contact(
+        test_user.id, full_name="Jane Active", priority_level="medium"
+    )
+    archived = _make_contact(
+        test_user.id, full_name="Jane Archived", priority_level="archived"
+    )
+    other = _make_contact(
+        test_user.id, full_name="Bob Active", priority_level="medium"
+    )
+    db.add_all([active, archived, other])
+    await db.commit()
+
+    results = await _run_query(db, test_user.id, search="Jane", include_archived=True)
+
+    names = {c.full_name for c in results}
+    assert names == {"Jane Active", "Jane Archived"}

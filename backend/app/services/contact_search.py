@@ -26,6 +26,7 @@ def build_contact_filter_query(
     interaction_days: int | None = None,
     has_birthday: bool | None = None,
     archived_only: bool = False,
+    include_archived: bool = False,
 ) -> object:
     """Build a SQLAlchemy select query for contacts with optional filters.
 
@@ -39,6 +40,13 @@ def build_contact_filter_query(
         date_to: ISO date string (YYYY-MM-DD) — include contacts created on/before.
         has_interactions: Filter to contacts with (True) or without (False) any interactions.
         interaction_days: Filter to contacts with last_interaction_at within N days.
+        archived_only: If True, return only archived contacts (wins over include_archived).
+        include_archived: If True, return both active and archived contacts.
+
+    Archive precedence:
+        archived_only=True     -> only archived contacts (wins over include_archived)
+        include_archived=True  -> both active and archived (no priority_level filter)
+        neither                -> active only (excludes priority_level='archived')
 
     Returns:
         A SQLAlchemy select statement (not yet executed).
@@ -46,6 +54,8 @@ def build_contact_filter_query(
     base_query = select(Contact).where(Contact.user_id == user_id)
     if archived_only:
         base_query = base_query.where(Contact.priority_level == "archived")
+    elif include_archived:
+        pass  # no priority_level filter — returns both
     else:
         base_query = base_query.where(Contact.priority_level != "archived")
 
@@ -150,6 +160,7 @@ async def list_contacts_paginated(
     interaction_days: int | None = None,
     has_birthday: bool | None = None,
     archived_only: bool = False,
+    include_archived: bool = False,
     sort_by: str = "score",
 ) -> ContactListResponse:
     """Execute a filtered, paginated contact query and return the response model."""
@@ -166,6 +177,7 @@ async def list_contacts_paginated(
         interaction_days=interaction_days,
         has_birthday=has_birthday,
         archived_only=archived_only,
+        include_archived=include_archived,
     )
 
     count_result = await db.execute(select(func.count()).select_from(base_query.subquery()))
