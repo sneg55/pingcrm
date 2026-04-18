@@ -405,7 +405,8 @@ describe("ContactsPage", () => {
         isError: false,
       });
       renderPage();
-      expect(screen.getAllByText("Archived").length).toBeGreaterThanOrEqual(1);
+      // One occurrence per layout (desktop + mobile). If the chip accidentally renders on the active row too, this catches it.
+      expect(screen.getAllByText("Archived")).toHaveLength(2);
     });
   });
 });

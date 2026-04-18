@@ -291,7 +291,7 @@ export function ContactsToolbar({
                 Include archived contacts
               </span>
             </label>
-            <span className="text-[11px] text-stone-400 dark:text-stone-500">
+            <span className="hidden sm:inline text-[11px] text-stone-400 dark:text-stone-500">
               Search across active and archived contacts together
             </span>
           </div>
