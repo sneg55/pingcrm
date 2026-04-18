@@ -40,6 +40,7 @@ async def list_contacts(
     has_birthday: bool | None = Query(None, description="Filter to contacts with (true) or without (false) a birthday set"),
     priority: str | None = Query(None, description="Filter by priority level: high, medium, low"),
     archived_only: bool = Query(False, description="Return only archived contacts"),
+    include_archived: bool = Query(False, description="Include archived contacts alongside active (ignored if archived_only=true)"),
     sort: str = Query("score", pattern="^(score|created|interaction|birthday|company|activity|overdue|priority)$"),
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
@@ -62,6 +63,7 @@ async def list_contacts(
         interaction_days=interaction_days,
         has_birthday=has_birthday,
         archived_only=archived_only,
+        include_archived=include_archived,
         sort_by=sort,
     )
 
@@ -79,6 +81,7 @@ async def list_contact_ids(
     interaction_days: int | None = Query(None, ge=1, le=365),
     has_birthday: bool | None = Query(None),
     archived_only: bool = Query(False),
+    include_archived: bool = Query(False),
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ) -> Envelope[list[str]]:
@@ -98,6 +101,7 @@ async def list_contact_ids(
         interaction_days=interaction_days,
         has_birthday=has_birthday,
         archived_only=archived_only,
+        include_archived=include_archived,
     )
     # Select only IDs for efficiency
     id_query = query.with_only_columns(Contact.id)

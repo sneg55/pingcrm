@@ -4374,6 +4374,8 @@ export interface operations {
                 priority?: string | null;
                 /** @description Return only archived contacts */
                 archived_only?: boolean;
+                /** @description Include archived contacts alongside active (ignored if archived_only=true) */
+                include_archived?: boolean;
                 sort?: string;
             };
             header?: never;
@@ -4449,6 +4451,7 @@ export interface operations {
                 interaction_days?: number | null;
                 has_birthday?: boolean | null;
                 archived_only?: boolean;
+                include_archived?: boolean;
             };
             header?: never;
             path?: never;

@@ -425,6 +425,18 @@
             "description": "Return only archived contacts"
           },
           {
+            "name": "include_archived",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "description": "Include archived contacts alongside active (ignored if archived_only=true)",
+              "default": false,
+              "title": "Include Archived"
+            },
+            "description": "Include archived contacts alongside active (ignored if archived_only=true)"
+          },
+          {
             "name": "sort",
             "in": "query",
             "required": false,
@@ -688,6 +700,16 @@
               "type": "boolean",
               "default": false,
               "title": "Archived Only"
+            }
+          },
+          {
+            "name": "include_archived",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "default": false,
+              "title": "Include Archived"
             }
           }
         ],
