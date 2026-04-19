@@ -20,6 +20,7 @@ import {
   SearchX,
   Building2,
 } from "lucide-react";
+import { ArchivedChip } from "@/components/archived-chip";
 import { ContactAvatar } from "@/components/contact-avatar";
 import { CompanyFavicon } from "@/components/company-favicon";
 import { formatDistanceToNow } from "date-fns";
@@ -98,18 +99,6 @@ function DaysAgo({ dateStr }: { dateStr?: string | null }) {
   return (
     <span className={`font-mono-data text-xs ${isOverdue ? "font-medium text-red-500" : "text-stone-500 dark:text-stone-400"}`}>
       {days}d
-    </span>
-  );
-}
-
-// ---------------------------------------------------------------------------
-// Archived chip
-// ---------------------------------------------------------------------------
-
-function ArchivedChip() {
-  return (
-    <span className="inline-flex shrink-0 items-center gap-1 px-1.5 py-0.5 rounded-full text-[10px] font-medium bg-stone-100 dark:bg-stone-800 text-stone-500 dark:text-stone-400 border border-stone-200 dark:border-stone-700">
-      Archived
     </span>
   );
 }
