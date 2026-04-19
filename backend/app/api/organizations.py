@@ -169,7 +169,10 @@ async def _get_org_stats_map(db: AsyncSession, org_ids: list[uuid.UUID]) -> dict
     except Exception:
         # Mat view may not exist yet (migration not run); SAVEPOINT ensures the
         # outer transaction is still usable after this failure.
-        logger.exception("organization_stats_mv not available, returning empty stats")
+        logger.warning(
+            "organization_stats_mv not available, returning empty stats",
+            exc_info=True,
+        )
         return {}
 
 
