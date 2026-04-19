@@ -3637,6 +3637,11 @@ export interface components {
              * @default 0
              */
             relationship_score: number;
+            /**
+             * Priority Level
+             * @default medium
+             */
+            priority_level: string;
             /** Last Interaction At */
             last_interaction_at?: string | null;
         };

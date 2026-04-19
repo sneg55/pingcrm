@@ -11057,6 +11057,11 @@
             "title": "Relationship Score",
             "default": 0
           },
+          "priority_level": {
+            "type": "string",
+            "title": "Priority Level",
+            "default": "medium"
+          },
           "last_interaction_at": {
             "anyOf": [
               {

@@ -506,3 +506,43 @@ async def test_auto_create_org_handles_duplicate_names(
 
     # Must not crash with MultipleResultsFound; 200 is the expected success code
     assert resp.status_code == 200, f"Expected 200, got {resp.status_code}: {resp.text}"
+
+
+# ---------------------------------------------------------------------------
+# GET /api/v1/organizations/{id} — detail
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_get_organization_includes_archived_contacts_last(
+    client: AsyncClient, auth_headers: dict, db: AsyncSession, test_user: User
+):
+    """Detail endpoint returns archived contacts after active ones, with priority_level exposed."""
+    org = Organization(id=uuid.uuid4(), user_id=test_user.id, name="MixedCo")
+    db.add(org)
+    await db.flush()
+
+    active = _make_contact(
+        test_user.id, "Active Alice", "MixedCo",
+        priority_level="medium", relationship_score=5,
+    )
+    active.organization_id = org.id
+    archived = _make_contact(
+        test_user.id, "Archived Arthur", "MixedCo",
+        priority_level="archived", relationship_score=9,  # higher score, but archived
+    )
+    archived.organization_id = org.id
+    db.add_all([active, archived])
+    await db.commit()
+
+    resp = await client.get(f"/api/v1/organizations/{org.id}", headers=auth_headers)
+    assert resp.status_code == 200
+    contacts = resp.json()["data"]["contacts"]
+
+    names = [c["full_name"] for c in contacts]
+    assert names == ["Active Alice", "Archived Arthur"], (
+        "Active contact must precede archived contact even when archived has higher score"
+    )
+
+    levels = [c["priority_level"] for c in contacts]
+    assert levels == ["medium", "archived"]

@@ -37,6 +37,7 @@ class OrgContact(BaseModel):
     title: str | None = None
     avatar_url: str | None = None
     relationship_score: int = 0
+    priority_level: str = "medium"
     last_interaction_at: datetime | None = None
 
 
@@ -145,25 +146,29 @@ async def _get_org_stats_map(db: AsyncSession, org_ids: list[uuid.UUID]) -> dict
     if not org_ids:
         return {}
     try:
-        result = await db.execute(
-            text(
-                "SELECT organization_id, contact_count, avg_relationship_score, "
-                "total_interactions, last_interaction_at "
-                "FROM organization_stats_mv WHERE organization_id = ANY(:ids)"
-            ),
-            {"ids": org_ids},
-        )
-        stats_map = {}
-        for row in result.mappings().all():
-            stats_map[row["organization_id"]] = {
-                "contact_count": row["contact_count"],
-                "avg_relationship_score": row["avg_relationship_score"],
-                "total_interactions": row["total_interactions"],
-                "last_interaction_at": row["last_interaction_at"],
-            }
-        return stats_map
+        # Use a SAVEPOINT so a missing mat-view error doesn't poison the outer
+        # transaction (PostgreSQL marks the whole txn as aborted on any error).
+        async with db.begin_nested():
+            result = await db.execute(
+                text(
+                    "SELECT organization_id, contact_count, avg_relationship_score, "
+                    "total_interactions, last_interaction_at "
+                    "FROM organization_stats_mv WHERE organization_id = ANY(:ids)"
+                ),
+                {"ids": org_ids},
+            )
+            stats_map = {}
+            for row in result.mappings().all():
+                stats_map[row["organization_id"]] = {
+                    "contact_count": row["contact_count"],
+                    "avg_relationship_score": row["avg_relationship_score"],
+                    "total_interactions": row["total_interactions"],
+                    "last_interaction_at": row["last_interaction_at"],
+                }
+            return stats_map
     except Exception:
-        # Mat view may not exist yet (migration not run)
+        # Mat view may not exist yet (migration not run); SAVEPOINT ensures the
+        # outer transaction is still usable after this failure.
         logger.exception("organization_stats_mv not available, returning empty stats")
         return {}
 
@@ -379,11 +384,14 @@ async def get_organization(
     stats_map = await _get_org_stats_map(db, [org.id])
     org_dict = _org_to_dict(org, stats_map.get(org.id))
 
-    # Fetch contacts (capped to avoid unbounded response size)
+    # Fetch contacts (capped to avoid unbounded response size).
+    # Active contacts first (active-first grouping is stable across the 200-cap),
+    # then archived; within each group, order by relationship_score desc.
+    archived_flag = (Contact.priority_level == "archived")
     contacts_result = await db.execute(
         select(Contact)
-        .where(Contact.organization_id == org.id, Contact.user_id == current_user.id, Contact.priority_level != "archived")
-        .order_by(Contact.relationship_score.desc())
+        .where(Contact.organization_id == org.id, Contact.user_id == current_user.id)
+        .order_by(archived_flag.asc(), Contact.relationship_score.desc())
         .limit(200)
     )
     org_dict["contacts"] = [
@@ -395,6 +403,7 @@ async def get_organization(
             "title": c.title,
             "avatar_url": c.avatar_url,
             "relationship_score": c.relationship_score,
+            "priority_level": c.priority_level,
             "last_interaction_at": c.last_interaction_at,
         }
         for c in contacts_result.scalars().all()
