@@ -20,6 +20,7 @@ import {
 import Link from "next/link";
 import { client } from "@/lib/api-client";
 import { ContactAvatar } from "@/components/contact-avatar";
+import { ArchivedChip } from "@/components/archived-chip";
 import { CompanyFavicon } from "@/components/company-favicon";
 import { ScoreBadge } from "@/components/score-badge";
 import { formatDistanceToNow } from "date-fns";
@@ -41,6 +42,7 @@ interface OrgContact {
   title: string | null;
   avatar_url: string | null;
   relationship_score: number;
+  priority_level: string;
   last_interaction_at: string | null;
 }
 
@@ -306,16 +308,21 @@ export default function OrganizationDetailPage() {
   });
 
   const contacts = data?.contacts ?? [];
-  const sortedContacts = useMemo(() => [...contacts].sort((a, b) => {
-    if (sortBy === "score") return b.relationship_score - a.relationship_score;
-    if (sortBy === "name") return (a.full_name ?? "").localeCompare(b.full_name ?? "");
-    if (sortBy === "recent") {
-      const aDate = a.last_interaction_at ? new Date(a.last_interaction_at).getTime() : 0;
-      const bDate = b.last_interaction_at ? new Date(b.last_interaction_at).getTime() : 0;
-      return bDate - aDate;
-    }
-    return 0;
-  }), [contacts, sortBy]);
+  const sortedContacts = useMemo(() => {
+    const byActiveSort = (a: OrgContact, b: OrgContact) => {
+      if (sortBy === "score") return b.relationship_score - a.relationship_score;
+      if (sortBy === "name") return (a.full_name ?? "").localeCompare(b.full_name ?? "");
+      if (sortBy === "recent") {
+        const aDate = a.last_interaction_at ? new Date(a.last_interaction_at).getTime() : 0;
+        const bDate = b.last_interaction_at ? new Date(b.last_interaction_at).getTime() : 0;
+        return bDate - aDate;
+      }
+      return 0;
+    };
+    const active = contacts.filter((c) => c.priority_level !== "archived").sort(byActiveSort);
+    const archived = contacts.filter((c) => c.priority_level === "archived").sort(byActiveSort);
+    return [...active, ...archived];
+  }, [contacts, sortBy]);
 
   if (isLoading) {
     return (
@@ -461,37 +468,44 @@ export default function OrganizationDetailPage() {
               </tr>
             </thead>
             <tbody>
-              {sortedContacts.map((contact) => (
-                <tr
-                  key={contact.id}
-                  className="border-b border-zinc-50 dark:border-zinc-800/50 hover:bg-zinc-50 dark:hover:bg-zinc-800/30"
-                >
-                  <td className="px-5 py-3">
-                    <Link
-                      href={`/contacts/${contact.id}`}
-                      className="flex items-center gap-3 text-sm font-medium text-zinc-900 dark:text-zinc-100 hover:text-teal-600 dark:hover:text-teal-400"
-                    >
-                      <ContactAvatar
-                        avatarUrl={contact.avatar_url}
-                        name={contact.full_name ?? ""}
-                        size="sm"
-                      />
-                      {contact.full_name || "Unknown"}
-                    </Link>
-                  </td>
-                  <td className="px-5 py-3 text-sm text-zinc-500 dark:text-zinc-400">
-                    {contact.title || "-"}
-                  </td>
-                  <td className="px-5 py-3 text-center">
-                    <ScoreBadge score={contact.relationship_score} />
-                  </td>
-                  <td className="px-5 py-3 text-right text-sm text-zinc-500 dark:text-zinc-400">
-                    {contact.last_interaction_at
-                      ? formatDistanceToNow(new Date(contact.last_interaction_at), { addSuffix: true })
-                      : "Never"}
-                  </td>
-                </tr>
-              ))}
+              {sortedContacts.map((contact) => {
+                const isArchived = contact.priority_level === "archived";
+                const mutedText = isArchived ? "opacity-60" : "";
+                return (
+                  <tr
+                    key={contact.id}
+                    className="border-b border-zinc-50 dark:border-zinc-800/50 hover:bg-zinc-50 dark:hover:bg-zinc-800/30"
+                  >
+                    <td className="px-5 py-3">
+                      <div className="flex items-center gap-2 min-w-0">
+                        <Link
+                          href={`/contacts/${contact.id}`}
+                          className={`flex items-center gap-3 text-sm font-medium text-zinc-900 dark:text-zinc-100 hover:text-teal-600 dark:hover:text-teal-400 min-w-0 ${mutedText}`}
+                        >
+                          <ContactAvatar
+                            avatarUrl={contact.avatar_url}
+                            name={contact.full_name ?? ""}
+                            size="sm"
+                          />
+                          <span className="truncate">{contact.full_name || "Unknown"}</span>
+                        </Link>
+                        {isArchived && <ArchivedChip />}
+                      </div>
+                    </td>
+                    <td className={`px-5 py-3 text-sm text-zinc-500 dark:text-zinc-400 ${mutedText}`}>
+                      {contact.title || "-"}
+                    </td>
+                    <td className="px-5 py-3 text-center">
+                      <ScoreBadge score={contact.relationship_score} />
+                    </td>
+                    <td className={`px-5 py-3 text-right text-sm text-zinc-500 dark:text-zinc-400 ${mutedText}`}>
+                      {contact.last_interaction_at
+                        ? formatDistanceToNow(new Date(contact.last_interaction_at), { addSuffix: true })
+                        : "Never"}
+                    </td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         )}
