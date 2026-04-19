@@ -22,6 +22,8 @@ vi.mock("date-fns", () => ({
 vi.mock("next/navigation", () => ({
   useParams: () => ({ id: "org-1" }),
   useRouter: () => ({ push: vi.fn(), replace: vi.fn(), back: vi.fn() }),
+  useSearchParams: () => new URLSearchParams(),
+  usePathname: () => "/organizations/org-1",
 }));
 
 function makeContact(overrides: Record<string, unknown> = {}) {
@@ -102,8 +104,8 @@ describe("OrganizationDetailPage — archived contacts", () => {
 
     // Archived name link has opacity-60
     const archivedLink = within(archivedTr).getByRole("link", { name: /Archived Arthur/ });
-    expect(archivedLink.className).toMatch(/opacity-60/);
+    expect(archivedLink).toHaveClass("opacity-60");
     const activeLink = within(activeTr).getByRole("link", { name: /Active Alice/ });
-    expect(activeLink.className).not.toMatch(/opacity-60/);
+    expect(activeLink).not.toHaveClass("opacity-60");
   });
 });
