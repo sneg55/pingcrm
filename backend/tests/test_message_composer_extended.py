@@ -763,6 +763,62 @@ async def test_anchor_instruction_absent_when_convo_is_recent(mock_db: AsyncMock
     assert "Anchor the message on the fresh Twitter signal" not in prompt
 
 
+# ---------------------------------------------------------------------------
+# User propagation — composer must pass the current user to bird CLI fetch
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_compose_passes_user_to_cached_tweets(mock_db: AsyncMock):
+    """The User object given to compose_followup_message must reach _get_cached_tweets.
+
+    Without this, bird CLI is silently skipped because get_cookies() only works
+    on a real user.
+    """
+    contact = _make_contact(twitter_handle="janesmith")
+    _configure_db(mock_db, contact, [])
+    sentinel_user = MagicMock(name="sentinel_user")
+
+    mock_client = MagicMock()
+    mock_client.messages.create = AsyncMock(return_value=_mock_anthropic_response("Hey!"))
+
+    with patch("app.services.message_composer.settings") as mock_settings, \
+         patch("anthropic.AsyncAnthropic", return_value=mock_client), \
+         patch("app.services.message_composer._get_cached_tweets", new_callable=AsyncMock, return_value=[]) as mock_fetch:
+        mock_settings.ANTHROPIC_API_KEY = "sk-ant-test-key"
+
+        await compose_followup_message(
+            contact_id=contact.id,
+            trigger_type="time_based",
+            event_summary=None,
+            db=mock_db,
+            user=sentinel_user,
+        )
+
+    assert mock_fetch.await_args.kwargs["user"] is sentinel_user
+
+
+@pytest.mark.asyncio
+async def test_get_cached_tweets_warns_when_user_missing(caplog):
+    """Cache miss with user=None must log a warning so the silent skip is visible."""
+    import logging
+    from app.services.message_composer import _get_cached_tweets
+
+    contact = _make_contact(twitter_handle="janesmith")
+
+    mock_redis = AsyncMock()
+    mock_redis.get = AsyncMock(return_value=None)  # cache miss
+
+    with caplog.at_level(logging.WARNING, logger="app.services.message_composer"), \
+         patch("app.core.redis.get_redis", return_value=mock_redis), \
+         patch("app.integrations.bird.fetch_user_tweets_bird", new_callable=AsyncMock) as mock_bird:
+        result = await _get_cached_tweets(contact, user=None)
+
+    assert result == []
+    mock_bird.assert_not_called()
+    assert any("no user passed" in rec.message and "janesmith" in rec.message for rec in caplog.records)
+
+
 @pytest.mark.asyncio
 async def test_twitter_fetch_failure_doesnt_block(mock_db: AsyncMock):
     """When _get_cached_tweets raises, message is still generated."""

@@ -162,15 +162,23 @@ async def _get_cached_tweets(contact: Contact, user: Any = None) -> list[dict[st
     from app.integrations.bird import fetch_user_tweets_bird
     from app.services.bird_session import get_cookies
 
-    cookies = get_cookies(user) if user is not None else None
-    if cookies is None:
+    if user is None:
+        logger.warning(
+            "_get_cached_tweets: no user passed for @%s — bird CLI skipped, "
+            "Twitter context will be empty. This is a caller bug.",
+            handle,
+        )
         tweets = []
     else:
-        auth_token, ct0 = cookies
-        tweets, _err = await fetch_user_tweets_bird(
-            handle, auth_token=auth_token, ct0=ct0,
-        )
-        # composer is best-effort — _err is logged inside _run_bird already
+        cookies = get_cookies(user)
+        if cookies is None:
+            tweets = []
+        else:
+            auth_token, ct0 = cookies
+            tweets, _err = await fetch_user_tweets_bird(
+                handle, auth_token=auth_token, ct0=ct0,
+            )
+            # composer is best-effort — _err is logged inside _run_bird already
 
     # --- Cache result (even if empty, to avoid hammering) ---
     if tweets:
@@ -221,6 +229,7 @@ async def compose_followup_message(
     event_summary: str | None,
     db: AsyncSession,
     revival_context: bool = False,
+    user: Any = None,
 ) -> str:
     """Compose a personalised follow-up message using Anthropic Claude.
 
@@ -320,7 +329,7 @@ async def compose_followup_message(
     # Fetch Twitter context for every trigger — stale conversation
     # excerpts otherwise dominate event_based/birthday/scheduled prompts.
     # ------------------------------------------------------------------
-    twitter_context, twitter_tweets = await _fetch_twitter_context(contact)
+    twitter_context, twitter_tweets = await _fetch_twitter_context(contact, user=user)
     anchor_on_twitter = _should_anchor_on_twitter(twitter_tweets, contact.last_interaction_at)
 
     preferred_channel = "email"

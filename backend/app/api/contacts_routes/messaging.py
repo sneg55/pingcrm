@@ -168,6 +168,7 @@ async def compose_message(
         trigger_type="manual",
         event_summary=None,
         db=db,
+        user=current_user,
     )
 
     return envelope({"suggested_message": message, "suggested_channel": channel})

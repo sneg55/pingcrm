@@ -18,6 +18,7 @@ from app.models.contact import Contact
 from app.models.detected_event import DetectedEvent
 from app.models.follow_up import FollowUpSuggestion
 from app.models.interaction import Interaction
+from app.models.user import User
 from app.services.message_composer import compose_followup_message
 
 logger = logging.getLogger(__name__)
@@ -552,6 +553,10 @@ async def _generate_suggestions_inner(
     now = datetime.now(UTC)
     settings = priority_settings or {}
 
+    # Load the user once so we can pass bird cookies down to the composer.
+    user_result = await db.execute(select(User).where(User.id == user_id))
+    user = user_result.scalar_one_or_none()
+
     # Skip contacts that already have a pending or snoozed suggestion
     existing_result = await db.execute(
         select(FollowUpSuggestion.contact_id).where(
@@ -719,6 +724,7 @@ async def _generate_suggestions_inner(
                 event_summary=event_summary,
                 db=db,
                 revival_context=is_revival,
+                user=user,
             )
             suggestion = FollowUpSuggestion(
                 contact_id=contact.id,

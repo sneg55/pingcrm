@@ -777,6 +777,7 @@ async def test_regenerate_pool_b_sets_revival_context(
         event_summary=None,
         db=ANY,
         revival_context=True,
+        user=ANY,
     )
 
 

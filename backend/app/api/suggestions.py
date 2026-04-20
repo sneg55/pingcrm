@@ -305,6 +305,7 @@ async def regenerate_suggestion(
         event_summary=None,
         db=db,
         revival_context=(suggestion.pool == "B"),
+        user=current_user,
     )
 
     suggestion.suggested_message = new_message
