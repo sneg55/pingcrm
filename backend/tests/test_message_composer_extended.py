@@ -596,29 +596,37 @@ async def test_twitter_context_included_for_time_based(mock_db: AsyncMock):
 
 
 @pytest.mark.asyncio
-async def test_twitter_context_skipped_for_event_based(mock_db: AsyncMock):
-    """For event_based triggers, _get_cached_tweets is NOT called."""
-    contact = _make_contact(twitter_handle="janesmith")
+@pytest.mark.parametrize("trigger_type,event_summary", [
+    ("event_based", "Jane raised a Series A."),
+    ("birthday", None),
+    ("scheduled", None),
+])
+async def test_twitter_context_included_for_all_triggers(
+    mock_db: AsyncMock, trigger_type: str, event_summary: str | None,
+):
+    """Twitter context is fetched for every trigger type, not just time_based."""
+    contact = _make_contact(twitter_handle="janesmith", twitter_bio="CTO at Acme")
     _configure_db(mock_db, contact, [])
 
     mock_client = MagicMock()
-    mock_client.messages.create = AsyncMock(return_value=_mock_anthropic_response("Congrats!"))
+    mock_client.messages.create = AsyncMock(return_value=_mock_anthropic_response("Hey!"))
 
     with patch("app.services.message_composer.settings") as mock_settings, \
          patch("anthropic.AsyncAnthropic", return_value=mock_client), \
-         patch("app.services.message_composer._get_cached_tweets", new_callable=AsyncMock) as mock_fetch:
+         patch("app.services.message_composer._get_cached_tweets", new_callable=AsyncMock, return_value=_FAKE_TWEETS) as mock_fetch:
         mock_settings.ANTHROPIC_API_KEY = "sk-ant-test-key"
 
         await compose_followup_message(
             contact_id=contact.id,
-            trigger_type="event_based",
-            event_summary="Jane raised a Series A.",
+            trigger_type=trigger_type,
+            event_summary=event_summary,
             db=mock_db,
         )
 
-    mock_fetch.assert_not_called()
+    mock_fetch.assert_called_once()
     prompt = mock_client.messages.create.call_args.kwargs["messages"][0]["content"]
-    assert "RECENT TWITTER ACTIVITY" not in prompt
+    assert "RECENT TWITTER ACTIVITY" in prompt
+    assert "Excited to launch our new AI product!" in prompt
 
 
 @pytest.mark.asyncio
@@ -643,6 +651,116 @@ async def test_twitter_context_skipped_no_handle(mock_db: AsyncMock):
         )
 
     mock_fetch.assert_not_called()
+
+
+# ---------------------------------------------------------------------------
+# Anchor-on-Twitter rule — prefer fresh Twitter signal over stale conversation
+# ---------------------------------------------------------------------------
+
+
+def _tweet_n_days_ago(n: int, text: str = "Just shipped a new feature!") -> dict[str, str]:
+    """Build a tweet dict whose createdAt is n days before now, in bird's format."""
+    dt = datetime.now(UTC) - timedelta(days=n)
+    return {"text": text, "createdAt": dt.strftime("%a %b %d %H:%M:%S %z %Y")}
+
+
+def test_should_anchor_true_when_fresh_tweet_and_stale_convo():
+    from app.services.message_composer import _should_anchor_on_twitter
+    tweets = [_tweet_n_days_ago(5)]
+    last_ix = datetime.now(UTC) - timedelta(days=200)
+    assert _should_anchor_on_twitter(tweets, last_ix) is True
+
+
+def test_should_anchor_false_when_convo_recent():
+    from app.services.message_composer import _should_anchor_on_twitter
+    tweets = [_tweet_n_days_ago(5)]
+    last_ix = datetime.now(UTC) - timedelta(days=30)
+    assert _should_anchor_on_twitter(tweets, last_ix) is False
+
+
+def test_should_anchor_false_when_tweets_old():
+    from app.services.message_composer import _should_anchor_on_twitter
+    tweets = [_tweet_n_days_ago(60)]
+    last_ix = datetime.now(UTC) - timedelta(days=200)
+    assert _should_anchor_on_twitter(tweets, last_ix) is False
+
+
+def test_should_anchor_false_when_no_tweets():
+    from app.services.message_composer import _should_anchor_on_twitter
+    last_ix = datetime.now(UTC) - timedelta(days=200)
+    assert _should_anchor_on_twitter([], last_ix) is False
+
+
+def test_should_anchor_false_when_last_interaction_is_none():
+    from app.services.message_composer import _should_anchor_on_twitter
+    tweets = [_tweet_n_days_ago(5)]
+    assert _should_anchor_on_twitter(tweets, None) is False
+
+
+def test_should_anchor_ignores_unparseable_dates():
+    from app.services.message_composer import _should_anchor_on_twitter
+    tweets = [{"text": "broken", "createdAt": "not-a-date"}]
+    last_ix = datetime.now(UTC) - timedelta(days=200)
+    assert _should_anchor_on_twitter(tweets, last_ix) is False
+
+
+@pytest.mark.asyncio
+async def test_anchor_instruction_in_prompt_when_fresh_tweet_and_stale_convo(mock_db: AsyncMock):
+    """Prompt must tell the LLM to anchor on Twitter when convo is 90+ days old and a tweet is <30 days."""
+    contact = _make_contact(
+        twitter_handle="janesmith",
+        last_interaction_at=datetime.now(UTC) - timedelta(days=200),
+    )
+    _configure_db(mock_db, contact, [])
+
+    fresh_tweets = [_tweet_n_days_ago(5, "Raised a Series A today!")]
+    mock_client = MagicMock()
+    mock_client.messages.create = AsyncMock(return_value=_mock_anthropic_response("Congrats!"))
+
+    with patch("app.services.message_composer.settings") as mock_settings, \
+         patch("anthropic.AsyncAnthropic", return_value=mock_client), \
+         patch("app.services.message_composer._get_cached_tweets", new_callable=AsyncMock, return_value=fresh_tweets):
+        mock_settings.ANTHROPIC_API_KEY = "sk-ant-test-key"
+
+        await compose_followup_message(
+            contact_id=contact.id,
+            trigger_type="event_based",
+            event_summary="Jane raised a Series A.",
+            db=mock_db,
+        )
+
+    prompt = mock_client.messages.create.call_args.kwargs["messages"][0]["content"]
+    assert "Anchor the message on the fresh Twitter signal" in prompt
+    assert "do NOT reopen the stale thread" in prompt
+
+
+@pytest.mark.asyncio
+async def test_anchor_instruction_absent_when_convo_is_recent(mock_db: AsyncMock):
+    """No anchor instruction when the last conversation is within the stale window."""
+    contact = _make_contact(
+        twitter_handle="janesmith",
+        last_interaction_at=datetime.now(UTC) - timedelta(days=30),
+    )
+    _configure_db(mock_db, contact, [])
+
+    fresh_tweets = [_tweet_n_days_ago(5)]
+    mock_client = MagicMock()
+    mock_client.messages.create = AsyncMock(return_value=_mock_anthropic_response("Hey!"))
+
+    with patch("app.services.message_composer.settings") as mock_settings, \
+         patch("anthropic.AsyncAnthropic", return_value=mock_client), \
+         patch("app.services.message_composer._get_cached_tweets", new_callable=AsyncMock, return_value=fresh_tweets):
+        mock_settings.ANTHROPIC_API_KEY = "sk-ant-test-key"
+
+        await compose_followup_message(
+            contact_id=contact.id,
+            trigger_type="time_based",
+            event_summary=None,
+            db=mock_db,
+        )
+
+    prompt = mock_client.messages.create.call_args.kwargs["messages"][0]["content"]
+    assert "Anchor the message on the fresh Twitter signal" not in prompt
 
 
 @pytest.mark.asyncio

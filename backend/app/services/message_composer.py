@@ -6,6 +6,7 @@ import json
 import logging
 import random
 import uuid
+from datetime import UTC, datetime
 from typing import Any
 
 from sqlalchemy import select
@@ -64,15 +65,22 @@ async def _call_anthropic_with_retry(client: Any, **kwargs) -> Any:
 _TWEET_CACHE_TTL = 12 * 60 * 60  # 12 hours
 
 
-async def _fetch_twitter_context(contact: Contact, user: Any = None) -> str:
+async def _fetch_twitter_context(
+    contact: Contact, user: Any = None,
+) -> tuple[str, list[dict[str, Any]]]:
     """Fetch recent tweets and bio for prompt enrichment. Best-effort.
 
     Uses the ``bird`` CLI (cookie-based auth) to fetch tweets, with Redis
     caching (12 h TTL) to avoid repeated calls for the same contact.
+
+    Returns ``(section_str, tweets)``. ``section_str`` is empty when the
+    contact has no handle or nothing was fetched; ``tweets`` is the raw list
+    (with ``createdAt`` timestamps) used downstream for freshness checks.
     """
     if not contact.twitter_handle:
-        return ""
+        return "", []
 
+    tweets: list[dict[str, Any]] = []
     lines: list[str] = []
     if contact.twitter_bio:
         lines.append(f"Bio: {contact.twitter_bio}")
@@ -90,8 +98,45 @@ async def _fetch_twitter_context(contact: Contact, user: Any = None) -> str:
         logger.exception("_fetch_twitter_context: failed for @%s", contact.twitter_handle)
 
     if not lines:
-        return ""
-    return "RECENT TWITTER ACTIVITY:\n" + "\n".join(lines)
+        return "", tweets
+    return "RECENT TWITTER ACTIVITY:\n" + "\n".join(lines), tweets
+
+
+_TWITTER_FRESH_DAYS = 30
+_CONVO_STALE_DAYS = 90
+_BIRD_DATE_FORMAT = "%a %b %d %H:%M:%S %z %Y"
+
+
+def _should_anchor_on_twitter(
+    tweets: list[dict[str, Any]],
+    last_interaction_at: datetime | None,
+) -> bool:
+    """True when fresh Twitter activity exists AND conversation is stale.
+
+    Prevents the LLM from reopening a years-old thread when there is a
+    more timely signal to lead with.
+    """
+    if not tweets or not last_interaction_at:
+        return False
+
+    now = datetime.now(UTC)
+    last_ix = last_interaction_at
+    if last_ix.tzinfo is None:
+        last_ix = last_ix.replace(tzinfo=UTC)
+    if (now - last_ix).days <= _CONVO_STALE_DAYS:
+        return False
+
+    for t in tweets:
+        date_str = t.get("createdAt", "")
+        if not date_str:
+            continue
+        try:
+            tweet_dt = datetime.strptime(date_str, _BIRD_DATE_FORMAT)
+        except (ValueError, TypeError):
+            continue
+        if (now - tweet_dt).days <= _TWITTER_FRESH_DAYS:
+            return True
+    return False
 
 
 async def _get_cached_tweets(contact: Contact, user: Any = None) -> list[dict[str, Any]]:
@@ -272,22 +317,30 @@ async def compose_followup_message(
         )
 
     # ------------------------------------------------------------------
-    # Fetch Twitter context for time_based triggers and revival contacts
+    # Fetch Twitter context for every trigger — stale conversation
+    # excerpts otherwise dominate event_based/birthday/scheduled prompts.
     # ------------------------------------------------------------------
-    twitter_context = ""
-    if trigger_type == "time_based" or revival_context:
-        twitter_context = await _fetch_twitter_context(contact)
+    twitter_context, twitter_tweets = await _fetch_twitter_context(contact)
+    anchor_on_twitter = _should_anchor_on_twitter(twitter_tweets, contact.last_interaction_at)
 
     preferred_channel = "email"
     if interactions:
         preferred_channel = interactions[0].platform
 
     twitter_section = f"\n{twitter_context}\n" if twitter_context else ""
-    twitter_instruction = (
-        "\n- If the contact has recent Twitter activity, reference it naturally "
-        "(e.g., congratulate an achievement, ask about a project they tweeted about)"
-        if twitter_context else ""
-    )
+    instruction_lines: list[str] = []
+    if twitter_context:
+        instruction_lines.append(
+            "- If the contact has recent Twitter activity, reference it naturally "
+            "(e.g., congratulate an achievement, ask about a project they tweeted about)"
+        )
+    if anchor_on_twitter:
+        instruction_lines.append(
+            f"- The last conversation is {_CONVO_STALE_DAYS}+ days old but Twitter activity "
+            f"is within {_TWITTER_FRESH_DAYS} days. Anchor the message on the fresh Twitter "
+            "signal — do NOT reopen the stale thread or reference the old conversation excerpt."
+        )
+    twitter_instruction = ("\n" + "\n".join(instruction_lines)) if instruction_lines else ""
 
     prompt = f"""You are a networking assistant helping a user maintain genuine professional relationships.
 Write a short, natural follow-up message for the contact below.
