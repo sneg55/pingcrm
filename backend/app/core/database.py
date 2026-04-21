@@ -28,6 +28,10 @@ engine = create_async_engine(
     settings.DATABASE_URL,
     echo=False,
     future=True,
+    pool_size=20,
+    max_overflow=20,
+    pool_pre_ping=True,
+    pool_recycle=1800,
 )
 
 AsyncSessionLocal = async_sessionmaker(
@@ -78,6 +82,11 @@ async def task_session() -> AsyncGenerator[AsyncSession, None]:
     async with factory() as session:
         try:
             yield session
+        except BaseException:
+            # BaseException also catches CancelledError / SoftTimeLimitExceeded,
+            # so an idle-in-transaction row lock can't survive a worker kill path.
+            await session.rollback()
+            raise
         finally:
             await session.close()
     await task_engine.dispose()
