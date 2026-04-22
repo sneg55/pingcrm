@@ -165,3 +165,66 @@ async function voyagerGetProfile(liAt, jsessionid, publicId) {
     decorationId: "com.linkedin.voyager.dash.deco.identity.profile.FullProfileWithEntities-91",
   });
 }
+
+// Server-side fetches against media.licdn.com return 403 — the CDN requires
+// a real browser context. Run the fetch inside a LinkedIn tab so the browser
+// supplies cookies/referer, then ship the bytes back as a base64 data URI.
+const AVATAR_MAX_BYTES = 5_000_000; // matches backend cap in _save_avatar
+
+async function fetchLinkedInImageAsBase64(url) {
+  if (!url) return null;
+  const tabId = await _requireLinkedInTab();
+  const results = await chrome.scripting.executeScript({
+    target: { tabId },
+    func: async (imgUrl, maxBytes) => {
+      // Try 1: credentialed fetch (works when CDN returns ACAO; preferred
+      // because we get the original JPEG bytes without re-encoding).
+      try {
+        const resp = await fetch(imgUrl, { credentials: "include" });
+        if (resp.ok) {
+          const blob = await resp.blob();
+          if (blob.size > maxBytes) return { ok: false, body: "TOO_LARGE" };
+          const dataUrl = await new Promise((resolve, reject) => {
+            const reader = new FileReader();
+            reader.onloadend = () => resolve(reader.result);
+            reader.onerror = () => reject(new Error("FileReader error"));
+            reader.readAsDataURL(blob);
+          });
+          return { ok: true, dataUrl, via: "fetch" };
+        }
+      } catch (_e) {
+        // CORS or network — fall through to canvas
+      }
+
+      // Try 2: load via <img crossOrigin="anonymous"> and read pixels via
+      // canvas. media.licdn.com does send ACAO for image requests, so the
+      // canvas stays untainted and toDataURL succeeds.
+      try {
+        const img = new Image();
+        img.crossOrigin = "anonymous";
+        const loaded = new Promise((resolve, reject) => {
+          img.onload = () => resolve();
+          img.onerror = () => reject(new Error("img load failed"));
+          setTimeout(() => reject(new Error("img load timeout")), 8000);
+        });
+        img.src = imgUrl;
+        await loaded;
+        const canvas = document.createElement("canvas");
+        canvas.width = img.naturalWidth || 400;
+        canvas.height = img.naturalHeight || 400;
+        canvas.getContext("2d").drawImage(img, 0, 0, canvas.width, canvas.height);
+        const dataUrl = canvas.toDataURL("image/jpeg", 0.9);
+        if (!dataUrl || dataUrl.length < 100) return { ok: false, body: "EMPTY_CANVAS" };
+        if (dataUrl.length > maxBytes * 1.4) return { ok: false, body: "TOO_LARGE" };
+        return { ok: true, dataUrl, via: "canvas" };
+      } catch (e) {
+        return { ok: false, body: e.message };
+      }
+    },
+    args: [url, AVATAR_MAX_BYTES],
+    world: "MAIN",
+  });
+  const result = results?.[0]?.result;
+  if (!result?.ok || !result.dataUrl) return null;
+  return result.dataUrl;
+}

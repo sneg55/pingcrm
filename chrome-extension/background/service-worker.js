@@ -504,7 +504,7 @@ async function _runPendingBackfill() {
         continue;
       }
 
-      // Extract avatar
+      // Extract avatar URL
       let avatarUrl = null;
       const artifacts = profileObj?.profilePicture?.displayImageReference?.vectorImage?.artifacts ?? [];
       if (artifacts.length > 0) {
@@ -512,6 +512,17 @@ async function _runPendingBackfill() {
         const rootUrl = profileObj?.profilePicture?.displayImageReference?.vectorImage?.rootUrl ?? "";
         if (rootUrl && largest?.fileIdentifyingUrlPathSegment) {
           avatarUrl = rootUrl + largest.fileIdentifyingUrlPathSegment;
+        }
+      }
+
+      // Fetch the image bytes inside the LinkedIn tab — the backend can't
+      // download from media.licdn.com directly (CDN returns 403 server-side).
+      let avatarData = null;
+      if (avatarUrl) {
+        try {
+          avatarData = await fetchLinkedInImageAsBase64(avatarUrl);
+        } catch (err) {
+          console.warn("[Backfill] Avatar fetch failed for:", publicId, err.message);
         }
       }
 
@@ -530,11 +541,12 @@ async function _runPendingBackfill() {
             headline: profileObj?.headline ?? null,
             location: profileObj?.geoLocationName ?? null,
             avatar_url: avatarUrl,
+            avatar_data: avatarData,
           }],
           messages: [],
         }),
       });
-      console.log("[Backfill] Pushed profile for:", publicId, "avatar:", !!avatarUrl);
+      console.log("[Backfill] Pushed profile for:", publicId, "avatar:", !!avatarUrl, "bytes:", !!avatarData);
       processed++;
     } catch (e) {
       // Only stop on rate limiting — individual profile 401/403/404 are expected for bad IDs
