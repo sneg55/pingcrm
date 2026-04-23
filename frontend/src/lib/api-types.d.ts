@@ -1788,6 +1788,33 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/extension/refresh": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Refresh Extension Token
+         * @description Exchange a (possibly expired) extension JWT for a fresh one.
+         *
+         *     Accepts tokens whose `exp` is within the past `_REFRESH_GRACE_DAYS`. Rejects
+         *     tokens without the extension audience, tokens older than the grace window,
+         *     and users who have disconnected the extension (linkedin_extension_paired_at
+         *     is NULL). On permanent rejection with a resolvable user, also clears
+         *     `linkedin_extension_paired_at` so the web UI reverts to a "Connect" state
+         *     without requiring a manual disconnect.
+         */
+        post: operations["refresh_extension_token_api_v1_extension_refresh_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/sync-history": {
         parameters: {
             query?: never;
@@ -3803,6 +3830,11 @@ export interface components {
         ProfileUpdate: {
             /** Full Name */
             full_name?: string | null;
+        };
+        /** RefreshRequest */
+        RefreshRequest: {
+            /** Token */
+            token: string;
         };
         /** RegenerateBody */
         RegenerateBody: {
@@ -7222,6 +7254,39 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["Envelope_dict_"];
+                };
+            };
+        };
+    };
+    refresh_extension_token_api_v1_extension_refresh_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RefreshRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope_PairTokenResponse_"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
         };

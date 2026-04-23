@@ -4914,6 +4914,48 @@
         }
       }
     },
+    "/api/v1/extension/refresh": {
+      "post": {
+        "tags": [
+          "extension"
+        ],
+        "summary": "Refresh Extension Token",
+        "description": "Exchange a (possibly expired) extension JWT for a fresh one.\n\nAccepts tokens whose `exp` is within the past `_REFRESH_GRACE_DAYS`. Rejects\ntokens without the extension audience, tokens older than the grace window,\nand users who have disconnected the extension (linkedin_extension_paired_at\nis NULL). On permanent rejection with a resolvable user, also clears\n`linkedin_extension_paired_at` so the web UI reverts to a \"Connect\" state\nwithout requiring a manual disconnect.",
+        "operationId": "refresh_extension_token_api_v1_extension_refresh_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RefreshRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Envelope_PairTokenResponse_"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/sync-history": {
       "get": {
         "tags": [
@@ -11619,6 +11661,19 @@
         },
         "type": "object",
         "title": "ProfileUpdate"
+      },
+      "RefreshRequest": {
+        "properties": {
+          "token": {
+            "type": "string",
+            "title": "Token"
+          }
+        },
+        "type": "object",
+        "required": [
+          "token"
+        ],
+        "title": "RefreshRequest"
       },
       "RegenerateBody": {
         "properties": {

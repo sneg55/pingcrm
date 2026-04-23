@@ -123,19 +123,26 @@ async function _runSyncInner(apiUrl, token, force, result) {
 
   // ── Push to backend (always push, even with 0 messages, to get backfill_needed) ──
   try {
-    const pushResp = await fetch(`${apiUrl}/api/v1/linkedin/push`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "Authorization": `Bearer ${token}`,
-      },
-      body: JSON.stringify({ profiles: [], messages: allMessages }),
-    });
+    const body = JSON.stringify({ profiles: [], messages: allMessages });
+    let pushResp = await _pushWithToken(apiUrl, token, body);
+
+    // On 401, try a silent refresh once. A fresh token means this was a
+    // normal TTL rollover; a second 401 means the pairing is really dead.
+    if (pushResp.status === 401) {
+      const refreshedToken = await _attemptRefresh(apiUrl, token);
+      if (refreshedToken) {
+        token = refreshedToken;
+        pushResp = await _pushWithToken(apiUrl, token, body);
+      }
+    }
 
     if (!pushResp.ok) {
       const errBody = await pushResp.text().catch(() => "");
       console.error("[Sync] Push failed:", pushResp.status, errBody.substring(0, 500));
       if (pushResp.status === 401) {
+        // Refresh didn't (or couldn't) help — clear the dead token so the
+        // popup flips to the unpaired view and the user can re-pair.
+        await chrome.storage.local.remove(["token"]);
         result.error = "AUTH_EXPIRED";
         return result;
       }
@@ -167,6 +174,48 @@ async function _runSyncInner(apiUrl, token, force, result) {
   await chrome.storage.local.set(updates);
 
   return result;
+}
+
+// ── Backend push + silent token refresh ─────────────────────────────────────
+
+async function _pushWithToken(apiUrl, token, body) {
+  return fetch(`${apiUrl}/api/v1/linkedin/push`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "Authorization": `Bearer ${token}`,
+    },
+    body,
+  });
+}
+
+/**
+ * Ask the backend for a new extension token using the current (possibly
+ * expired) one. Returns the new token string on success, or null if the
+ * server declines — in which case the pairing is dead and the caller should
+ * clear local state.
+ */
+async function _attemptRefresh(apiUrl, oldToken) {
+  try {
+    const resp = await fetch(`${apiUrl}/api/v1/extension/refresh`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ token: oldToken }),
+    });
+    if (!resp.ok) {
+      console.warn("[Sync] Silent refresh declined:", resp.status);
+      return null;
+    }
+    const json = await resp.json();
+    const newToken = json?.data?.token ?? null;
+    if (!newToken) return null;
+    await chrome.storage.local.set({ token: newToken });
+    console.log("[Sync] Silent refresh succeeded");
+    return newToken;
+  } catch (e) {
+    console.warn("[Sync] Silent refresh network error:", e.message);
+    return null;
+  }
 }
 
 // ── Conversation pagination ─────────────────────────────────────────────────

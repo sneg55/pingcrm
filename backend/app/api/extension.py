@@ -5,13 +5,14 @@ import logging
 from datetime import UTC, datetime, timedelta
 
 from fastapi import APIRouter, Depends, HTTPException, Request
+from jose import JWTError, jwt
 from pydantic import BaseModel
 from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.auth import get_current_user
 from app.core.config import settings
-from app.core.database import get_db
+from app.core.database import AsyncSessionLocal, get_db
 from app.models.extension_pairing import ExtensionPairing
 from app.models.user import User
 from app.schemas.responses import Envelope
@@ -23,6 +24,10 @@ router = APIRouter(prefix="/api/v1/extension", tags=["extension"])
 _PAIRING_TTL_MINUTES = 10
 _EXTENSION_TOKEN_EXPIRE_DAYS = 30
 _MAX_POLL_ATTEMPTS = 20
+# Grace window for silent refresh: a token may be refreshed up to this long
+# past its `exp` claim. Caps exposure from leaked tokens while still letting
+# normal users who opened their laptop after a few weeks stay paired.
+_REFRESH_GRACE_DAYS = 90
 
 
 def _create_extension_token(user_id: str) -> str:
@@ -141,6 +146,89 @@ async def poll_pairing(
         "error": None,
         "meta": None,
     }
+
+
+class RefreshRequest(BaseModel):
+    token: str
+
+
+@router.post("/refresh", response_model=Envelope[PairTokenResponse])
+async def refresh_extension_token(
+    body: RefreshRequest,
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+) -> dict:
+    """Exchange a (possibly expired) extension JWT for a fresh one.
+
+    Accepts tokens whose `exp` is within the past `_REFRESH_GRACE_DAYS`. Rejects
+    tokens without the extension audience, tokens older than the grace window,
+    and users who have disconnected the extension (linkedin_extension_paired_at
+    is NULL). On permanent rejection with a resolvable user, also clears
+    `linkedin_extension_paired_at` so the web UI reverts to a "Connect" state
+    without requiring a manual disconnect.
+    """
+    credentials_exception = HTTPException(status_code=401, detail="Invalid refresh token")
+
+    try:
+        payload = jwt.decode(
+            body.token,
+            settings.SECRET_KEY,
+            algorithms=[settings.ALGORITHM],
+            audience="pingcrm-extension",
+            options={"verify_exp": False},
+        )
+    except JWTError:
+        raise credentials_exception
+
+    exp = payload.get("exp")
+    user_id = payload.get("sub")
+    if exp is None or user_id is None:
+        raise credentials_exception
+
+    now = datetime.now(UTC)
+    cutoff = now - timedelta(days=_REFRESH_GRACE_DAYS)
+    if exp < cutoff.timestamp():
+        # Token is too old to refresh — treat as permanently disconnected.
+        # Commit the cleanup in an isolated session so it survives the 401.
+        await _mark_user_disconnected(user_id)
+        raise credentials_exception
+
+    result = await db.execute(select(User).where(User.id == user_id))
+    user = result.scalar_one_or_none()
+    if user is None or user.linkedin_extension_paired_at is None:
+        raise credentials_exception
+
+    new_token = _create_extension_token(str(user.id))
+    user.linkedin_extension_paired_at = now
+    await db.flush()
+
+    api_url = str(request.base_url).rstrip("/").replace("http://", "https://")
+    return {
+        "data": PairTokenResponse(token=new_token, api_url=api_url),
+        "error": None,
+        "meta": None,
+    }
+
+
+async def _mark_user_disconnected(user_id: str) -> None:
+    """Best-effort clear of `linkedin_extension_paired_at` for a dead token.
+
+    Runs in its own session so the write commits even when the caller raises
+    HTTPException (which would rollback the request-scoped session).
+    """
+    try:
+        async with AsyncSessionLocal() as session:
+            result = await session.execute(select(User).where(User.id == user_id))
+            user = result.scalar_one_or_none()
+            if user is not None and user.linkedin_extension_paired_at is not None:
+                user.linkedin_extension_paired_at = None
+                await session.commit()
+    except Exception:
+        logger.warning(
+            "refresh cleanup failed",
+            extra={"provider": "extension", "user_id": user_id},
+            exc_info=True,
+        )
 
 
 @router.delete("/pair", response_model=Envelope[dict])

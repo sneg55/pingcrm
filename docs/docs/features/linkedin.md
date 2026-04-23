@@ -17,7 +17,7 @@ Connecting the extension uses a one-time pairing code instead of a password:
 4. Enter the code in the modal and click **Pair**.
 5. The extension polls the backend and, once matched, shows **Connected**.
 
-Pairing codes expire after 10 minutes. The issued token is valid for 30 days; when it expires, the popup prompts you to re-pair with a new code.
+Pairing codes expire after 10 minutes. The issued token is valid for 30 days and renews silently on use: when a sync receives a 401, the extension transparently exchanges the expired token for a fresh 30-day one via `/api/v1/extension/refresh`, so you normally never see a pairing prompt after the first setup. Tokens that are more than 90 days past expiry are not renewable — the popup then flips to the unpaired view and you re-pair with a new code.
 
 ## Message Sync
 

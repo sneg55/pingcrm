@@ -18,7 +18,7 @@ from app.models.user import User
 # ---------------------------------------------------------------------------
 
 
-def _make_extension_token(user_id: str) -> str:
+def _make_extension_token(user_id: str, *, exp: datetime | None = None) -> str:
     """Create an extension-scoped JWT (aud: pingcrm-extension) for tests."""
     from jose import jwt
 
@@ -27,11 +27,12 @@ def _make_extension_token(user_id: str) -> str:
     payload = {
         "sub": user_id,
         "aud": "pingcrm-extension",
-        "exp": datetime.now(UTC) + timedelta(days=30),
+        "exp": exp if exp is not None else datetime.now(UTC) + timedelta(days=30),
     }
     return jwt.encode(payload, settings.SECRET_KEY, algorithm=settings.ALGORITHM)
 
 PAIR_URL = "/api/v1/extension/pair"
+REFRESH_URL = "/api/v1/extension/refresh"
 
 
 # ---------------------------------------------------------------------------
@@ -405,3 +406,152 @@ async def test_suggestions_list_enrichment_includes_linkedin_fields(
     assert contact_data is not None
     assert contact_data["linkedin_profile_id"] == "linkedin-person-slug"
     assert contact_data["linkedin_url"] == "https://www.linkedin.com/in/linkedin-person-slug"
+
+
+# ---------------------------------------------------------------------------
+# Refresh endpoint: expired token within grace yields a new token
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_refresh_exchanges_expired_token_within_grace(
+    client: AsyncClient,
+    db: AsyncSession,
+    test_user: User,
+):
+    """A token expired 5 days ago is refreshable while the user is still paired."""
+    test_user.linkedin_extension_paired_at = datetime.now(UTC) - timedelta(days=35)
+    await db.commit()
+
+    expired = _make_extension_token(
+        str(test_user.id), exp=datetime.now(UTC) - timedelta(days=5)
+    )
+
+    resp = await client.post(REFRESH_URL, json={"token": expired})
+    assert resp.status_code == 200
+    data = resp.json()["data"]
+    assert data["token"] and data["token"] != expired
+    assert data["api_url"]
+
+    # Decoding the new token should yield a future exp.
+    from jose import jwt
+
+    from app.core.config import settings
+
+    claims = jwt.decode(
+        data["token"],
+        settings.SECRET_KEY,
+        algorithms=[settings.ALGORITHM],
+        audience="pingcrm-extension",
+    )
+    assert claims["sub"] == str(test_user.id)
+    assert claims["exp"] > datetime.now(UTC).timestamp()
+
+
+# ---------------------------------------------------------------------------
+# Refresh endpoint: still-valid tokens can also be exchanged (proactive refresh)
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_refresh_accepts_still_valid_token(
+    client: AsyncClient,
+    db: AsyncSession,
+    test_user: User,
+):
+    """A non-expired extension token can also be refreshed."""
+    test_user.linkedin_extension_paired_at = datetime.now(UTC) - timedelta(days=1)
+    await db.commit()
+
+    token = _make_extension_token(str(test_user.id))
+
+    resp = await client.post(REFRESH_URL, json={"token": token})
+    assert resp.status_code == 200
+
+    from jose import jwt
+
+    from app.core.config import settings
+
+    claims = jwt.decode(
+        resp.json()["data"]["token"],
+        settings.SECRET_KEY,
+        algorithms=[settings.ALGORITHM],
+        audience="pingcrm-extension",
+    )
+    assert claims["sub"] == str(test_user.id)
+    assert claims["exp"] > datetime.now(UTC).timestamp()
+
+
+# ---------------------------------------------------------------------------
+# Refresh endpoint: tokens older than the grace window are rejected and
+# the user's paired_at flag is cleared so the web UI stops lying.
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_refresh_rejects_token_beyond_grace_and_clears_paired_at(
+    client: AsyncClient,
+    db: AsyncSession,
+    test_user: User,
+):
+    test_user.linkedin_extension_paired_at = datetime.now(UTC) - timedelta(days=200)
+    await db.commit()
+
+    ancient = _make_extension_token(
+        str(test_user.id), exp=datetime.now(UTC) - timedelta(days=120)
+    )
+
+    resp = await client.post(REFRESH_URL, json={"token": ancient})
+    assert resp.status_code == 401
+
+    await db.refresh(test_user)
+    assert test_user.linkedin_extension_paired_at is None
+
+
+# ---------------------------------------------------------------------------
+# Refresh endpoint: refuses web-audience tokens (scope separation)
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_refresh_rejects_web_audience_token(
+    client: AsyncClient,
+    test_user: User,
+):
+    """A regular web-session JWT must not be refreshable as an extension token."""
+    from app.core.auth import create_access_token
+
+    web_token = create_access_token(data={"sub": str(test_user.id)})
+    resp = await client.post(REFRESH_URL, json={"token": web_token})
+    assert resp.status_code == 401
+
+
+# ---------------------------------------------------------------------------
+# Refresh endpoint: rejects tokens for users who already disconnected
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_refresh_rejects_disconnected_user(
+    client: AsyncClient,
+    db: AsyncSession,
+    test_user: User,
+):
+    """If linkedin_extension_paired_at is NULL, refresh must fail."""
+    assert test_user.linkedin_extension_paired_at is None
+    token = _make_extension_token(str(test_user.id))
+
+    resp = await client.post(REFRESH_URL, json={"token": token})
+    assert resp.status_code == 401
+
+
+# ---------------------------------------------------------------------------
+# Refresh endpoint: rejects tokens with a bad signature
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_refresh_rejects_tampered_token(client: AsyncClient):
+    """Tampered JWTs must return 401."""
+    resp = await client.post(REFRESH_URL, json={"token": "not.a.jwt"})
+    assert resp.status_code == 401
