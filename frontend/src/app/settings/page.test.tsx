@@ -4,6 +4,8 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { useSearchParams, useRouter } from "next/navigation";
 import SettingsPage from "./page";
 
+import { client } from "@/lib/api-client";
+
 // Mock the api-client module
 vi.mock("@/lib/api-client", () => ({
   client: {
@@ -21,8 +23,6 @@ let telegramSyncProgressData: { active: boolean; phase?: string; total_dialogs?:
 vi.mock("@/hooks/use-telegram-sync", () => ({
   useTelegramSyncProgress: () => ({ data: telegramSyncProgressData }),
 }));
-
-import { client } from "@/lib/api-client";
 
 const mockedClient = client as unknown as {
   GET: ReturnType<typeof vi.fn>;
@@ -67,7 +67,7 @@ describe("SettingsPage", () => {
     // Default: disconnected user
     mockedClient.GET.mockImplementation((url: string) => {
       if (url === "/api/v1/auth/me") return Promise.resolve(mockMeResponse());
-      return Promise.resolve({ data: null, error: { detail: "unexpected GET " + url } });
+      return Promise.resolve({ data: null, error: { detail: `unexpected GET ${  url}` } });
     });
     mockedClient.POST.mockResolvedValue({ data: null, error: { detail: "unexpected POST" } });
 
@@ -88,6 +88,7 @@ describe("SettingsPage", () => {
 
   it("shows loading spinner initially", async () => {
     // Make /api/v1/auth/me hang
+    // eslint-disable-next-line @typescript-eslint/no-empty-function -- intentional never-resolving promise to simulate loading state
     mockedClient.GET.mockReturnValue(new Promise(() => {}));
     render(<SettingsPage />);
     expect(screen.getByText("Loading accounts...")).toBeInTheDocument();
@@ -178,6 +179,7 @@ describe("SettingsPage", () => {
       expect(screen.getByText("Twitter Connected")).toBeInTheDocument();
     });
     expect(screen.getByText(/successfully linked/)).toBeInTheDocument();
+    // eslint-disable-next-line @typescript-eslint/unbound-method -- checking spy invocation, not calling the method
     expect(window.history.replaceState).toHaveBeenCalledWith({}, "", "/settings?tab=integrations");
   });
 
@@ -318,7 +320,7 @@ describe("SettingsPage", () => {
     mockedClient.POST.mockImplementation((url: string) => {
       if (url === "/api/v1/contacts/sync/google")
         return Promise.resolve({ data: null, error: { detail: "Token expired" } });
-      return Promise.resolve({ data: null, error: { detail: "unexpected POST " + url } });
+      return Promise.resolve({ data: null, error: { detail: `unexpected POST ${  url}` } });
     });
 
     render(<SettingsPage />);
@@ -344,7 +346,7 @@ describe("SettingsPage", () => {
     mockedClient.POST.mockImplementation((url: string) => {
       if (url === "/api/v1/contacts/sync/google")
         return Promise.resolve({ data: null, error: {} });
-      return Promise.resolve({ data: null, error: { detail: "unexpected POST " + url } });
+      return Promise.resolve({ data: null, error: { detail: `unexpected POST ${  url}` } });
     });
 
     render(<SettingsPage />);
@@ -1427,7 +1429,7 @@ describe("SettingsPage", () => {
       return Promise.resolve({ data: null, error: { detail: "unexpected" } });
     });
 
-    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
+    const _user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
     render(<SettingsPage />);
     await waitFor(() => {
       expect(screen.getByText("Sync now")).toBeInTheDocument();
@@ -1435,7 +1437,7 @@ describe("SettingsPage", () => {
 
     // The disconnect is behind the kebab menu — just call DELETE directly
     // since testing the kebab dropdown UI is fragile
-    await (await import("@/lib/api-client")).client.DELETE("/api/v1/extension/pair" as any, {});
+    await (await import("@/lib/api-client")).client.DELETE("/api/v1/extension/pair", {});
     await waitFor(() => {
       expect(mockedClient.DELETE).toHaveBeenCalledWith("/api/v1/extension/pair", {});
     });

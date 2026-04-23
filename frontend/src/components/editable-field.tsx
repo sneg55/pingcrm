@@ -4,7 +4,7 @@ import { useState, useRef, useEffect } from "react";
 import { Pencil } from "lucide-react";
 import { cn } from "@/lib/utils";
 
-interface EditableFieldProps {
+type EditableFieldProps = {
   label: string;
   value: string | null | undefined;
   onSave: (value: string) => void;
@@ -135,7 +135,7 @@ export function EditableField({
   );
 }
 
-interface EditableListFieldProps {
+type EditableListFieldProps = {
   label: string;
   values: string[];
   onSave: (values: string[]) => void;
@@ -243,7 +243,7 @@ export function EditableListField({
   );
 }
 
-interface EditableTagsFieldProps {
+type EditableTagsFieldProps = {
   label: string;
   values: string[];
   onSave: (values: string[]) => void;

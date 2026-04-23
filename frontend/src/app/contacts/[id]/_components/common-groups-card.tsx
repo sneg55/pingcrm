@@ -4,7 +4,7 @@ import { useState, useEffect } from "react";
 import { MessageCircle, Users } from "lucide-react";
 import { client } from "@/lib/api-client";
 
-interface TelegramGroup {
+type TelegramGroup = {
   id: number;
   title: string;
   username?: string;
@@ -33,7 +33,9 @@ export function CommonGroupsCard({
       .then(({ data }) => {
         setGroups((data?.data as unknown as TelegramGroup[]) ?? []);
       })
-      .catch(() => {})
+      .catch((err: unknown) => {
+        console.error("load telegram common groups failed", err);
+      })
       .finally(() => {
         setLoading(false);
         setFetched(true);

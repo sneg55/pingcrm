@@ -1,10 +1,10 @@
 "use client";
 
-import { createContext, useContext, useCallback, useSyncExternalStore } from "react";
+import { createContext, useContext, useSyncExternalStore } from "react";
 
 export type Theme = "light" | "dark" | "system";
 
-export interface ThemeContextValue {
+export type ThemeContextValue = {
   theme: Theme;
   setTheme: (t: Theme) => void;
   resolvedTheme: "light" | "dark";

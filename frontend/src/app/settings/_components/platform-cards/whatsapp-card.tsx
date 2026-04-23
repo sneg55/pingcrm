@@ -15,7 +15,7 @@ import { SyncHistoryModal } from "../sync-history-modal";
 import type { ConnectedAccounts, SyncState } from "../../_hooks/use-settings-controller";
 import type { UseWhatsAppConnectFlowReturn } from "../../_hooks/use-whatsapp-connect-flow";
 
-export interface WhatsAppCardProps {
+export type WhatsAppCardProps = {
   connected: ConnectedAccounts;
   whatsappConnect: SyncState;
   whatsappSync: SyncState;
@@ -37,6 +37,7 @@ export function WhatsAppCard({
   const [showSyncHistory, setShowSyncHistory] = useState(false);
 
   const handleDisconnect = async () => {
+    // eslint-disable-next-line no-alert -- native confirm before destructive disconnect
     if (confirm("Disconnect WhatsApp? Your synced messages will be kept but no new data will sync.")) {
       await client.DELETE("/api/v1/auth/whatsapp/disconnect", {});
       await fetchConnectionStatus();
@@ -96,13 +97,13 @@ export function WhatsAppCard({
               <KebabMenu
                 items={[
                   { icon: History, label: "Sync history", onClick: () => setShowSyncHistory(true) },
-                  { icon: Unplug, label: "Disconnect WhatsApp", danger: true, onClick: handleDisconnect },
+                  { icon: Unplug, label: "Disconnect WhatsApp", danger: true, onClick: () => { void handleDisconnect(); } },
                 ]}
               />
             </>
           ) : (
             <button
-              onClick={startConnect}
+              onClick={() => { void startConnect(); }}
               disabled={step === "qr_pending"}
               className="inline-flex items-center gap-1.5 px-4 py-2 text-xs font-medium rounded-lg bg-teal-600 text-white hover:bg-teal-700 transition-colors shadow-sm disabled:opacity-50"
             >

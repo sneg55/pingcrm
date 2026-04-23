@@ -15,7 +15,7 @@ import {
 } from "../shared";
 import type { ConnectedAccounts, SyncState } from "../../_hooks/use-settings-controller";
 
-export interface TwitterCardProps {
+export type TwitterCardProps = {
   connected: ConnectedAccounts;
   twitterConnect: SyncState;
   twitterSync: SyncState;
@@ -23,6 +23,7 @@ export interface TwitterCardProps {
   handleTwitterSync: () => Promise<void>;
 }
 
+// eslint-disable-next-line sonarjs/cognitive-complexity -- card composes connect/sync/error state branches; refactor tracked separately
 export function TwitterCard({
   connected,
   twitterConnect,
@@ -89,12 +90,13 @@ export function TwitterCard({
                   },
                   { icon: History, label: "Sync history", onClick: () => setShowSyncHistory(true) },
                   { icon: Unplug, label: "---" },
-                  { icon: Unplug, label: "Disconnect Twitter", danger: true, onClick: async () => {
+                  { icon: Unplug, label: "Disconnect Twitter", danger: true, onClick: () => { void (async () => {
+                    // eslint-disable-next-line no-alert -- native confirm before destructive disconnect
                     if (confirm("Disconnect Twitter? Your synced messages will be kept but no new data will sync.")) {
-                      await client.DELETE("/api/v1/auth/twitter/disconnect" as any, {});
+                      await client.DELETE("/api/v1/auth/twitter/disconnect", {});
                       window.location.reload();
                     }
-                  }},
+                  })(); }},
                 ]}
               />
             </>

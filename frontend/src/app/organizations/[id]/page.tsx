@@ -5,7 +5,6 @@ import { useParams, useRouter } from "next/navigation";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   ArrowLeft,
-  Building2,
   Globe,
   Linkedin,
   MapPin,
@@ -34,7 +33,7 @@ function safeHref(url: string | null | undefined): string | undefined {
 
 /* ── Types ── */
 
-interface OrgContact {
+type OrgContact = {
   id: string;
   full_name: string | null;
   given_name: string | null;
@@ -46,7 +45,7 @@ interface OrgContact {
   last_interaction_at: string | null;
 }
 
-interface OrganizationData {
+type OrganizationData = {
   id: string;
   name: string;
   domain: string | null;
@@ -273,36 +272,37 @@ export default function OrganizationDetailPage() {
   const { data, isLoading, error } = useQuery({
     queryKey: ["organization", id],
     queryFn: async () => {
-      const res = await client.GET("/api/v1/organizations/{org_id}" as any, {
+      const res = await client.GET("/api/v1/organizations/{org_id}", {
         params: { path: { org_id: id } },
       });
       if (res.error) throw new Error("Failed to load organization");
-      return (res.data as any)?.data as OrganizationData;
+      return res.data?.data as unknown as OrganizationData;
     },
   });
 
   const updateMutation = useMutation({
     mutationFn: async (updates: Partial<OrganizationData>) => {
-      const res = await client.PATCH("/api/v1/organizations/{org_id}" as any, {
+      const res = await client.PATCH("/api/v1/organizations/{org_id}", {
         params: { path: { org_id: id } },
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any -- local OrganizationData has fields not in generated OrganizationUpdate schema
         body: updates as any,
       });
-      return (res.data as any)?.data;
+      return res.data?.data;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["organization", id] });
-      queryClient.invalidateQueries({ queryKey: ["organizations"] });
+      void queryClient.invalidateQueries({ queryKey: ["organization", id] });
+      void queryClient.invalidateQueries({ queryKey: ["organizations"] });
     },
   });
 
   const deleteMutation = useMutation({
     mutationFn: async () => {
-      await client.DELETE("/api/v1/organizations/{org_id}" as any, {
+      await client.DELETE("/api/v1/organizations/{org_id}", {
         params: { path: { org_id: id } },
       });
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["organizations"] });
+      void queryClient.invalidateQueries({ queryKey: ["organizations"] });
       router.push("/organizations");
     },
   });

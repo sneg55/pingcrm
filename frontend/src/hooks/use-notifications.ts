@@ -1,7 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { client } from "@/lib/api-client";
 
-export interface AppNotification {
+export type AppNotification = {
   id: string;
   notification_type: string;
   title: string;
@@ -11,30 +11,30 @@ export interface AppNotification {
   created_at: string | null;
 }
 
-interface NotificationsResponse {
+type NotificationsResponse = {
   data: AppNotification[];
   error: string | null;
   meta: { total: number; page: number; page_size: number; total_pages: number };
 }
 
 export function useNotifications(page = 1) {
-  return useQuery<NotificationsResponse | undefined>({
+  return useQuery<NotificationsResponse | null>({
     queryKey: ["notifications", page],
     queryFn: async () => {
       const { data } = await client.GET("/api/v1/notifications", {
         params: { query: { page, page_size: 20 } },
       });
-      return data as NotificationsResponse | undefined;
+      return (data as NotificationsResponse | undefined) ?? null;
     },
   });
 }
 
 export function useUnreadCount() {
-  return useQuery<{ data: { count: number } } | undefined>({
+  return useQuery<{ data: { count: number } } | null>({
     queryKey: ["notifications", "unread-count"],
     queryFn: async () => {
       const { data } = await client.GET("/api/v1/notifications/unread-count");
-      return data as { data: { count: number } } | undefined;
+      return (data as { data: { count: number } } | undefined) ?? null;
     },
     staleTime: 30_000,
     refetchInterval: 60_000,
@@ -52,7 +52,7 @@ export function useMarkRead() {
       return data;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["notifications"] });
+      void queryClient.invalidateQueries({ queryKey: ["notifications"] });
     },
   });
 }
@@ -65,7 +65,7 @@ export function useMarkAllRead() {
       return data;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["notifications"] });
+      void queryClient.invalidateQueries({ queryKey: ["notifications"] });
     },
   });
 }

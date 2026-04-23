@@ -12,9 +12,7 @@ import {
   Clock,
   X,
   ChevronDown,
-  UserPlus,
   Plug,
-  FileDown,
 } from "lucide-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { formatDistanceToNow } from "date-fns";
@@ -35,12 +33,6 @@ import {
 
 type Channel = "email" | "telegram" | "twitter";
 
-const channelIcons: Record<Channel, ReactNode> = {
-  email: <Mail className="w-3.5 h-3.5" />,
-  telegram: <MessageCircle className="w-3.5 h-3.5" />,
-  twitter: <Twitter className="w-3.5 h-3.5" />,
-};
-
 const snoozeOptions = [
   { label: "2 weeks", days: 14 },
   { label: "1 month", days: 30 },
@@ -53,13 +45,6 @@ function getContactName(c: Suggestion["contact"]): string {
     c.full_name ??
     ([c.given_name, c.family_name].filter(Boolean).join(" ") || "Unknown")
   );
-}
-
-function getScoreTier(score: number | null | undefined): { label: string; color: string } {
-  if (score == null) return { label: "New", color: "bg-sky-50 dark:bg-sky-950 text-sky-600 dark:text-sky-400 border-sky-200 dark:border-sky-800" };
-  if (score >= 70) return { label: "Strong", color: "bg-emerald-50 dark:bg-emerald-950 text-emerald-600 dark:text-emerald-400 border-emerald-200 dark:border-emerald-800" };
-  if (score >= 30) return { label: "Warm", color: "bg-amber-50 dark:bg-amber-950 text-amber-600 dark:text-amber-400 border-amber-200 dark:border-amber-800" };
-  return { label: "Cold", color: "bg-red-50 dark:bg-red-950 text-red-600 dark:text-red-400 border-red-200 dark:border-red-800" };
 }
 
 // ---------------------------------------------------------------------------
@@ -77,7 +62,6 @@ function DashboardSuggestionCard({ suggestion }: { suggestion: Suggestion }) {
   const c = suggestion.contact;
   const name = getContactName(c);
   const channel = suggestion.suggested_channel;
-  const tier = getScoreTier(null); // contact doesn't carry score in suggestion payload
 
   const triggerLabels: Record<string, string> = {
     time_based: "90+ days",
@@ -106,7 +90,9 @@ function DashboardSuggestionCard({ suggestion }: { suggestion: Suggestion }) {
         setSendError(err instanceof Error ? err.message : "Failed to send");
       }
     } else {
-      void navigator.clipboard.writeText(message).catch(() => {});
+      void navigator.clipboard.writeText(message).catch((err: unknown) => {
+        console.error("clipboard write failed", err);
+      });
       if (ch === "twitter" && c?.twitter_handle) {
         window.open(`https://x.com/${c.twitter_handle.replace(/^@/, "")}`, "_blank");
       }
@@ -348,6 +334,7 @@ function OverdueRow({ contact }: { contact: OverdueContact }) {
 // ---------------------------------------------------------------------------
 // Dashboard Page
 // ---------------------------------------------------------------------------
+// eslint-disable-next-line sonarjs/cognitive-complexity -- top-level page composes many widgets with conditional loading/empty states; refactor tracked separately
 export default function DashboardPage() {
   const { suggestions, stats, statsReady, overdueContacts, recentActivity, isLoading } =
     useDashboardStats();

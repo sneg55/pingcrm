@@ -4,11 +4,9 @@ import { useState, useRef, type DragEvent, type ChangeEvent } from "react";
 import { Upload, FileText, X, AlertCircle, CheckCircle } from "lucide-react";
 import { client } from "@/lib/api-client";
 
-interface PreviewRow {
-  [key: string]: string;
-}
+type PreviewRow = Record<string, string>
 
-interface ImportResult {
+type ImportResult = {
   created: number;
   errors: string[];
 }
@@ -63,7 +61,7 @@ export function CsvImport() {
     e.preventDefault();
     setIsDragging(false);
     const f = e.dataTransfer.files[0];
-    if (f && f.type === "text/csv") {
+    if (f?.type === "text/csv") {
       processFile(f);
     }
   };

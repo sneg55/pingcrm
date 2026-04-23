@@ -8,7 +8,6 @@ import {
   Archive,
   ArrowLeft,
   ArchiveRestore,
-  Trash2,
   X,
   ChevronLeft,
   ChevronRight,
@@ -139,7 +138,7 @@ function ArchivedContactsInner() {
   const totalPages = meta?.total_pages ?? 1;
   const currentPage = meta?.page ?? 1;
 
-  const pageNumbers: (number | "...")[] = [];
+  const pageNumbers: Array<number | "..."> = [];
   for (let i = 1; i <= totalPages; i++) {
     if (i <= 3 || i > totalPages - 2 || Math.abs(i - currentPage) <= 1) {
       pageNumbers.push(i);

@@ -4,18 +4,18 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import NotificationsPage from "./page";
 import type { AppNotification } from "@/hooks/use-notifications";
 
+import {
+  useNotifications,
+  useMarkRead,
+  useMarkAllRead,
+} from "@/hooks/use-notifications";
+
 // Mock the hooks module
 vi.mock("@/hooks/use-notifications", () => ({
   useNotifications: vi.fn(),
   useMarkRead: vi.fn(),
   useMarkAllRead: vi.fn(),
 }));
-
-import {
-  useNotifications,
-  useMarkRead,
-  useMarkAllRead,
-} from "@/hooks/use-notifications";
 
 const mockedUseNotifications = useNotifications as ReturnType<typeof vi.fn>;
 const mockedUseMarkRead = useMarkRead as ReturnType<typeof vi.fn>;

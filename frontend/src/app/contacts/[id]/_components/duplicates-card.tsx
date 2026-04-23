@@ -3,22 +3,44 @@
 import { useState, useEffect } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { ArrowRight, Check, GitMerge, Minus, X } from "lucide-react";
+import { ArrowRight, Check, GitMerge, Minus, X , Search } from "lucide-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { cn } from "@/lib/utils";
 import { useContactDuplicates, useContacts, useMergeContacts } from "@/hooks/use-contacts";
 import { client } from "@/lib/api-client";
 import { ContactAvatar } from "@/components/contact-avatar";
-import { Search } from "lucide-react";
+import type { components } from "@/lib/api-types";
+
+type ContactResponse = components["schemas"]["ContactResponse"];
+
+// The DuplicateRow can receive either a real detected duplicate (DuplicateContactData)
+// or a manually-selected contact (ContactResponse) mapped into the same shape. We accept
+// the superset so both paths typecheck without casts.
+type DuplicateLike = {
+  id: string;
+  full_name?: string | null;
+  given_name?: string | null;
+  family_name?: string | null;
+  emails?: string[] | null;
+  phones?: string[] | null;
+  company?: string | null;
+  title?: string | null;
+  twitter_handle?: string | null;
+  telegram_username?: string | null;
+  avatar_url?: string | null;
+  source?: string | null;
+  score?: number | null;
+};
 
 /* ── Duplicate Row ── */
 
+// eslint-disable-next-line sonarjs/cognitive-complexity -- row encapsulates dismiss/merge/confirm states; splitting would just shuffle conditionals across helpers
 function DuplicateRow({
   dup,
   contactId,
   onDismissed,
 }: {
-  dup: any;
+  dup: DuplicateLike;
   contactId: string;
   onDismissed?: () => void;
 }) {
@@ -41,15 +63,15 @@ function DuplicateRow({
     mergeContacts.mutate(
       { contactId, otherId: dup.id },
       {
-        onSuccess: (result: any) => {
-          if (!result?.data?.id) {
+        onSuccess: (result) => {
+          const survivingId = result?.data?.id;
+          if (!survivingId) {
             setMergeError("Merge failed — contact may already be merged or deleted.");
             setConfirmId(null);
             return;
           }
           void queryClient.invalidateQueries({ queryKey: ["contacts"] });
           void queryClient.invalidateQueries({ queryKey: ["contact-duplicates"] });
-          const survivingId = result.data.id;
           if (survivingId !== contactId) {
             router.replace(`/contacts/${survivingId}`);
           } else {
@@ -57,7 +79,7 @@ function DuplicateRow({
             setConfirmId(null);
           }
         },
-        onError: (err: any) => {
+        onError: (err) => {
           setMergeError(err?.message || "Merge failed. Please try again.");
           setConfirmId(null);
         },
@@ -69,8 +91,8 @@ function DuplicateRow({
     setDismissing(true);
     try {
       await client.POST(
-        `/api/v1/contacts/${contactId}/dismiss-duplicate/${dup.id}` as any,
-        {}
+        "/api/v1/contacts/{contact_id}/dismiss-duplicate/{other_id}",
+        { params: { path: { contact_id: contactId, other_id: dup.id } } }
       );
       void queryClient.invalidateQueries({ queryKey: ["contact-duplicates", contactId] });
       onDismissed?.();
@@ -178,7 +200,7 @@ function DuplicateRow({
         ) : (
           <div className="flex items-center gap-2">
             <button
-              onClick={handleDismiss}
+              onClick={() => { void handleDismiss(); }}
               disabled={dismissing}
               className="flex-1 inline-flex items-center justify-center gap-1 px-2.5 py-1.5 text-[11px] font-medium rounded-md border border-stone-200 dark:border-stone-700 text-stone-600 dark:text-stone-300 hover:bg-stone-50 dark:hover:bg-stone-800 disabled:opacity-50 transition-colors"
             >
@@ -201,7 +223,7 @@ function DuplicateRow({
 
 export function DuplicatesCard({ contactId }: { contactId: string }) {
   const { data, isLoading } = useContactDuplicates(contactId, true);
-  const duplicates = (data?.data ?? []).filter((d: any) => d.id !== contactId);
+  const duplicates = (data?.data ?? []).filter((d) => d.id !== contactId);
   const [showModal, setShowModal] = useState(false);
   const [search, setSearch] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
@@ -217,8 +239,8 @@ export function DuplicatesCard({ contactId }: { contactId: string }) {
     search: debouncedSearch.length >= 2 ? debouncedSearch : undefined,
     page_size: 10,
   });
-  const searchResults = debouncedSearch.length >= 2
-    ? (searchData?.data ?? []).filter((c: any) => c.id !== contactId)
+  const searchResults: ContactResponse[] = debouncedSearch.length >= 2
+    ? (searchData?.data ?? []).filter((c) => c.id !== contactId)
     : [];
 
   if (isLoading || duplicates.length === 0) return null;
@@ -280,10 +302,10 @@ export function DuplicatesCard({ contactId }: { contactId: string }) {
                 searchResults.length === 0 ? (
                   <p className="text-xs text-stone-400 dark:text-stone-500 text-center py-4">No contacts found</p>
                 ) : (
-                  searchResults.map((c: any) => {
+                  searchResults.map((c) => {
                     // Check if this contact is already in duplicates list (has a score)
-                    const existingDup = duplicates.find((d: any) => d.id === c.id);
-                    const mergeTarget = existingDup || {
+                    const existingDup: DuplicateLike | undefined = duplicates.find((d) => d.id === c.id);
+                    const mergeTarget: DuplicateLike = existingDup || {
                       id: c.id,
                       full_name: c.full_name,
                       given_name: c.given_name,
@@ -301,7 +323,7 @@ export function DuplicatesCard({ contactId }: { contactId: string }) {
                 )
               ) : (
                 // Show detected duplicates when not searching
-                duplicates.map((dup: any) => (
+                duplicates.map((dup) => (
                   <DuplicateRow key={dup.id} dup={dup} contactId={contactId} />
                 ))
               )}

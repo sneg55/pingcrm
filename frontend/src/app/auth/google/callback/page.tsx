@@ -1,10 +1,10 @@
 "use client";
 
-export const dynamic = "force-dynamic";
-
 import { Suspense, useEffect, useState } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import { client } from "@/lib/api-client";
+
+export const dynamic = "force-dynamic";
 
 function GoogleCallbackInner() {
   const searchParams = useSearchParams();
@@ -20,7 +20,7 @@ function GoogleCallbackInner() {
       return;
     }
 
-    (async () => {
+    void (async () => {
       const { data, error } = await client.POST("/api/v1/auth/google/callback", {
         body: { code, state: state ?? undefined },
       });

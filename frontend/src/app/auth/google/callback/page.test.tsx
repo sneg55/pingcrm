@@ -3,14 +3,14 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { useRouter, useSearchParams } from "next/navigation";
 import GoogleCallbackPage from "./page";
 
+import { client } from "@/lib/api-client";
+
 // Mock api-client
 vi.mock("@/lib/api-client", () => ({
   client: {
     POST: vi.fn(),
   },
 }));
-
-import { client } from "@/lib/api-client";
 
 const mockedClient = client as unknown as { POST: ReturnType<typeof vi.fn> };
 const mockedUseRouter = useRouter as unknown as ReturnType<typeof vi.fn>;

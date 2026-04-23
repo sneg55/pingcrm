@@ -18,7 +18,7 @@ import type { ConnectedAccounts, SyncState } from "../../_hooks/use-settings-con
 import type { UseTelegramConnectFlowReturn } from "../../_hooks/use-telegram-connect-flow";
 import type { SyncProgress } from "@/hooks/use-telegram-sync";
 
-export interface TelegramCardProps {
+export type TelegramCardProps = {
   connected: ConnectedAccounts;
   telegramConnect: SyncState;
   telegramSync: SyncState;
@@ -28,6 +28,7 @@ export interface TelegramCardProps {
   handleTelegramSync: () => Promise<void>;
 }
 
+// eslint-disable-next-line sonarjs/cognitive-complexity -- card composes pairing/connect/sync/progress/error states; refactor tracked separately
 export function TelegramCard({
   connected,
   telegramConnect,
@@ -108,20 +109,22 @@ export function TelegramCard({
                 <KebabMenu
                   items={[
                     { icon: Settings, label: "Sync settings", onClick: () => setShowSyncSettings(true) },
-                    { icon: RotateCcw, label: "Reset session", onClick: async () => {
+                    { icon: RotateCcw, label: "Reset session", onClick: () => { void (async () => {
+                      // eslint-disable-next-line no-alert -- native confirm before destructive session reset
                       if (confirm("Reset your Telegram session? You'll need to re-enter your phone number and code.")) {
-                        await client.POST("/api/v1/auth/telegram/reset-session" as any, {});
+                        await client.POST("/api/v1/auth/telegram/reset-session", {});
                         window.location.reload();
                       }
-                    }},
+                    })(); }},
                     { icon: History, label: "Sync history", onClick: () => setShowSyncHistory(true) },
                     { icon: Unplug, label: "---" },
-                    { icon: Unplug, label: "Disconnect Telegram", danger: true, onClick: async () => {
+                    { icon: Unplug, label: "Disconnect Telegram", danger: true, onClick: () => { void (async () => {
+                      // eslint-disable-next-line no-alert -- native confirm before destructive disconnect
                       if (confirm("Disconnect Telegram? Your synced messages will be kept but no new data will sync.")) {
-                        await client.DELETE("/api/v1/auth/telegram/disconnect" as any, {});
+                        await client.DELETE("/api/v1/auth/telegram/disconnect", {});
                         window.location.reload();
                       }
-                    }},
+                    })(); }},
                   ]}
                 />
               </>

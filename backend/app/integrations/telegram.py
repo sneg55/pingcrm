@@ -834,7 +834,14 @@ async def fetch_common_groups(
 
     from telethon.tl.functions.messages import GetCommonChatsRequest
 
-    client = _make_client(user.telegram_session)
+    try:
+        client = _make_client(user.telegram_session)
+    except ValueError:
+        logger.warning(
+            "fetch_common_groups: StringSession decode failed",
+            extra={"provider": "telegram", "user_id": str(user.id)},
+        )
+        return [], None
     await _ensure_connected(client)
 
     resolved_user_id: str | None = None

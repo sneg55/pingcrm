@@ -8,7 +8,6 @@ import { client } from "@/lib/api-client";
 export function TelegramSyncSettings() {
   const [sync2ndTier, setSync2ndTier] = useState(true);
   const [isLoading, setIsLoading] = useState(true);
-  const [isSaving, setIsSaving] = useState(false);
   const [tierCount, setTierCount] = useState<number | null>(null);
   const [showPurgeConfirm, setShowPurgeConfirm] = useState(false);
   const [isPurging, setIsPurging] = useState(false);
@@ -17,8 +16,7 @@ export function TelegramSyncSettings() {
   const fetchSettings = useCallback(async () => {
     try {
       const { data } = await client.GET("/api/v1/settings/telegram", {});
-      const settings = (data as any)?.data;
-      setSync2ndTier(settings?.sync_2nd_tier ?? true);
+      setSync2ndTier(data?.data?.sync_2nd_tier ?? true);
     } catch {
       // ignore
     } finally {
@@ -29,16 +27,16 @@ export function TelegramSyncSettings() {
   const fetchCount = useCallback(async () => {
     try {
       const { data } = await client.GET("/api/v1/contacts/2nd-tier/count", {});
-      const result = (data as any)?.data;
-      setTierCount(result?.count ?? 0);
+      const count = (data?.data as { count?: number } | undefined)?.count;
+      setTierCount(count ?? 0);
     } catch {
       // ignore
     }
   }, []);
 
   useEffect(() => {
-    fetchSettings();
-    fetchCount();
+    void fetchSettings();
+    void fetchCount();
   }, [fetchSettings, fetchCount]);
 
   // Escape key closes purge confirmation
@@ -53,15 +51,13 @@ export function TelegramSyncSettings() {
 
   const handleToggle = async (checked: boolean) => {
     setSync2ndTier(checked);
-    setIsSaving(true);
     try {
       await client.PUT("/api/v1/settings/telegram", {
         body: { sync_2nd_tier: checked },
       });
-    } catch {
+    } catch (err) {
+      console.error("save telegram 2nd-tier setting failed", err);
       setSync2ndTier(!checked); // revert on error
-    } finally {
-      setIsSaving(false);
     }
   };
 
@@ -70,7 +66,7 @@ export function TelegramSyncSettings() {
     setPurgeResult(null);
     try {
       const { data } = await client.DELETE("/api/v1/contacts/2nd-tier", {});
-      const count = (data as any)?.data?.deleted_count ?? 0;
+      const count = (data?.data as { deleted_count?: number } | undefined)?.deleted_count ?? 0;
       setPurgeResult(`Deleted ${count} contact${count !== 1 ? "s" : ""}.`);
       setTierCount(0);
     } catch {
@@ -99,7 +95,7 @@ export function TelegramSyncSettings() {
             Sync group participants you haven&apos;t directly messaged
           </p>
         </div>
-        <Toggle checked={sync2ndTier} onChange={handleToggle} />
+        <Toggle checked={sync2ndTier} onChange={(checked) => { void handleToggle(checked); }} />
       </div>
 
       {/* 2nd Tier count + purge */}

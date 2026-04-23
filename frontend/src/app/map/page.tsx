@@ -30,13 +30,13 @@ function MapPageInner() {
   useEffect(() => {
     if (!focusId) return;
     let cancelled = false;
-    (async () => {
+    void (async () => {
       const { data } = await client.GET("/api/v1/contacts/{contact_id}", {
         params: { path: { contact_id: focusId } },
       });
       if (cancelled) return;
       const c = data?.data;
-      if (c && c.latitude != null && c.longitude != null) {
+      if (c?.latitude != null && c.longitude != null) {
         setFocus({ latitude: c.latitude, longitude: c.longitude });
       }
     })();

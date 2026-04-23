@@ -291,7 +291,7 @@ describe("EditableTagsField", () => {
     // "vip" is selected so should NOT appear in suggestions
     // "lead" should appear
     const buttons = screen.getAllByRole("button");
-    const suggestionTexts = buttons.map((b) => b.textContent);
+    const _suggestionTexts = buttons.map((b) => b.textContent);
     // lead should be in suggestions
     expect(screen.getByText("lead")).toBeInTheDocument();
   });

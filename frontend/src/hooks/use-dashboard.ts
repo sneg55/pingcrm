@@ -2,7 +2,7 @@ import { useQuery } from "@tanstack/react-query";
 import { client } from "@/lib/api-client";
 import type { Suggestion } from "@/hooks/use-suggestions";
 
-interface ContactStats {
+type ContactStats = {
   total: number;
   strong: number;
   active: number;
@@ -12,7 +12,7 @@ interface ContactStats {
   active_last_week: number;
 }
 
-export interface OverdueContact {
+export type OverdueContact = {
   id: string;
   full_name: string | null;
   given_name: string | null;
@@ -24,7 +24,7 @@ export interface OverdueContact {
   relationship_score: number | null;
 }
 
-export interface ActivityEvent {
+export type ActivityEvent = {
   type: string;
   contact_name: string;
   contact_id: string;
@@ -42,7 +42,7 @@ export function useDashboardStats() {
     queryKey: ["suggestions"],
     queryFn: async () => {
       const { data } = await client.GET("/api/v1/suggestions");
-      return data;
+      return data ?? null;
     },
     refetchInterval: DASHBOARD_REFETCH_MS,
   });
@@ -51,7 +51,7 @@ export function useDashboardStats() {
     queryKey: ["contacts", "stats"],
     queryFn: async () => {
       const { data } = await client.GET("/api/v1/contacts/stats");
-      return data;
+      return data ?? null;
     },
     refetchInterval: DASHBOARD_REFETCH_MS,
   });

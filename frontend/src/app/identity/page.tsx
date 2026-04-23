@@ -37,7 +37,7 @@ import { cn } from "@/lib/utils";
 import { ContactAvatar } from "@/components/contact-avatar";
 
 /* ── Match type config ── */
-interface MatchTypeStyle {
+type MatchTypeStyle = {
   label: string;
   icon: React.ReactNode;
   pillColors: string;

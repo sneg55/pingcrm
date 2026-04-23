@@ -20,7 +20,7 @@ function MetaIcon() {
   );
 }
 
-export interface MetaCardProps {
+export type MetaCardProps = {
   connected: ConnectedAccounts;
   fetchConnectionStatus: () => Promise<void>;
 }

@@ -1,21 +1,21 @@
 "use client";
 
-export const dynamic = "force-dynamic";
-
-import { Suspense, useState, useCallback, useRef, useMemo, memo } from "react";
+import { Suspense, useState, useCallback, useRef, useMemo } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import { useQuery, useQueryClient, useMutation } from "@tanstack/react-query";
-import { Search, Building2, CheckSquare, GitMerge, Trash2, BarChart3, MessageSquare, Clock, Users, ArrowDown, ArrowUpDown } from "lucide-react";
+import { Search, CheckSquare, GitMerge, Trash2, BarChart3, MessageSquare, Users, ArrowDown, ArrowUpDown } from "lucide-react";
 import Link from "next/link";
 import { client } from "@/lib/api-client";
 import { CompanyFavicon } from "@/components/company-favicon";
 import { formatDistanceToNow } from "date-fns";
 
+export const dynamic = "force-dynamic";
+
 const EMPTY_SET = new Set<string>();
 
 type SortKey = "name" | "contacts" | "score" | "interactions" | "activity";
 
-interface Organization {
+type Organization = {
   id: string;
   name: string;
   domain: string | null;
@@ -200,7 +200,7 @@ function OrganizationsPageContent() {
     queryFn: async () => {
       const params: Record<string, string> = { page: String(page), page_size: "50" };
       if (searchFromUrl) params.search = searchFromUrl;
-      const { data } = await client.GET("/api/v1/organizations" as any, {
+      const { data } = await client.GET("/api/v1/organizations", {
         params: { query: params },
       });
       return data as { data: Organization[]; meta: { total: number; page: number; page_size: number; total_pages: number } };
@@ -228,7 +228,7 @@ function OrganizationsPageContent() {
 
   const mergeOrgs = useMutation({
     mutationFn: async (body: { source_ids: string[]; target_id: string }) => {
-      const { data, error } = await client.POST("/api/v1/organizations/merge" as any, { body });
+      const { data, error } = await client.POST("/api/v1/organizations/merge", { body });
       if (error) throw new Error((error as { detail?: string })?.detail ?? "Merge failed");
       return data;
     },
@@ -241,7 +241,7 @@ function OrganizationsPageContent() {
 
   const deleteOrg = useMutation({
     mutationFn: async (orgId: string) => {
-      const { error } = await client.DELETE("/api/v1/organizations/{org_id}" as any, {
+      const { error } = await client.DELETE("/api/v1/organizations/{org_id}", {
         params: { path: { org_id: orgId } },
       });
       if (error) throw new Error((error as { detail?: string })?.detail ?? "Delete failed");
@@ -270,6 +270,7 @@ function OrganizationsPageContent() {
 
   const handleDeleteSelected = async () => {
     const count = selectedOrgIds.size;
+    // eslint-disable-next-line no-alert -- native confirm before destructive bulk delete
     if (!confirm(`Delete ${count} organization${count > 1 ? "s" : ""}? Contacts will be unlinked but not deleted.`)) return;
     await Promise.all(
       Array.from(selectedOrgIds).map((id) => deleteOrg.mutateAsync(id))
@@ -278,6 +279,7 @@ function OrganizationsPageContent() {
   };
 
   const handleDeleteSingle = (org: Organization) => {
+    // eslint-disable-next-line no-alert -- native confirm before destructive delete
     if (!confirm(`Delete "${org.name}"? Contacts will be unlinked but not deleted.`)) return;
     deleteOrg.mutate(org.id);
     setSelectedOrgIds((prev) => { const next = new Set(prev); next.delete(org.id); return next; });
@@ -325,7 +327,7 @@ function OrganizationsPageContent() {
             selectedCount={selectedOrgIds.size}
             isPending={mergeOrgs.isPending || deleteOrg.isPending}
             onMergeOrgs={() => setShowMergeModal(true)}
-            onDeleteOrgs={handleDeleteSelected}
+            onDeleteOrgs={() => { void handleDeleteSelected(); }}
             onClear={() => setSelectedOrgIds(EMPTY_SET)}
           />
         )}

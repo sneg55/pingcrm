@@ -33,7 +33,7 @@ function CopyButton({ text }: { text: string }) {
 
 /* ── InlineListField ── */
 
-export interface InlineListFieldProps {
+export type InlineListFieldProps = {
   label: string;
   values: string[];
   onSave: (v: string[]) => void;

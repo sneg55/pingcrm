@@ -6,13 +6,13 @@ import type { SyncState } from "./use-settings-controller";
 
 export type WhatsAppStep = "idle" | "qr_pending" | "connected" | "error";
 
-export interface UseWhatsAppConnectFlowProps {
+export type UseWhatsAppConnectFlowProps = {
   whatsappConnect: SyncState;
   setWhatsappConnect: (s: SyncState) => void;
   onSuccess: () => Promise<void>;
 }
 
-export interface UseWhatsAppConnectFlowReturn {
+export type UseWhatsAppConnectFlowReturn = {
   step: WhatsAppStep;
   qrData: string | null;
   error: string | null;
@@ -57,16 +57,18 @@ export function useWhatsAppConnectFlow({
     }
     setWhatsappConnect({ status: "idle", message: "Scan QR code with your phone" });
 
-    pollRef.current = setInterval(async () => {
-      const { data: statusData } = await client.GET("/api/v1/auth/whatsapp/qr", {});
-      const s = statusData?.data;
-      if (s?.qr) setQrData(s.qr);
-      if (s?.status === "connected") {
-        stopPolling();
-        setStep("connected");
-        setWhatsappConnect({ status: "success", message: "WhatsApp connected!" });
-        await onSuccess();
-      }
+    pollRef.current = setInterval(() => {
+      void (async () => {
+        const { data: statusData } = await client.GET("/api/v1/auth/whatsapp/qr", {});
+        const s = statusData?.data;
+        if (s?.qr) setQrData(s.qr);
+        if (s?.status === "connected") {
+          stopPolling();
+          setStep("connected");
+          setWhatsappConnect({ status: "success", message: "WhatsApp connected!" });
+          await onSuccess();
+        }
+      })();
     }, 3000);
   }, [setWhatsappConnect, onSuccess, stopPolling]);
 

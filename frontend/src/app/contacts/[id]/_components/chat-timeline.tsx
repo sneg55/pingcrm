@@ -19,12 +19,14 @@ import {
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { cn } from "@/lib/utils";
 import { client } from "@/lib/api-client";
+import { extractErrorMessage } from "@/lib/api-errors";
 import {
   dateSeparatorLabel,
   needsSeparator,
   platformLabel,
-} from "../_lib/formatters";
+ avatarColor, getInitials } from "../_lib/formatters";
 import { Linkify } from "./linkify";
+import type { InteractionResponse } from "../_hooks/use-contact-detail-controller";
 
 const MSG_TRUNCATE_LEN = 400;
 
@@ -37,7 +39,7 @@ function CollapsibleText({
 }) {
   const [expanded, setExpanded] = useState(false);
   const needsTruncate = text.length > MSG_TRUNCATE_LEN;
-  const display = needsTruncate && !expanded ? text.slice(0, MSG_TRUNCATE_LEN) + "..." : text;
+  const display = needsTruncate && !expanded ? `${text.slice(0, MSG_TRUNCATE_LEN)  }...` : text;
 
   return (
     <>
@@ -54,8 +56,6 @@ function CollapsibleText({
     </>
   );
 }
-import type { InteractionResponse } from "../_hooks/use-contact-detail-controller";
-import { avatarColor, getInitials } from "../_lib/formatters";
 
 const TIMELINE_PAGE_SIZE = 50;
 
@@ -82,13 +82,13 @@ function NoteItem({
   const updateMutation = useMutation({
     mutationFn: async (content: string) => {
       const { error } = await client.PATCH(
-        "/api/v1/contacts/{contact_id}/interactions/{interaction_id}" as any,
+        "/api/v1/contacts/{contact_id}/interactions/{interaction_id}",
         {
           params: { path: { contact_id: contactId, interaction_id: item.id } },
           body: { content_preview: content },
         }
       );
-      if (error) throw new Error((error as any)?.detail || "Update failed");
+      if (error) throw new Error(extractErrorMessage(error) ?? "Update failed");
     },
     onSuccess: () => {
       setEditing(false);
@@ -100,10 +100,10 @@ function NoteItem({
   const deleteMutation = useMutation({
     mutationFn: async () => {
       const { error } = await client.DELETE(
-        "/api/v1/contacts/{contact_id}/interactions/{interaction_id}" as any,
+        "/api/v1/contacts/{contact_id}/interactions/{interaction_id}",
         { params: { path: { contact_id: contactId, interaction_id: item.id } } }
       );
-      if (error) throw new Error((error as any)?.detail || "Delete failed");
+      if (error) throw new Error(extractErrorMessage(error) ?? "Delete failed");
     },
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ["interactions", contactId] });
@@ -170,6 +170,7 @@ function NoteItem({
               </button>
               <button
                 onClick={() => {
+                  // eslint-disable-next-line no-alert -- native confirm before destructive delete
                   if (confirm("Delete this note?")) deleteMutation.mutate();
                 }}
                 className="p-1 rounded text-stone-400 dark:text-stone-500 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-950"
@@ -194,12 +195,10 @@ export function ChatTimeline({
   interactions,
   contactId,
   contactName,
-  onAddNote,
 }: {
   interactions: InteractionResponse[];
   contactId: string;
   contactName: string;
-  onAddNote: (content: string) => void;
 }) {
   const [visibleCount, setVisibleCount] = useState(TIMELINE_PAGE_SIZE);
   const visible = interactions.slice(0, visibleCount);

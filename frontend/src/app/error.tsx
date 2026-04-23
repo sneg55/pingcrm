@@ -24,7 +24,9 @@ export default function Error({
         component: "RootErrorBoundary",
         url: window.location.href,
       }),
-    }).catch(() => {});
+    }).catch((err: unknown) => {
+      console.error("report error to /api/v1/errors failed", err);
+    });
   }, [error]);
 
   return (

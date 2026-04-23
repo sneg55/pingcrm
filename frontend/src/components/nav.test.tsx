@@ -3,6 +3,10 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { usePathname, useRouter } from "next/navigation";
 import { Nav } from "./nav";
 
+import { useAuth } from "@/hooks/use-auth";
+import { useUnreadCount } from "@/hooks/use-notifications";
+import { useContacts } from "@/hooks/use-contacts";
+
 // Mock useAuth
 vi.mock("@/hooks/use-auth", () => ({
   useAuth: vi.fn(),
@@ -41,17 +45,11 @@ vi.mock("@tanstack/react-query", () => ({
   useQuery: (...args: unknown[]) => mockUseQuery(...args),
 }));
 
-import { useAuth } from "@/hooks/use-auth";
-import { useUnreadCount } from "@/hooks/use-notifications";
-import { useContacts } from "@/hooks/use-contacts";
-import { client } from "@/lib/api-client";
-
 const mockedUsePathname = vi.mocked(usePathname);
 const mockedUseRouter = vi.mocked(useRouter);
 const mockedUseAuth = vi.mocked(useAuth);
 const mockedUseUnreadCount = vi.mocked(useUnreadCount);
 const mockedUseContacts = vi.mocked(useContacts);
-const mockedClient = vi.mocked(client);
 
 const defaultUser = {
   id: "user-1",
@@ -240,6 +238,7 @@ describe("Nav", () => {
   it("View all results links to /organizations when Companies tab is active", () => {
     setupMocks();
     const mockPush = vi.fn();
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- mocked router type mismatch in test
     mockedUseRouter.mockReturnValue({ push: mockPush, replace: vi.fn(), back: vi.fn() } as any);
 
     render(<Nav />);

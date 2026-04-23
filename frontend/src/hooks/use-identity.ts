@@ -1,7 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { client } from "@/lib/api-client";
 
-export interface IdentityMatchContact {
+export type IdentityMatchContact = {
   id: string;
   full_name: string | null;
   given_name: string | null;
@@ -18,7 +18,7 @@ export interface IdentityMatchContact {
   source: string | null;
 }
 
-export interface IdentityMatch {
+export type IdentityMatch = {
   id: string;
   contact_a: IdentityMatchContact;
   contact_b: IdentityMatchContact;

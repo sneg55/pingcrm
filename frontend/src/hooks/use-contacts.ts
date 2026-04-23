@@ -1,7 +1,8 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { client } from "@/lib/api-client";
+import { extractErrorMessage } from "@/lib/api-errors";
 
-export interface Contact {
+export type Contact = {
   id: string;
   user_id: string;
   full_name: string | null;
@@ -38,7 +39,7 @@ export interface Contact {
   updated_at: string | null;
 }
 
-export interface ContactsParams {
+export type ContactsParams = {
   page?: number;
   page_size?: number;
   search?: string;
@@ -56,7 +57,7 @@ export interface ContactsParams {
   sort?: string;
 }
 
-export interface ContactCreateInput {
+export type ContactCreateInput = {
   full_name?: string;
   given_name?: string;
   family_name?: string;
@@ -82,7 +83,7 @@ export function useContacts(params: ContactsParams = {}) {
       const { data } = await client.GET("/api/v1/contacts", {
         params: { query: params },
       });
-      return data;
+      return data ?? null;
     },
   });
 }
@@ -94,7 +95,7 @@ export function useContact(id: string) {
       const { data } = await client.GET("/api/v1/contacts/{contact_id}", {
         params: { path: { contact_id: id } },
       });
-      return data;
+      return data ?? null;
     },
     enabled: Boolean(id),
   });
@@ -105,7 +106,7 @@ export function useCreateContact() {
   return useMutation({
     mutationFn: async (input: ContactCreateInput) => {
       const { data } = await client.POST("/api/v1/contacts", {
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any -- local ContactCreateInput shape does not match generated ContactCreate schema exactly
         body: input as any,
       });
       return data;
@@ -160,7 +161,7 @@ export function useMergeContacts() {
         { params: { path: { contact_id: contactId, other_id: otherId } } }
       );
       if (error) {
-        throw new Error((error as any)?.detail || "Merge failed");
+        throw new Error(extractErrorMessage(error) ?? "Merge failed");
       }
       return data;
     },
@@ -183,13 +184,14 @@ export function useUpdateContact() {
     }) => {
       const { data, error, response } = await client.PUT("/api/v1/contacts/{contact_id}", {
         params: { path: { contact_id: id } },
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any -- local ContactCreateInput shape does not match generated ContactUpdate schema exactly
         body: input as any,
       });
       if (error) {
-        const err = new Error("Update failed") as any;
+        const err = new Error("Update failed") as Error & { status?: number; detail?: unknown };
         err.status = response.status;
-        err.detail = (error as any)?.detail;
+        // Preserve full structured detail (may include `conflicting_contact` for merge flows).
+        err.detail = (error as { detail?: unknown }).detail;
         throw err;
       }
       return data;
@@ -215,7 +217,7 @@ export function useUpdateContact() {
   });
 }
 
-export interface ActivityData {
+export type ActivityData = {
   score: number;
   dimensions: {
     reciprocity: { value: number; max: number };
@@ -233,7 +235,7 @@ export interface ActivityData {
     interaction_count: number;
     first_interaction_at: string | null;
   };
-  monthly_trend: { month: string; count: number }[];
+  monthly_trend: Array<{ month: string; count: number }>;
 }
 
 export function useContactActivity(id: string) {

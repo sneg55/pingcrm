@@ -88,7 +88,7 @@ export function useContactsPage() {
       priority_level?: string;
       company?: string;
     }) => {
-      const { data, error } = await client.POST("/api/v1/contacts/bulk-update" as any, { body });
+      const { data, error } = await client.POST("/api/v1/contacts/bulk-update", { body });
       if (error) throw new Error((error as { detail?: string })?.detail ?? "Bulk update failed");
       return data;
     },
@@ -103,7 +103,7 @@ export function useContactsPage() {
     mutationFn: async (contactIds: string[]) => {
       const [primaryId, ...otherIds] = contactIds;
       for (const otherId of otherIds) {
-        await client.POST("/api/v1/contacts/{contact_id}/merge/{other_id}" as any, {
+        await client.POST("/api/v1/contacts/{contact_id}/merge/{other_id}", {
           params: { path: { contact_id: primaryId, other_id: otherId } },
         });
       }
@@ -148,7 +148,7 @@ export function useContactsPage() {
     // Fetch ALL matching IDs across all pages
     setSelectingAll(true);
     try {
-      const { data: idsData } = await client.GET("/api/v1/contacts/ids" as any, {
+      const { data: idsData } = await client.GET("/api/v1/contacts/ids", {
         params: {
           query: {
             search: search || undefined,
@@ -162,7 +162,7 @@ export function useContactsPage() {
           },
         },
       });
-      const allIds: string[] = (idsData as any)?.data ?? [];
+      const allIds: string[] = idsData?.data ?? [];
       setSelectedIds(new Set(allIds));
     } finally {
       setSelectingAll(false);

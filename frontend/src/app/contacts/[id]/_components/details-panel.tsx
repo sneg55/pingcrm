@@ -158,7 +158,7 @@ function InlineField({
 
 /* ── Company autocomplete field ── */
 
-interface OrgOption {
+type OrgOption = {
   id: string;
   name: string;
 }
@@ -205,17 +205,19 @@ function CompanyAutocompleteField({
       setShowDropdown(false);
       return;
     }
-    debounceRef.current = setTimeout(async () => {
-      try {
-        const res = await client.GET("/api/v1/organizations" as any, {
-          params: { query: { search: query, page_size: "8" } },
-        });
-        const orgs = ((res.data as any)?.data ?? []) as OrgOption[];
-        setOptions(orgs);
-        setShowDropdown(orgs.length > 0 || query.trim().length > 0);
-      } catch {
-        setOptions([]);
-      }
+    debounceRef.current = setTimeout(() => {
+      void (async () => {
+        try {
+          const res = await client.GET("/api/v1/organizations", {
+            params: { query: { search: query, page_size: 8 } },
+          });
+          const orgs = (res.data?.data ?? []) as OrgOption[];
+          setOptions(orgs);
+          setShowDropdown(orgs.length > 0 || query.trim().length > 0);
+        } catch {
+          setOptions([]);
+        }
+      })();
     }, 200);
   };
 

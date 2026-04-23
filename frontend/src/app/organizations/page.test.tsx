@@ -53,7 +53,7 @@ function makeOrg(overrides: Record<string, unknown> = {}) {
   };
 }
 
-function makeApiResponse(orgs: ReturnType<typeof makeOrg>[], total = orgs.length) {
+function makeApiResponse(orgs: Array<ReturnType<typeof makeOrg>>, total = orgs.length) {
   return {
     data: {
       data: orgs,
@@ -185,6 +185,7 @@ describe("OrganizationsPage", () => {
 
   describe("Loading state", () => {
     it("shows loading text while data is fetching", async () => {
+      // eslint-disable-next-line @typescript-eslint/no-empty-function -- intentional never-resolving promise to simulate pending state
       mockGet.mockImplementation(() => new Promise(() => {}));
 
       renderPage();

@@ -1,7 +1,8 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { client } from "@/lib/api-client";
+import { extractErrorMessage } from "@/lib/api-errors";
 
-export interface SuggestionContact {
+export type SuggestionContact = {
   id: string;
   full_name: string | null;
   given_name: string | null;
@@ -14,7 +15,7 @@ export interface SuggestionContact {
   last_interaction_at: string | null;
 }
 
-export interface Suggestion {
+export type Suggestion = {
   id: string;
   contact_id: string;
   contact: SuggestionContact | null;
@@ -27,7 +28,7 @@ export interface Suggestion {
   updated_at: string | null;
 }
 
-export interface UpdateSuggestionInput {
+export type UpdateSuggestionInput = {
   suggested_message?: string;
   suggested_channel?: "email" | "telegram" | "twitter";
   status?: "pending" | "sent" | "snoozed" | "dismissed";
@@ -39,7 +40,7 @@ export function useSuggestions() {
     queryKey: ["suggestions"],
     queryFn: async () => {
       const { data } = await client.GET("/api/v1/suggestions");
-      return data;
+      return data ?? null;
     },
   });
 }
@@ -58,7 +59,7 @@ export function useUpdateSuggestion() {
         "/api/v1/suggestions/{suggestion_id}",
         {
           params: { path: { suggestion_id: id } },
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any -- local UpdateSuggestionInput does not match generated body schema exactly
           body: input as any,
         }
       );
@@ -104,7 +105,7 @@ export function useSendMessage() {
         body: { message, channel, scheduled_for: scheduledFor || null },
       });
       if (error || !response.ok) {
-        throw new Error((error as any)?.detail || "Failed to send message");
+        throw new Error(extractErrorMessage(error) ?? "Failed to send message");
       }
       return data;
     },

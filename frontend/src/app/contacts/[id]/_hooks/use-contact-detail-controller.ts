@@ -10,8 +10,9 @@ import {
 } from "@/hooks/use-contacts";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { client } from "@/lib/api-client";
+import { extractErrorMessage } from "@/lib/api-errors";
 
-export interface InteractionResponse {
+export type InteractionResponse = {
   id: string;
   platform: "email" | "telegram" | "twitter" | "linkedin" | "manual" | "meeting";
   direction: "inbound" | "outbound" | "mutual" | "event";
@@ -25,7 +26,7 @@ export function useContactDetailController(id: string) {
   const queryClient = useQueryClient();
 
   const { data: contactData, isLoading, isError } = useContact(id);
-  const contact = contactData?.data as Contact | undefined;
+  const contact = (contactData?.data ?? undefined) as Contact | undefined;
   const updateContact = useUpdateContact();
   const deleteContact = useDeleteContact();
   const { data: activityData, isLoading: activityLoading } = useContactActivity(id);
@@ -54,7 +55,7 @@ export function useContactDetailController(id: string) {
     queryKey: ["tags"],
     queryFn: async () => {
       const { data } = await client.GET("/api/v1/contacts/tags", {});
-      return (data?.data as string[]) ?? [];
+      return data?.data ?? [];
     },
   });
   const allTags = allTagsData ?? [];
@@ -81,11 +82,11 @@ export function useContactDetailController(id: string) {
   useQuery({
     queryKey: ["sync-emails", id],
     queryFn: async () => {
-      const res = await client.POST("/api/v1/contacts/{contact_id}/sync-emails" as any, {
+      const res = await client.POST("/api/v1/contacts/{contact_id}/sync-emails", {
         params: { path: { contact_id: id } },
       });
-      const data = (res.data as any)?.data;
-      if (data?.new_interactions > 0) {
+      const data = res.data?.data as { new_interactions?: number } | undefined;
+      if (data && (data.new_interactions ?? 0) > 0) {
         void queryClient.invalidateQueries({ queryKey: ["interactions", id] });
         void queryClient.invalidateQueries({ queryKey: ["contacts", id] });
         void queryClient.invalidateQueries({ queryKey: ["contacts", "stats"] });
@@ -105,10 +106,10 @@ export function useContactDetailController(id: string) {
   useQuery({
     queryKey: ["refresh-avatar", id],
     queryFn: async () => {
-      const res = await client.POST("/api/v1/contacts/{contact_id}/refresh-avatar" as any, {
+      const res = await client.POST("/api/v1/contacts/{contact_id}/refresh-avatar", {
         params: { path: { contact_id: id } },
       });
-      if ((res.data as any)?.data?.changed)
+      if (res.data?.data?.changed)
         void queryClient.invalidateQueries({ queryKey: ["contacts", id] });
       return true;
     },
@@ -124,11 +125,11 @@ export function useContactDetailController(id: string) {
   useQuery({
     queryKey: ["sync-telegram", id],
     queryFn: async () => {
-      const res = await client.POST("/api/v1/contacts/{contact_id}/sync-telegram" as any, {
+      const res = await client.POST("/api/v1/contacts/{contact_id}/sync-telegram", {
         params: { path: { contact_id: id } },
       });
-      const data = (res.data as any)?.data;
-      if (data?.new_interactions > 0) {
+      const data = res.data?.data as { new_interactions?: number } | undefined;
+      if (data && (data.new_interactions ?? 0) > 0) {
         void queryClient.invalidateQueries({ queryKey: ["interactions", id] });
         void queryClient.invalidateQueries({ queryKey: ["contacts", id] });
         void queryClient.invalidateQueries({ queryKey: ["contacts", "stats"] });
@@ -151,27 +152,27 @@ export function useContactDetailController(id: string) {
       await Promise.allSettled([
         client.POST("/api/v1/contacts/{contact_id}/refresh-bios", {
           params: { path: { contact_id: id }, query: { force: true } },
-        } as any),
-        client.POST("/api/v1/contacts/{contact_id}/refresh-avatar" as any, {
+        }),
+        client.POST("/api/v1/contacts/{contact_id}/refresh-avatar", {
           params: { path: { contact_id: id }, query: { force: true } },
         }),
         ...(contactEmails?.length
           ? [
-              client.POST("/api/v1/contacts/{contact_id}/sync-emails" as any, {
+              client.POST("/api/v1/contacts/{contact_id}/sync-emails", {
                 params: { path: { contact_id: id }, query: { force: true } },
               }),
             ]
           : []),
         ...(contact?.telegram_username
           ? [
-              client.POST("/api/v1/contacts/{contact_id}/sync-telegram" as any, {
+              client.POST("/api/v1/contacts/{contact_id}/sync-telegram", {
                 params: { path: { contact_id: id }, query: { force: true } },
               }),
             ]
           : []),
         ...(contact?.twitter_handle
           ? [
-              client.POST("/api/v1/contacts/{contact_id}/sync-twitter" as any, {
+              client.POST("/api/v1/contacts/{contact_id}/sync-twitter", {
                 params: { path: { contact_id: id }, query: { force: true } },
               }),
             ]
@@ -181,8 +182,10 @@ export function useContactDetailController(id: string) {
         await client
           .GET("/api/v1/contacts/{contact_id}/telegram/common-groups", {
             params: { path: { contact_id: id }, query: { force: true } },
-          } as any)
-          .catch(() => {});
+          })
+          .catch((err: unknown) => {
+            console.error("refresh telegram common groups failed", err);
+          });
       }
       void queryClient.invalidateQueries({ queryKey: ["contacts", id] });
       void queryClient.invalidateQueries({ queryKey: ["interactions", id] });
@@ -196,23 +199,22 @@ export function useContactDetailController(id: string) {
     setIsEnriching(true);
     setToast(null);
     try {
-      const res = await client.POST("/api/v1/contacts/{contact_id}/enrich" as any, {
+      const res = await client.POST("/api/v1/contacts/{contact_id}/enrich", {
         params: { path: { contact_id: id } },
       });
       if (res.error) {
-        const detail = (res.error as any)?.detail;
-        setToast({ type: "error", text: detail || "Enrichment failed" });
+        setToast({ type: "error", text: extractErrorMessage(res.error) ?? "Enrichment failed" });
         return;
       }
-      const data = (res.data as any)?.data;
-      const fields: string[] = data?.fields_updated ?? [];
+      const fields: string[] = res.data?.data?.fields_updated ?? [];
       setToast({
         type: "success",
         text: fields.length > 0 ? `Updated: ${fields.join(", ")}` : "No new data found",
       });
       void queryClient.invalidateQueries({ queryKey: ["contacts", id] });
-    } catch (err: any) {
-      setToast({ type: "error", text: err?.message || "Enrichment failed" });
+    } catch (err) {
+      const message = err instanceof Error ? err.message : undefined;
+      setToast({ type: "error", text: message || "Enrichment failed" });
     } finally {
       setIsEnriching(false);
       setTimeout(() => setToast(null), 5000);
@@ -224,20 +226,20 @@ export function useContactDetailController(id: string) {
     setIsExtracting(true);
     setToast(null);
     try {
-      const res = await client.POST("/api/v1/contacts/{contact_id}/extract-bio" as any, {
+      const res = await client.POST("/api/v1/contacts/{contact_id}/extract-bio", {
         params: { path: { contact_id: id } },
       });
-      const data = (res.data as any)?.data;
-      const fields: string[] = data?.fields_updated ?? [];
+      const fields: string[] = res.data?.data?.fields_updated ?? [];
       setToast({
         type: "success",
         text: fields.length > 0 ? `Updated: ${fields.join(", ")}` : "No new data extracted",
       });
       void queryClient.invalidateQueries({ queryKey: ["contacts", id] });
       void queryClient.invalidateQueries({ queryKey: ["organizations"] });
-    } catch (err: any) {
-      const detail = (err as any)?.detail;
-      setToast({ type: "error", text: detail || err?.message || "Bio extraction failed" });
+    } catch (err) {
+      const detail = extractErrorMessage(err);
+      const message = err instanceof Error ? err.message : undefined;
+      setToast({ type: "error", text: detail || message || "Bio extraction failed" });
     } finally {
       setIsExtracting(false);
       setTimeout(() => setToast(null), 5000);
@@ -253,9 +255,9 @@ export function useContactDetailController(id: string) {
         params: { path: { contact_id: id } },
       });
       if (error) {
-        setToast({ type: "error", text: (error as any)?.detail || "Auto-tagging failed" });
+        setToast({ type: "error", text: extractErrorMessage(error) ?? "Auto-tagging failed" });
       } else {
-        const tagsAdded = (json as any)?.data?.tags_added ?? [];
+        const tagsAdded = json?.data?.tags_added ?? [];
         setToast({
           type: "success",
           text: tagsAdded.length > 0 ? `Added: ${tagsAdded.join(", ")}` : "No new tags",
@@ -276,11 +278,11 @@ export function useContactDetailController(id: string) {
     setIsPromoting(true);
     setToast(null);
     try {
-      const { error } = await client.POST("/api/v1/contacts/{contact_id}/promote" as any, {
+      const { error } = await client.POST("/api/v1/contacts/{contact_id}/promote", {
         params: { path: { contact_id: id } },
       });
       if (error) {
-        setToast({ type: "error", text: (error as any)?.detail || "Failed to promote contact" });
+        setToast({ type: "error", text: extractErrorMessage(error) ?? "Failed to promote contact" });
       } else {
         setToast({ type: "success", text: "Contact promoted to 1st Tier" });
         void queryClient.invalidateQueries({ queryKey: ["contacts", id] });

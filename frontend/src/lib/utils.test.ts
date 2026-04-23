@@ -7,7 +7,8 @@ describe("cn", () => {
   });
 
   it("handles conditional classes", () => {
-    expect(cn("base", false && "hidden", "visible")).toBe("base visible");
+    const condition = Math.random() < 0; // always false, but not constant-foldable
+    expect(cn("base", condition && "hidden", "visible")).toBe("base visible");
   });
 
   it("handles undefined and null", () => {

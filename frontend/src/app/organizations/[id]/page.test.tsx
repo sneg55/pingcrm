@@ -41,7 +41,7 @@ function makeContact(overrides: Record<string, unknown> = {}) {
   };
 }
 
-function makeOrgResponse(contacts: ReturnType<typeof makeContact>[]) {
+function makeOrgResponse(contacts: Array<ReturnType<typeof makeContact>>) {
   return {
     data: {
       data: {
@@ -92,7 +92,7 @@ describe("OrganizationDetailPage — archived contacts", () => {
     const archivedRow = await screen.findByText("Archived Arthur");
 
     // DOM order: active precedes archived
-    // eslint-disable-next-line no-bitwise
+     
     const relation = activeRow.compareDocumentPosition(archivedRow);
     expect(relation & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
 

@@ -6,7 +6,7 @@ import { X, CheckCircle2, AlertCircle, Clock, Copy, ChevronDown } from "lucide-r
 import { cn } from "@/lib/utils";
 import { client } from "@/lib/api-client";
 
-interface SyncEvent {
+type SyncEvent = {
   id: string;
   platform: string;
   sync_type: string;
@@ -21,7 +21,7 @@ interface SyncEvent {
   completed_at: string | null;
 }
 
-interface SyncHistoryModalProps {
+type SyncHistoryModalProps = {
   platform: string;
   onClose: () => void;
 }
@@ -34,8 +34,8 @@ function formatDuration(ms: number | null): string {
 
 function formatTime(iso: string): string {
   const d = new Date(iso);
-  return d.toLocaleDateString(undefined, { month: "short", day: "numeric" }) +
-    " " + d.toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" });
+  return `${d.toLocaleDateString(undefined, { month: "short", day: "numeric" }) 
+    } ${  d.toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" })}`;
 }
 
 const statusConfig: Record<string, { icon: typeof CheckCircle2; color: string; label: string }> = {
@@ -56,7 +56,7 @@ export function SyncHistoryModal({ platform, onClose }: SyncHistoryModalProps) {
       const { data } = await client.GET("/api/v1/sync-history", {
         params: { query: { platform, limit: 50 } },
       });
-      setEvents(((data as any)?.data ?? []) as SyncEvent[]);
+      setEvents((data?.data ?? []) as SyncEvent[]);
     } catch {
       // ignore
     } finally {
@@ -65,7 +65,7 @@ export function SyncHistoryModal({ platform, onClose }: SyncHistoryModalProps) {
   }, [platform]);
 
   useEffect(() => {
-    fetchEvents();
+    void fetchEvents();
   }, [fetchEvents]);
 
   useEffect(() => {
@@ -77,7 +77,7 @@ export function SyncHistoryModal({ platform, onClose }: SyncHistoryModalProps) {
   }, [onClose]);
 
   const handleCopyError = (text: string, id: string) => {
-    navigator.clipboard.writeText(text).then(() => {
+    void navigator.clipboard.writeText(text).then(() => {
       setCopiedId(id);
       setTimeout(() => setCopiedId(null), 2000);
     });
@@ -183,7 +183,7 @@ export function SyncHistoryModal({ platform, onClose }: SyncHistoryModalProps) {
                               {event.error_message}
                             </pre>
                             <button
-                              onClick={() => handleCopyError(event.error_message!, event.id)}
+                              onClick={() => handleCopyError(event.error_message ?? "", event.id)}
                               className="absolute top-1 right-1 p-1 rounded bg-white/80 dark:bg-stone-900/80 text-stone-400 hover:text-stone-600 dark:hover:text-stone-300 transition-colors"
                               title="Copy error"
                             >

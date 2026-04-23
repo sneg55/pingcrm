@@ -8,7 +8,6 @@ import {
   ArrowUpCircle,
   MessageCircle,
   MoreVertical,
-  Pencil,
   RefreshCw,
   Sparkles,
   Trash2,
@@ -180,7 +179,7 @@ export function HeaderCard({
     queryKey: ["settings", "priority"],
     queryFn: async () => {
       const { data } = await client.GET("/api/v1/settings/priority");
-      return (data as any)?.data as { high: number; medium: number; low: number } | undefined;
+      return data?.data;
     },
     staleTime: 5 * 60 * 1000,
   });

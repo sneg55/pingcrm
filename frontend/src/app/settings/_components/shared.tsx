@@ -5,9 +5,8 @@ import {
   AlertCircle,
   CheckCircle2,
   RefreshCw,
-  Check,
   MoreVertical,
-  Settings,
+  type Settings,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { SyncDetails, SyncStatus } from "../_hooks/use-settings-controller";
@@ -150,14 +149,14 @@ export function SyncResultPanel({
           )}
         </div>
       )}
-      {hasErrors && (
+      {details.errors && details.errors.length > 0 && (
         <div className="mt-2 space-y-1">
           <p className="font-medium text-red-600 dark:text-red-400 flex items-center gap-1">
             <AlertCircle className="w-3 h-3" />
-            {details.errors!.length} error{details.errors!.length > 1 ? "s" : ""}
+            {details.errors.length} error{details.errors.length > 1 ? "s" : ""}
           </p>
           <ul className="text-red-500 dark:text-red-400 space-y-0.5 max-h-20 overflow-y-auto">
-            {details.errors!.map((err, i) => (
+            {details.errors.map((err, i) => (
               <li key={i} className="truncate">
                 {err}
               </li>
@@ -303,12 +302,12 @@ export function Toggle({
 export function KebabMenu({
   items,
 }: {
-  items: {
+  items: Array<{
     icon: typeof Settings;
     label: string;
     danger?: boolean;
     onClick?: () => void;
-  }[];
+  }>;
 }) {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);

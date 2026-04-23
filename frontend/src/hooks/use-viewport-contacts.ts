@@ -1,7 +1,7 @@
 import { useQuery, keepPreviousData } from "@tanstack/react-query";
 import { client } from "@/lib/api-client";
 
-export interface Bbox {
+export type Bbox = {
   minLng: number;
   minLat: number;
   maxLng: number;

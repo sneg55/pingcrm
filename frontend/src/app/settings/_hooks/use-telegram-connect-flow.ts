@@ -10,7 +10,7 @@ import type { SyncState } from "./use-settings-controller";
 
 export type TelegramStep = "phone" | "code" | "password" | "done";
 
-export interface UseTelegramConnectFlowProps {
+export type UseTelegramConnectFlowProps = {
   telegramConnect: SyncState;
   setTelegramConnect: (s: SyncState) => void;
   showTelegramModal: boolean;
@@ -18,7 +18,7 @@ export interface UseTelegramConnectFlowProps {
   onSuccess: (username?: string | null) => Promise<void>;
 }
 
-export interface UseTelegramConnectFlowReturn {
+export type UseTelegramConnectFlowReturn = {
   // State
   telegramStep: TelegramStep;
   telegramPhone: string;
@@ -37,7 +37,7 @@ export interface UseTelegramConnectFlowReturn {
 }
 
 export function useTelegramConnectFlow({
-  telegramConnect,
+  telegramConnect: _telegramConnect,
   setTelegramConnect,
   setShowTelegramModal,
   onSuccess,

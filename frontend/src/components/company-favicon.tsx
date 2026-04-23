@@ -19,7 +19,7 @@ function domainFromEmails(emails: string[] | null | undefined): string | null {
   return null;
 }
 
-interface CompanyFaviconProps {
+type CompanyFaviconProps = {
   /** Organization logo URL (takes priority over all fallbacks). */
   logoUrl?: string | null;
   /** Organization domain (used for favicon.ico fallback when logoUrl absent). */

@@ -3,6 +3,13 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import React from "react";
 
+import { client } from "@/lib/api-client";
+import { useContacts, useContact, useContactDuplicates } from "./use-contacts";
+import { useSuggestions, useContactSuggestion } from "./use-suggestions";
+import { useNotifications, useUnreadCount } from "./use-notifications";
+import { useDashboardStats } from "./use-dashboard";
+import { useIdentityMatches } from "./use-identity";
+
 // Mock @/lib/api-client
 vi.mock("@/lib/api-client", () => ({
   client: {
@@ -12,13 +19,6 @@ vi.mock("@/lib/api-client", () => ({
     DELETE: vi.fn(),
   },
 }));
-
-import { client } from "@/lib/api-client";
-import { useContacts, useContact, useContactDuplicates } from "./use-contacts";
-import { useSuggestions, useContactSuggestion } from "./use-suggestions";
-import { useNotifications, useUnreadCount } from "./use-notifications";
-import { useDashboardStats } from "./use-dashboard";
-import { useIdentityMatches } from "./use-identity";
 
 const mockClient = vi.mocked(client);
 
@@ -111,6 +111,7 @@ describe("useContacts", () => {
 
   it("starts in loading state", () => {
     // Never resolves — stays loading
+    // eslint-disable-next-line @typescript-eslint/no-empty-function -- intentional never-resolving promise to stay in loading state
     mockClient.GET.mockReturnValue(new Promise(() => {}));
 
     const { result } = renderHook(() => useContacts(), { wrapper: makeWrapper() });

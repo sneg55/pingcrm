@@ -15,7 +15,7 @@ import type { UseTelegramConnectFlowReturn } from "../_hooks/use-telegram-connec
 import type { UseWhatsAppConnectFlowReturn } from "../_hooks/use-whatsapp-connect-flow";
 import type { SyncProgress } from "@/hooks/use-telegram-sync";
 
-export interface IntegrationsTabProps {
+export type IntegrationsTabProps = {
   connected: ConnectedAccounts;
   googleConnect: SyncState;
   googleSync: SyncState;

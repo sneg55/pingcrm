@@ -5,12 +5,12 @@ import { X, Trash2, AlertTriangle, Users } from "lucide-react";
 import { Toggle } from "./shared";
 import { client } from "@/lib/api-client";
 
-interface PlatformSyncConfig {
+type PlatformSyncConfig = {
   auto_sync: boolean;
   schedule: string;
 }
 
-interface SyncSettingsModalProps {
+type SyncSettingsModalProps = {
   platform: string;
   onClose: () => void;
 }
@@ -25,12 +25,11 @@ const scheduleOptions = [
 export function SyncSettingsModal({ platform, onClose }: SyncSettingsModalProps) {
   const [config, setConfig] = useState<PlatformSyncConfig>({ auto_sync: true, schedule: "daily" });
   const [isLoading, setIsLoading] = useState(true);
-  const [isSaving, setIsSaving] = useState(false);
 
   const fetchSettings = useCallback(async () => {
     try {
       const { data } = await client.GET("/api/v1/settings/sync", {});
-      const all = (data as any)?.data;
+      const all = data?.data as Record<string, PlatformSyncConfig> | undefined;
       if (all?.[platform]) {
         setConfig(all[platform]);
       }
@@ -41,7 +40,7 @@ export function SyncSettingsModal({ platform, onClose }: SyncSettingsModalProps)
     }
   }, [platform]);
 
-  useEffect(() => { fetchSettings(); }, [fetchSettings]);
+  useEffect(() => { void fetchSettings(); }, [fetchSettings]);
 
   useEffect(() => {
     const handleKey = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
@@ -52,15 +51,13 @@ export function SyncSettingsModal({ platform, onClose }: SyncSettingsModalProps)
   const save = async (updates: Partial<PlatformSyncConfig>) => {
     const newConfig = { ...config, ...updates };
     setConfig(newConfig);
-    setIsSaving(true);
     try {
       await client.PUT("/api/v1/settings/sync", {
         body: { [platform]: newConfig },
       });
-    } catch {
+    } catch (err) {
+      console.error("save sync settings failed", err);
       setConfig(config); // revert
-    } finally {
-      setIsSaving(false);
     }
   };
 
@@ -138,15 +135,20 @@ function TelegramSyncOptions() {
   const [purgeResult, setPurgeResult] = useState<string | null>(null);
 
   useEffect(() => {
-    (async () => {
+    void (async () => {
       try {
         const { data } = await client.GET("/api/v1/settings/telegram", {});
-        setSync2ndTier((data as any)?.data?.sync_2nd_tier ?? true);
-      } catch {}
+        setSync2ndTier(data?.data?.sync_2nd_tier ?? true);
+      } catch (err) {
+        console.error("load telegram settings failed", err);
+      }
       try {
         const { data } = await client.GET("/api/v1/contacts/2nd-tier/count", {});
-        setTierCount((data as any)?.data?.count ?? 0);
-      } catch {}
+        const count = (data?.data as { count?: number } | undefined)?.count;
+        setTierCount(count ?? 0);
+      } catch (err) {
+        console.error("load 2nd-tier count failed", err);
+      }
       setIsLoading(false);
     })();
   }, []);
@@ -166,7 +168,7 @@ function TelegramSyncOptions() {
     setIsPurging(true);
     try {
       const { data } = await client.DELETE("/api/v1/contacts/2nd-tier", {});
-      const count = (data as any)?.data?.deleted_count ?? 0;
+      const count = (data?.data as { deleted_count?: number } | undefined)?.deleted_count ?? 0;
       setPurgeResult(`Deleted ${count} contact${count !== 1 ? "s" : ""}.`);
       setTierCount(0);
     } catch {
@@ -189,7 +191,7 @@ function TelegramSyncOptions() {
               Sync group participants you haven&apos;t directly messaged
             </p>
           </div>
-          <Toggle checked={sync2ndTier} onChange={handleToggle} />
+          <Toggle checked={sync2ndTier} onChange={(checked) => { void handleToggle(checked); }} />
         </div>
 
         {tierCount !== null && tierCount > 0 && (

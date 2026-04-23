@@ -4,7 +4,7 @@ import { useQuery } from "@tanstack/react-query";
 import { ContactAvatar } from "@/components/contact-avatar";
 import { client } from "@/lib/api-client";
 
-interface RelatedContact {
+type RelatedContact = {
   id: string;
   full_name: string;
   title: string | null;
@@ -18,10 +18,10 @@ export function RelatedContactsCard({ contactId }: { contactId: string }) {
   const { data } = useQuery({
     queryKey: ["related-contacts", contactId],
     queryFn: async () => {
-      const { data } = await client.GET("/api/v1/contacts/{contact_id}/related" as any, {
+      const { data } = await client.GET("/api/v1/contacts/{contact_id}/related", {
         params: { path: { contact_id: contactId } },
       });
-      return (data as any)?.data ?? [];
+      return (data?.data ?? []) as RelatedContact[];
     },
     enabled: Boolean(contactId),
   });

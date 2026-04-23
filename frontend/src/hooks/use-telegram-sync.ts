@@ -1,7 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { client } from "@/lib/api-client";
 
-export interface SyncProgress {
+export type SyncProgress = {
   active: boolean;
   phase?: string;
   total_dialogs?: number;
@@ -17,19 +17,23 @@ export function useTelegramSyncProgress() {
   return useQuery({
     queryKey: ["telegram-sync-progress"],
     queryFn: async () => {
-      const { data } = await client.GET("/api/v1/telegram/sync-progress" as any, {});
-      const raw = (data as any)?.data;
-      if (!raw || !raw.active) return { active: false } as SyncProgress;
+      const { data } = await client.GET("/api/v1/telegram/sync-progress", {});
+      const raw = (data as { data?: Record<string, unknown> } | undefined)?.data;
+      if (!raw?.active) return { active: false } as SyncProgress;
+      const toInt = (v: unknown) => {
+        const n = typeof v === "string" ? parseInt(v) : typeof v === "number" ? v : NaN;
+        return Number.isFinite(n) ? n : 0;
+      };
       return {
         active: raw.active === true || raw.active === "true",
-        phase: raw.phase,
-        total_dialogs: parseInt(raw.total_dialogs) || 0,
-        dialogs_processed: parseInt(raw.dialogs_processed) || 0,
-        batches_total: parseInt(raw.batches_total) || 0,
-        batches_completed: parseInt(raw.batches_completed) || 0,
-        contacts_found: parseInt(raw.contacts_found) || 0,
-        messages_synced: parseInt(raw.messages_synced) || 0,
-        started_at: raw.started_at,
+        phase: typeof raw.phase === "string" ? raw.phase : undefined,
+        total_dialogs: toInt(raw.total_dialogs),
+        dialogs_processed: toInt(raw.dialogs_processed),
+        batches_total: toInt(raw.batches_total),
+        batches_completed: toInt(raw.batches_completed),
+        contacts_found: toInt(raw.contacts_found),
+        messages_synced: toInt(raw.messages_synced),
+        started_at: typeof raw.started_at === "string" ? raw.started_at : undefined,
       } as SyncProgress;
     },
     refetchInterval: (query) => {

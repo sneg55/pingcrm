@@ -35,7 +35,6 @@ export function MapSidebar({
           >
             <Link href={`/contacts/${p.id}`} className="flex items-center gap-2">
               {p.avatar_url ? (
-                // eslint-disable-next-line @next/next/no-img-element
                 <img src={p.avatar_url} alt="" className="w-8 h-8 rounded-full" />
               ) : (
                 <div className="w-8 h-8 rounded-full bg-stone-200 dark:bg-stone-700" />

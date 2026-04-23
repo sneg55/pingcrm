@@ -3,6 +3,8 @@ import { render, screen } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import DashboardPage from "./page";
 
+import { useDashboardStats } from "@/hooks/use-dashboard";
+
 // ---------------------------------------------------------------------------
 // Mock hooks
 // ---------------------------------------------------------------------------
@@ -30,8 +32,6 @@ vi.mock("@/components/animated-number", () => ({
     <span className={className}>{value.toLocaleString()}</span>
   ),
 }));
-
-import { useDashboardStats } from "@/hooks/use-dashboard";
 
 // ---------------------------------------------------------------------------
 // Helpers

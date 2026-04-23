@@ -25,21 +25,24 @@ export function ErrorReporter() {
     }
 
     function onError(event: ErrorEvent) {
+      const err = event.error as { stack?: unknown } | undefined;
       report({
         message: event.message,
         source: event.filename,
         lineno: event.lineno,
         colno: event.colno,
-        stack: event.error?.stack,
+        stack: typeof err?.stack === "string" ? err.stack : undefined,
         url: window.location.href,
       });
     }
 
     function onUnhandledRejection(event: PromiseRejectionEvent) {
-      const reason = event.reason;
+      const reason = event.reason as { message?: unknown; stack?: unknown } | undefined;
+      const message = typeof reason?.message === "string" ? reason.message : String(event.reason);
+      const stack = typeof reason?.stack === "string" ? reason.stack : undefined;
       report({
-        message: reason?.message ?? String(reason),
-        stack: reason?.stack,
+        message,
+        stack,
         source: "unhandledrejection",
         url: window.location.href,
       });

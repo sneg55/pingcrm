@@ -16,7 +16,6 @@ export function ContactPinPopover({
     <div className="bg-white dark:bg-stone-900 border border-stone-200 dark:border-stone-700 rounded-lg shadow-lg p-3 min-w-[220px] text-sm">
       <div className="flex items-center gap-2 mb-2">
         {pin.avatar_url ? (
-          // eslint-disable-next-line @next/next/no-img-element
           <img src={pin.avatar_url} alt="" className="w-8 h-8 rounded-full" />
         ) : (
           <div className="w-8 h-8 rounded-full bg-stone-200 dark:bg-stone-700" />

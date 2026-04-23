@@ -31,7 +31,7 @@ function Linkify({ text, className }: { text: string; className?: string }) {
   );
 }
 
-export interface TimelineEntry {
+export type TimelineEntry = {
   id: string;
   platform: "email" | "telegram" | "twitter" | "linkedin" | "manual" | "meeting";
   direction: "inbound" | "outbound" | "mutual";
@@ -39,7 +39,7 @@ export interface TimelineEntry {
   occurred_at: string;
 }
 
-interface TimelineProps {
+type TimelineProps = {
   interactions: TimelineEntry[];
   onAddNote?: (content: string) => void;
   contactName?: string;

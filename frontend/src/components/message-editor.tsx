@@ -7,7 +7,7 @@ import { client } from "@/lib/api-client";
 
 type Channel = "email" | "telegram" | "twitter";
 
-interface ChannelConfig {
+type ChannelConfig = {
   label: string;
   icon: ReactNode;
   maxChars: number;
@@ -35,7 +35,7 @@ const channelConfig: Record<Channel, ChannelConfig> = {
   },
 };
 
-interface MessageEditorProps {
+type MessageEditorProps = {
   suggestionId?: string | null;
   contactId?: string;
   initialMessage?: string;
@@ -47,6 +47,7 @@ interface MessageEditorProps {
   autoFocus?: boolean;
 }
 
+// eslint-disable-next-line sonarjs/cognitive-complexity -- editor coordinates channel toggles, send states, tone analysis, and disabled-channel hints; refactor tracked separately
 export function MessageEditor({
   suggestionId,
   contactId,
@@ -122,11 +123,11 @@ export function MessageEditor({
         msg = (data?.data as { suggested_message?: string })?.suggested_message;
       } else if (contactId) {
         const { data } = await client.POST(
-          "/api/v1/contacts/{contact_id}/compose" as any,
+          "/api/v1/contacts/{contact_id}/compose",
           {
             params: { path: { contact_id: contactId } },
             body: { channel },
-          } as any,
+          },
         );
         msg = (data?.data as { suggested_message?: string })?.suggested_message;
       }
@@ -251,7 +252,7 @@ export function MessageEditor({
 
           {/* Regenerate */}
           <button
-            onClick={handleRegenerate}
+            onClick={() => { void handleRegenerate(); }}
             disabled={isRegenerating}
             title="Regenerate message"
             className="p-1.5 rounded-md text-stone-400 dark:text-stone-500 hover:text-stone-600 dark:hover:text-stone-300 hover:bg-stone-50 dark:hover:bg-stone-800 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
@@ -292,7 +293,7 @@ export function MessageEditor({
             </span>
           )}
           <button
-            onClick={handleSend}
+            onClick={() => { void handleSend(); }}
             disabled={!message.trim() || isOverLimit || isSending || isRateLimited || (showSchedule && !scheduledFor)}
             className={cn(
               "inline-flex items-center justify-center w-8 h-8 rounded-full transition-colors disabled:opacity-30 disabled:cursor-not-allowed",

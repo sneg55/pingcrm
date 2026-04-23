@@ -1,6 +1,6 @@
 import { cn } from "@/lib/utils";
 
-interface ScoreBadgeProps {
+type ScoreBadgeProps = {
   score: number;
   lastInteractionAt?: string | null;
   className?: string;

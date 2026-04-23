@@ -67,6 +67,7 @@ export default function ContactDetailPage() {
 
   /* ── Page-level helpers ── */
 
+  // eslint-disable-next-line sonarjs/cognitive-complexity -- saveField branches by field type (name/social/generic) with conflict-merge fallback; refactor tracked separately
   const saveField = async (field: string, value: string | string[]) => {
     const input: Record<string, string | string[]> = { [field]: value };
     if (field === "given_name" || field === "family_name") {
@@ -80,21 +81,25 @@ export default function ContactDetailPage() {
       try {
         await ctrl.updateContact.mutateAsync({ id, input });
       } catch (err: unknown) {
-        const detail = (err as any)?.detail;
-        if (detail?.conflicting_contact) {
-          const c = detail.conflicting_contact;
+        const detail = (err as { detail?: unknown }).detail;
+        const conflicting =
+          detail && typeof detail === "object" && "conflicting_contact" in detail
+            ? (detail as { conflicting_contact?: { id?: string; full_name?: string | null } }).conflicting_contact
+            : undefined;
+        if (conflicting?.id) {
+          const conflictingId = conflicting.id;
           const platformLabel = field === "telegram_username" ? "Telegram username" : "Twitter handle";
           ctrl.setToast({
             type: "error",
-            text: `${platformLabel} already used by ${c.full_name || "another contact"}`,
+            text: `${platformLabel} already used by ${conflicting.full_name || "another contact"}`,
             action: {
               label: "Merge",
               onClick: () => {
                 ctrl.setToast(null);
                 mergeContacts.mutate(
-                  { contactId: id, otherId: c.id },
+                  { contactId: id, otherId: conflictingId },
                   {
-                    onSuccess: (result: any) => {
+                    onSuccess: (result) => {
                       const mergedId = result?.data?.id;
                       if (mergedId && mergedId !== id) {
                         router.push(`/contacts/${mergedId}`);
@@ -130,8 +135,8 @@ export default function ContactDetailPage() {
         { id, input: { priority_level: "archived" } },
         {
           onSuccess: () => {
-            ctrl.queryClient.invalidateQueries({ queryKey: ["suggestions"] });
-            ctrl.queryClient.invalidateQueries({ queryKey: ["contacts"] });
+            void ctrl.queryClient.invalidateQueries({ queryKey: ["suggestions"] });
+            void ctrl.queryClient.invalidateQueries({ queryKey: ["contacts"] });
             router.back();
           },
         },
@@ -184,14 +189,14 @@ export default function ContactDetailPage() {
           isRefreshing={ctrl.isRefreshing}
           isEnriching={ctrl.isEnriching}
           isAutoTagging={ctrl.isAutoTagging}
-          onSaveField={saveField}
+          onSaveField={(field, value) => { void saveField(field, value); }}
           onUpdateContact={(input) => ctrl.updateContact.mutate({ id, input })}
-          onRefreshDetails={ctrl.handleRefreshDetails}
-          onEnrich={ctrl.handleEnrich}
-          onAutoTag={ctrl.handleAutoTag}
+          onRefreshDetails={() => { void ctrl.handleRefreshDetails(); }}
+          onEnrich={() => { void ctrl.handleEnrich(); }}
+          onAutoTag={() => { void ctrl.handleAutoTag(); }}
           onShowDeleteConfirm={() => setShowDeleteConfirm(true)}
           onArchive={handleArchive}
-          onPromote={ctrl.handlePromote}
+          onPromote={() => { void ctrl.handlePromote(); }}
           isPromoting={ctrl.isPromoting}
         />
         </div>
@@ -238,7 +243,6 @@ export default function ContactDetailPage() {
               interactions={ctrl.interactions}
               contactId={id}
               contactName={contact.full_name || contact.given_name || "Contact"}
-              onAddNote={(content) => ctrl.addNoteMutation.mutate(content)}
             />
           </div>
 
@@ -260,9 +264,9 @@ export default function ContactDetailPage() {
               {/* Contact Details */}
               <DetailsPanel
                 contact={contact}
-                onSaveField={saveField}
+                onSaveField={(field, value) => { void saveField(field, value); }}
                 onLinkOrg={handleLinkOrg}
-                onExtractBio={ctrl.handleExtractBio}
+                onExtractBio={() => { void ctrl.handleExtractBio(); }}
                 isExtracting={ctrl.isExtracting}
               />
 

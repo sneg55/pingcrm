@@ -2,7 +2,7 @@
 
 import { cn } from "@/lib/utils";
 
-interface ContactAvatarProps {
+type ContactAvatarProps = {
   avatarUrl: string | null | undefined;
   name: string;
   size?: "xs" | "sm" | "md" | "lg";

@@ -4,9 +4,13 @@ import { useState, useEffect } from "react";
 import { RefreshCw, Save, AlertCircle, Check } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { client } from "@/lib/api-client";
+import { extractErrorMessage } from "@/lib/api-errors";
+import type { components } from "@/lib/api-types";
 import { Toggle } from "./shared";
 
-interface PrioritySettings {
+type SuggestionPrefsInput = components["schemas"]["SuggestionPrefsInput"];
+
+type PrioritySettings = {
   high: number;
   medium: number;
   low: number;
@@ -29,31 +33,35 @@ export function FollowUpRulesTab() {
 
   // Load suggestion prefs
   useEffect(() => {
-    (async () => {
+    void (async () => {
       try {
         const { data } = await client.GET("/api/v1/settings/suggestions", {});
-        const prefs = (data as any)?.data;
+        const prefs = data?.data;
         if (prefs) {
           setMaxBatch(String(prefs.max_suggestions ?? 10));
           setDormantRevival(prefs.include_dormant ?? true);
           setBirthdayReminders(prefs.birthday_reminders ?? true);
           setPreferredChannel(prefs.preferred_channel ?? "auto");
         }
-      } catch {}
+      } catch (err) {
+        console.error("load suggestion prefs failed", err);
+      }
     })();
   }, []);
 
-  const saveSuggestionPref = async (updates: Record<string, unknown>) => {
+  const saveSuggestionPref = async (updates: SuggestionPrefsInput) => {
     try {
       await client.PUT("/api/v1/settings/suggestions", { body: updates });
-    } catch {}
+    } catch (err) {
+      console.error("save suggestion pref failed", err);
+    }
   };
 
   useEffect(() => {
-    (async () => {
+    void (async () => {
       try {
         const { data } = await client.GET("/api/v1/settings/priority", {});
-        const ps = (data as any)?.data;
+        const ps = data?.data;
         if (ps) setSettings({ high: ps.high, medium: ps.medium, low: ps.low });
       } catch {
         // use defaults
@@ -73,10 +81,10 @@ export function FollowUpRulesTab() {
       if (error) {
         setFeedback({
           type: "error",
-          message: (error as any)?.detail ?? "Failed to save",
+          message: extractErrorMessage(error) ?? "Failed to save",
         });
       } else {
-        const ps = (data as any)?.data;
+        const ps = data?.data;
         if (ps) setSettings({ high: ps.high, medium: ps.medium, low: ps.low });
         setFeedback({ type: "success", message: "Priority settings saved" });
       }
@@ -107,13 +115,13 @@ export function FollowUpRulesTab() {
   }
   const hasValidationErrors = Object.keys(validationErrors).length > 0;
 
-  const levels: {
+  const levels: Array<{
     key: keyof PrioritySettings;
     label: string;
     color: string;
     min: number;
     max: number;
-  }[] = [
+  }> = [
     { key: "high", label: "High priority", color: "bg-red-500", min: THRESHOLD_MIN, max: 30 },
     { key: "medium", label: "Medium priority", color: "bg-amber-500", min: THRESHOLD_MIN, max: 90 },
     { key: "low", label: "Low priority", color: "bg-blue-500", min: THRESHOLD_MIN, max: THRESHOLD_MAX },

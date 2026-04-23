@@ -25,7 +25,7 @@ import { useRouter } from "next/navigation";
 import { cn } from "@/lib/utils";
 
 /* ── Type → icon + color config ── */
-interface TypeStyle {
+type TypeStyle = {
   Icon: typeof Bell;
   bg: string;
   text: string;
@@ -49,7 +49,7 @@ function getStyle(type: string): TypeStyle {
 /* ── Filter tabs ── */
 type FilterKey = "all" | "unread" | "suggestion" | "event" | "system";
 
-const filters: { key: FilterKey; label: string }[] = [
+const filters: Array<{ key: FilterKey; label: string }> = [
   { key: "all", label: "All" },
   { key: "unread", label: "Unread" },
   { key: "suggestion", label: "Suggestions" },
@@ -224,14 +224,18 @@ export default function NotificationsPage() {
   const unreadCount = allNotifications.filter((n) => !n.read).length;
 
   /* Group by date */
-  const groups: { label: string; items: AppNotification[] }[] = [];
+  const groups: Array<{ label: string; items: AppNotification[] }> = [];
   const groupOrder = ["Today", "Yesterday", "This Week", "Older"];
   const groupMap = new Map<string, AppNotification[]>();
 
   for (const n of filtered) {
     const g = dateGroup(n.created_at);
-    if (!groupMap.has(g)) groupMap.set(g, []);
-    groupMap.get(g)!.push(n);
+    let bucket = groupMap.get(g);
+    if (!bucket) {
+      bucket = [];
+      groupMap.set(g, bucket);
+    }
+    bucket.push(n);
   }
 
   for (const label of groupOrder) {

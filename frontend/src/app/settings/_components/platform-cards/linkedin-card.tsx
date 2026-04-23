@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { X, Link2, AlertCircle, RefreshCw, Check, Unplug, Key, Settings, History } from "lucide-react";
+import { X, Link2, AlertCircle, RefreshCw, Check, Unplug, Settings, History } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { client } from "@/lib/api-client";
 import { ConnectionBadge, KebabMenu, SyncButtonWrapper } from "../shared";
@@ -46,7 +46,7 @@ function formatCode(raw: string): string {
   return alphanum.length > 0 ? `PING-${alphanum}` : "";
 }
 
-export interface LinkedInCardProps {
+export type LinkedInCardProps = {
   connected: ConnectedAccounts;
   fetchConnectionStatus: () => Promise<void>;
 }
@@ -77,7 +77,7 @@ export function LinkedInCard({ connected, fetchConnectionStatus }: LinkedInCardP
     if (!code.trim()) return;
     setStatus("loading");
     try {
-      const result = await (client as any).POST("/api/v1/extension/pair", {
+      const result = await client.POST("/api/v1/extension/pair", {
         body: { code: code.trim() },
       });
       if (result.error) {
@@ -93,7 +93,7 @@ export function LinkedInCard({ connected, fetchConnectionStatus }: LinkedInCardP
 
   async function handleDisconnect() {
     try {
-      await (client as any).DELETE("/api/v1/extension/pair", {});
+      await client.DELETE("/api/v1/extension/pair", {});
       await fetchConnectionStatus();
     } catch {
       // ignore

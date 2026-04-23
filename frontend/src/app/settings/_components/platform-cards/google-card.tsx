@@ -15,7 +15,7 @@ import {
 } from "../shared";
 import type { ConnectedAccounts, SyncState } from "../../_hooks/use-settings-controller";
 
-export interface GoogleCardProps {
+export type GoogleCardProps = {
   connected: ConnectedAccounts;
   googleConnect: SyncState;
   googleSync: SyncState;
@@ -24,6 +24,7 @@ export interface GoogleCardProps {
   handleGoogleSyncAll: () => Promise<void>;
 }
 
+// eslint-disable-next-line sonarjs/cognitive-complexity -- card composes connect/sync/error/progress state branches; refactor tracked separately
 export function GoogleCard({
   connected,
   googleConnect,
@@ -67,13 +68,13 @@ export function GoogleCard({
                           {ga.email}
                         </span>
                         <button
-                          onClick={async () => {
+                          onClick={() => { void (async () => {
                             await client.DELETE(
                               "/api/v1/auth/google/accounts/{account_id}",
                               { params: { path: { account_id: ga.id } } }
                             );
                             await fetchConnectionStatus();
-                          }}
+                          })(); }}
                           className="text-stone-400 dark:text-stone-500 hover:text-red-500 transition-colors"
                           title="Remove account"
                         >
@@ -124,15 +125,16 @@ export function GoogleCard({
                   },
                   { icon: History, label: "Sync history", onClick: () => setShowSyncHistory(true) },
                   { icon: Unplug, label: "---" },
-                  { icon: Unplug, label: "Disconnect Gmail", danger: true, onClick: async () => {
+                  { icon: Unplug, label: "Disconnect Gmail", danger: true, onClick: () => { void (async () => {
                     const ga = connected.google_accounts?.[0];
+                    // eslint-disable-next-line no-alert -- native confirm before destructive disconnect
                     if (ga && confirm("Disconnect Gmail? Your synced emails will be kept.")) {
                       await client.DELETE("/api/v1/auth/google/accounts/{account_id}", {
                         params: { path: { account_id: ga.id } },
                       });
                       void fetchConnectionStatus();
                     }
-                  }},
+                  })(); }},
                 ]}
               />
             </>

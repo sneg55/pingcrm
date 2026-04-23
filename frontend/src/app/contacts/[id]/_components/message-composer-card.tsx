@@ -11,7 +11,6 @@ import {
   useSendMessage,
 } from "@/hooks/use-suggestions";
 import { type Contact } from "@/hooks/use-contacts";
-import { client } from "@/lib/api-client";
 
 export function MessageComposerCard({
   contact,
@@ -92,12 +91,16 @@ export function MessageComposerCard({
           `https://x.com/messages/compose?text=${encodeURIComponent(message)}`,
           "_blank"
         );
-        void navigator.clipboard?.writeText(message).catch(() => {});
+        void navigator.clipboard?.writeText(message).catch((err: unknown) => {
+          console.error("clipboard write failed", err);
+        });
         setSent(
           `DM compose opened — search for @${contact.twitter_handle.replace(/^@/, "")}`
         );
       } else {
-        void navigator.clipboard?.writeText(message).catch(() => {});
+        void navigator.clipboard?.writeText(message).catch((err: unknown) => {
+          console.error("clipboard write failed", err);
+        });
         setSent("Copied to clipboard");
       }
       if (suggestion) {

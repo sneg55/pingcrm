@@ -4,11 +4,21 @@ import { useState, useEffect, useRef } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Tag, Plus, X, Loader2, Wand2, Check, RotateCcw, AlertCircle } from "lucide-react";
 import { client } from "@/lib/api-client";
+import { extractErrorMessage } from "@/lib/api-errors";
 
-interface TaxonomyResult {
+type TaxonomyResult = {
   categories: Record<string, string[]>;
   total_tags: number;
   status: "draft" | "approved";
+}
+
+function narrowTaxonomy(raw: { categories: Record<string, string[]>; total_tags: number; status: string } | null | undefined): TaxonomyResult | null {
+  if (!raw) return null;
+  return {
+    categories: raw.categories,
+    total_tags: raw.total_tags,
+    status: raw.status === "approved" ? "approved" : "draft",
+  };
 }
 
 function ElapsedTimer({ running }: { running: boolean }) {
@@ -52,9 +62,9 @@ export function TagTaxonomyPanel() {
   const { data: taxonomyData, isLoading } = useQuery({
     queryKey: ["taxonomy"],
     queryFn: async () => {
-      const { data, error } = await client.GET("/api/v1/contacts/tags/taxonomy" as any, {});
+      const { data, error } = await client.GET("/api/v1/contacts/tags/taxonomy", {});
       if (error) return null;
-      return (data as any)?.data as TaxonomyResult | null;
+      return narrowTaxonomy(data?.data);
     },
   });
 
@@ -67,11 +77,13 @@ export function TagTaxonomyPanel() {
   // Discover mutation
   const discoverMutation = useMutation({
     mutationFn: async () => {
-      const { data, error, response } = await client.POST("/api/v1/contacts/tags/discover" as any, {});
+      const { data, error, response } = await client.POST("/api/v1/contacts/tags/discover", {});
       if (error || !response.ok) {
-        throw new Error((error as any)?.detail || "Discovery failed");
+        throw new Error(extractErrorMessage(error) ?? "Discovery failed");
       }
-      return (data as any)?.data as TaxonomyResult;
+      const narrowed = narrowTaxonomy(data?.data);
+      if (!narrowed) throw new Error("Discovery returned no taxonomy");
+      return narrowed;
     },
     onSuccess: (data) => {
       void queryClient.invalidateQueries({ queryKey: ["taxonomy"] });
@@ -87,13 +99,15 @@ export function TagTaxonomyPanel() {
   // Save/approve taxonomy
   const saveMutation = useMutation({
     mutationFn: async ({ cats, newStatus }: { cats: Record<string, string[]>; newStatus?: string }) => {
-      const { data, error, response } = await client.PUT("/api/v1/contacts/tags/taxonomy" as any, {
+      const { data, error, response } = await client.PUT("/api/v1/contacts/tags/taxonomy", {
         body: { categories: cats, status: newStatus },
       });
       if (error || !response.ok) {
-        throw new Error((error as any)?.detail || "Save failed");
+        throw new Error(extractErrorMessage(error) ?? "Save failed");
       }
-      return (data as any)?.data as TaxonomyResult;
+      const narrowed = narrowTaxonomy(data?.data);
+      if (!narrowed) throw new Error("Save returned no taxonomy");
+      return narrowed;
     },
     onSuccess: (data) => {
       void queryClient.invalidateQueries({ queryKey: ["taxonomy"] });
@@ -108,13 +122,15 @@ export function TagTaxonomyPanel() {
   // Apply tags mutation
   const applyMutation = useMutation({
     mutationFn: async () => {
-      const { data, error, response } = await client.POST("/api/v1/contacts/tags/apply" as any, {
+      const { data, error, response } = await client.POST("/api/v1/contacts/tags/apply", {
         body: {},
       });
       if (error || !response.ok) {
-        throw new Error((error as any)?.detail || "Apply failed");
+        throw new Error(extractErrorMessage(error) ?? "Apply failed");
       }
-      return (data as any)?.data as { tagged_count: number; task_id: string | null };
+      const result = data?.data;
+      if (!result) throw new Error("Apply returned no result");
+      return result;
     },
     onSuccess: (data) => {
       if (data.task_id) {

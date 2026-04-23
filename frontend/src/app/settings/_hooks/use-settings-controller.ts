@@ -11,13 +11,13 @@ import { useTelegramSyncProgress } from "@/hooks/use-telegram-sync";
 
 export type SyncStatus = "idle" | "loading" | "success" | "error";
 
-export interface SyncState {
+export type SyncState = {
   status: SyncStatus;
   message: string;
   details?: SyncDetails;
 }
 
-export interface SyncDetails {
+export type SyncDetails = {
   created?: number;
   updated?: number;
   new_interactions?: number;
@@ -26,12 +26,12 @@ export interface SyncDetails {
   message?: string;
 }
 
-export interface GoogleAccountInfo {
+export type GoogleAccountInfo = {
   id: string;
   email: string;
 }
 
-export interface ConnectedAccounts {
+export type ConnectedAccounts = {
   google: boolean;
   google_email?: string | null;
   google_accounts: GoogleAccountInfo[];
@@ -60,7 +60,7 @@ export type TabId = (typeof TABS)[number]["id"];
 
 const defaultSyncState: SyncState = { status: "idle", message: "" };
 
-export interface UseSettingsControllerReturn {
+export type UseSettingsControllerReturn = {
   // Tab state
   activeTab: TabId;
   setTab: (tab: TabId) => void;
@@ -213,7 +213,7 @@ export function useSettingsController(): UseSettingsControllerReturn {
   }, []);
 
   useEffect(() => {
-    fetchConnectionStatus();
+    void fetchConnectionStatus();
   }, [fetchConnectionStatus]);
 
   const showSuccessModal = async (platform: string, username?: string | null) => {
@@ -233,29 +233,31 @@ export function useSettingsController(): UseSettingsControllerReturn {
       let attempts = 0;
       const maxAttempts = 60;
       let baselineCount: number | null = null;
-      const interval = setInterval(async () => {
-        attempts++;
-        try {
-          const { data } = await client.GET("/api/v1/notifications/unread-count", {});
-          const count = (data as { data?: { count?: number } })?.data?.count ?? 0;
-          if (baselineCount === null) {
-            baselineCount = count;
-          } else if (count > baselineCount) {
-            clearInterval(interval);
-            setter({
-              status: "success",
-              message: `${platform} sync completed! Check notifications for details.`,
-            });
-          } else if (attempts >= maxAttempts) {
-            clearInterval(interval);
-            setter({
-              status: "error",
-              message: `${platform} sync is taking too long. The background worker may not be running.`,
-            });
+      const interval = setInterval(() => {
+        void (async () => {
+          attempts++;
+          try {
+            const { data } = await client.GET("/api/v1/notifications/unread-count", {});
+            const count = (data as { data?: { count?: number } })?.data?.count ?? 0;
+            if (baselineCount === null) {
+              baselineCount = count;
+            } else if (count > baselineCount) {
+              clearInterval(interval);
+              setter({
+                status: "success",
+                message: `${platform} sync completed! Check notifications for details.`,
+              });
+            } else if (attempts >= maxAttempts) {
+              clearInterval(interval);
+              setter({
+                status: "error",
+                message: `${platform} sync is taking too long. The background worker may not be running.`,
+              });
+            }
+          } catch {
+            /* ignore */
           }
-        } catch {
-          /* ignore */
-        }
+        })();
       }, 2000);
     },
     []
@@ -289,7 +291,7 @@ export function useSettingsController(): UseSettingsControllerReturn {
     try {
       const results = await Promise.allSettled([
         client.POST("/api/v1/contacts/sync/google"),
-        client.POST("/api/v1/contacts/sync/gmail" as any, {}),
+        client.POST("/api/v1/contacts/sync/gmail", {}),
         client.POST("/api/v1/contacts/sync/google-calendar"),
       ]);
       const anyError = results.some(

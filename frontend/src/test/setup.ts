@@ -1,5 +1,6 @@
 import "@testing-library/jest-dom/vitest";
 import { cleanup } from "@testing-library/react";
+import { createElement } from "react";
 import { afterEach, vi } from "vitest";
 
 afterEach(() => {
@@ -22,25 +23,12 @@ vi.mock("next/navigation", () => ({
 
 // Mock next/link as a simple anchor
 vi.mock("next/link", () => ({
-  default: ({ children, href, ...rest }: Record<string, unknown>) => {
-    const { createElement } = require("react");
-    return createElement("a", { href, ...rest }, children);
-  },
+  default: ({ children, href, ...rest }: { children?: React.ReactNode; href?: string } & Record<string, unknown>) =>
+    createElement("a", { href, ...rest }, children),
 }));
 
 // Mock lucide-react icons as simple spans
 vi.mock("lucide-react", () => {
-  const icon = (name: string) => {
-    const Component = (props: Record<string, unknown>) => {
-      const { children, ...rest } = props;
-      return `<span data-testid="icon-${name}" ${Object.entries(rest).map(([k, v]) => `${k}="${v}"`).join(" ")}>${children || ""}</span>`;
-    };
-    Component.displayName = name;
-    return Component;
-  };
-
-  // Return actual React components instead of string-returning functions
-  const { createElement } = require("react");
   const makeIcon = (name: string) => {
     const Comp = (props: Record<string, unknown>) =>
       createElement("span", { "data-testid": `icon-${name}`, ...props });

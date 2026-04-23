@@ -2,14 +2,14 @@ import { render, screen, fireEvent, waitFor, act } from "@testing-library/react"
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { CsvImport } from "./csv-import";
 
+import { client } from "@/lib/api-client";
+
 // Mock api-client
 vi.mock("@/lib/api-client", () => ({
   client: {
     POST: vi.fn(),
   },
 }));
-
-import { client } from "@/lib/api-client";
 const mockPost = vi.mocked(client.POST);
 
 // Helper: create a fake CSV File object
@@ -79,7 +79,7 @@ describe("CsvImport", () => {
 
     render(<CsvImport />);
 
-    const input = document.querySelector("input[type='file']") as HTMLInputElement;
+    const input = document.querySelector("input[type='file']")!;
     const file = makeCsvFile(CSV_CONTENT);
 
     await act(async () => {
@@ -110,7 +110,7 @@ describe("CsvImport", () => {
 
     render(<CsvImport />);
 
-    const input = document.querySelector("input[type='file']") as HTMLInputElement;
+    const input = document.querySelector("input[type='file']")!;
     const file = makeCsvFile(CSV_CONTENT);
 
     await act(async () => {
@@ -133,7 +133,7 @@ describe("CsvImport", () => {
 
     render(<CsvImport />);
 
-    const input = document.querySelector("input[type='file']") as HTMLInputElement;
+    const input = document.querySelector("input[type='file']")!;
     const file = makeCsvFile(CSV_CONTENT);
 
     await act(async () => {
@@ -166,7 +166,7 @@ describe("CsvImport", () => {
 
     render(<CsvImport />);
 
-    const input = document.querySelector("input[type='file']") as HTMLInputElement;
+    const input = document.querySelector("input[type='file']")!;
     const file = makeCsvFile(CSV_CONTENT);
 
     await act(async () => {
@@ -196,7 +196,7 @@ describe("CsvImport", () => {
 
     render(<CsvImport />);
 
-    const input = document.querySelector("input[type='file']") as HTMLInputElement;
+    const input = document.querySelector("input[type='file']")!;
     const file = makeCsvFile(CSV_CONTENT);
 
     await act(async () => {
@@ -226,7 +226,7 @@ describe("CsvImport", () => {
 
     render(<CsvImport />);
 
-    const input = document.querySelector("input[type='file']") as HTMLInputElement;
+    const input = document.querySelector("input[type='file']")!;
     const file = makeCsvFile(CSV_CONTENT);
 
     await act(async () => {
@@ -252,7 +252,7 @@ describe("CsvImport", () => {
 
     render(<CsvImport />);
 
-    const input = document.querySelector("input[type='file']") as HTMLInputElement;
+    const input = document.querySelector("input[type='file']")!;
     const file = makeCsvFile(CSV_CONTENT);
 
     await act(async () => {
@@ -276,7 +276,7 @@ describe("CsvImport", () => {
 
     render(<CsvImport />);
 
-    const input = document.querySelector("input[type='file']") as HTMLInputElement;
+    const input = document.querySelector("input[type='file']")!;
     const file = makeCsvFile(CSV_CONTENT);
 
     await act(async () => {
@@ -308,7 +308,7 @@ describe("CsvImport", () => {
 
     render(<CsvImport />);
 
-    const input = document.querySelector("input[type='file']") as HTMLInputElement;
+    const input = document.querySelector("input[type='file']")!;
     const file = makeCsvFile(CSV_CONTENT);
 
     await act(async () => {
@@ -347,7 +347,7 @@ describe("CsvImport", () => {
 
     render(<CsvImport />);
 
-    const input = document.querySelector("input[type='file']") as HTMLInputElement;
+    const input = document.querySelector("input[type='file']")!;
     const file = makeCsvFile(CSV_CONTENT);
 
     await act(async () => {

@@ -306,7 +306,7 @@ describe("ContactDetailPage", () => {
     expect(editButton).toBeTruthy();
     fireEvent.click(editButton!);
     // After clicking, an input with the current value should appear
-    const input = companyRow!.querySelector("input") as HTMLInputElement;
+    const input = companyRow!.querySelector("input")!;
     expect(input).toBeTruthy();
     expect(input.value).toBe("Acme Inc");
   });
@@ -329,7 +329,7 @@ describe("ContactDetailPage", () => {
     const titleRow = titleLabel.closest("div[class*='group']");
     const editButton = titleRow!.querySelector("button");
     fireEvent.click(editButton!);
-    const input = titleRow!.querySelector("input") as HTMLInputElement;
+    const input = titleRow!.querySelector("input")!;
     fireEvent.change(input, { target: { value: "CEO" } });
     fireEvent.click(screen.getByText("Cancel"));
     expect(screen.getByText("Engineer")).toBeInTheDocument();
@@ -373,7 +373,7 @@ describe("ContactDetailPage", () => {
   /* 18 — Kebab menu: opens on click */
   it("opens kebab menu when MoreVertical button is clicked", () => {
     renderPage();
-    const menuButton = screen.getByTitle(/archive contact/i)
+    const _menuButton = screen.getByTitle(/archive contact/i)
       ? screen.getAllByRole("button").find((b) => b.querySelector("[data-testid='icon-MoreVertical']"))
       : null;
     // MoreVertical icon inside a button triggers menu open

@@ -1,10 +1,12 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { AlertTriangle, Camera, Check, Copy, Download, Key, Trash2 } from "lucide-react";
+import { AlertTriangle, Check, Copy, Download, Key, Trash2 } from "lucide-react";
 import { client } from "@/lib/api-client";
+import { extractErrorMessage } from "@/lib/api-errors";
 import { cn } from "@/lib/utils";
 
+// eslint-disable-next-line sonarjs/cognitive-complexity -- account tab bundles profile + password + export + delete flows; refactor tracked separately
 export function AccountTab() {
   const [displayName, setDisplayName] = useState("");
   const [email, setEmail] = useState("");
@@ -27,19 +29,23 @@ export function AccountTab() {
   const [mcpCopied, setMcpCopied] = useState(false);
 
   useEffect(() => {
-    (async () => {
+    void (async () => {
       try {
         const result = await client.GET("/api/v1/auth/me", {});
-        const user = (result.data as any)?.data;
+        const user = result.data?.data;
         if (user) {
           setDisplayName(user.full_name || "");
           setEmail(user.email || "");
         }
-      } catch {}
+      } catch (err) {
+        console.error("load profile failed", err);
+      }
       try {
-        const { data } = await client.GET("/api/v1/settings/mcp-key" as any, {});
-        setMcpHasKey(!!(data as any)?.data?.has_key);
-      } catch {}
+        const { data } = await client.GET("/api/v1/settings/mcp-key", {});
+        setMcpHasKey(!!data?.data?.has_key);
+      } catch (err) {
+        console.error("load mcp-key status failed", err);
+      }
     })();
   }, []);
 
@@ -47,11 +53,11 @@ export function AccountTab() {
     setSavingProfile(true);
     setProfileMsg(null);
     try {
-      const { error } = await client.PUT("/api/v1/auth/me" as any, {
+      const { error } = await client.PUT("/api/v1/auth/me", {
         body: { full_name: displayName },
       });
       if (error) {
-        setProfileMsg({ type: "error", text: (error as any)?.detail || "Failed to save" });
+        setProfileMsg({ type: "error", text: extractErrorMessage(error) ?? "Failed to save" });
       } else {
         setProfileMsg({ type: "success", text: "Profile updated" });
         setTimeout(() => setProfileMsg(null), 3000);
@@ -75,11 +81,11 @@ export function AccountTab() {
     }
     setSavingPw(true);
     try {
-      const { error } = await client.POST("/api/v1/auth/change-password" as any, {
+      const { error } = await client.POST("/api/v1/auth/change-password", {
         body: { current_password: currentPw, new_password: newPw },
       });
       if (error) {
-        setPwMsg({ type: "error", text: (error as any)?.detail || "Failed to change password" });
+        setPwMsg({ type: "error", text: extractErrorMessage(error) ?? "Failed to change password" });
       } else {
         setPwMsg({ type: "success", text: "Password updated" });
         setCurrentPw("");
@@ -97,7 +103,7 @@ export function AccountTab() {
   const handleDeleteAccount = async () => {
     setDeleting(true);
     try {
-      await client.DELETE("/api/v1/auth/me" as any, {});
+      await client.DELETE("/api/v1/auth/me", {});
       localStorage.removeItem("access_token");
       window.location.href = "/auth/login";
     } catch {
@@ -243,14 +249,16 @@ export function AccountTab() {
             <div className="flex gap-2">
               {mcpHasKey && (
                 <button
-                  onClick={async () => {
+                  onClick={() => { void (async () => {
                     setMcpLoading(true);
                     try {
-                      await client.DELETE("/api/v1/settings/mcp-key" as any, {});
+                      await client.DELETE("/api/v1/settings/mcp-key", {});
                       setMcpHasKey(false);
                       setMcpKey(null);
-                    } catch {} finally { setMcpLoading(false); }
-                  }}
+                    } catch (err) {
+                      console.error("revoke mcp-key failed", err);
+                    } finally { setMcpLoading(false); }
+                  })(); }}
                   disabled={mcpLoading}
                   className="inline-flex items-center gap-1 px-3 py-2 text-xs font-medium rounded-lg border border-red-200 dark:border-red-800 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-950 transition-colors disabled:opacity-50"
                 >
@@ -258,17 +266,19 @@ export function AccountTab() {
                 </button>
               )}
               <button
-                onClick={async () => {
+                onClick={() => { void (async () => {
                   setMcpLoading(true);
                   try {
-                    const { data } = await client.POST("/api/v1/settings/mcp-key" as any, {});
-                    const key = (data as any)?.data?.key;
+                    const { data } = await client.POST("/api/v1/settings/mcp-key", {});
+                    const key = data?.data?.key;
                     if (key) {
                       setMcpKey(key);
                       setMcpHasKey(true);
                     }
-                  } catch {} finally { setMcpLoading(false); }
-                }}
+                  } catch (err) {
+                    console.error("generate mcp-key failed", err);
+                  } finally { setMcpLoading(false); }
+                })(); }}
                 disabled={mcpLoading}
                 className="inline-flex items-center gap-1.5 px-3 py-2 text-xs font-medium rounded-lg bg-teal-600 text-white hover:bg-teal-700 transition-colors shadow-sm disabled:opacity-50"
               >
@@ -295,6 +305,7 @@ export function AccountTab() {
               <p className="text-xs text-stone-400 dark:text-stone-500">Download all your contacts, interactions, and notes</p>
             </div>
             <button
+              // eslint-disable-next-line no-alert -- placeholder before bespoke UI; coming-soon notice
               onClick={() => alert("Data export is coming soon.")}
               className="inline-flex items-center gap-1.5 px-3 py-2 text-xs font-medium rounded-lg border border-stone-200 dark:border-stone-700 text-stone-600 dark:text-stone-300 hover:bg-stone-50 dark:hover:bg-stone-800 transition-colors"
             >

@@ -123,7 +123,7 @@ export function ActivityBreakdown({ data }: { data: ActivityData }) {
             {monthly_trend.map((m) => (
               <div key={m.month} className="flex-1 text-center">
                 <span className="text-[10px] text-stone-400 dark:text-stone-500">
-                  {new Date(m.month + "-01").toLocaleString("en", { month: "short" })}
+                  {new Date(`${m.month  }-01`).toLocaleString("en", { month: "short" })}
                 </span>
               </div>
             ))}

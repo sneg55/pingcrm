@@ -8,7 +8,7 @@ import { TwitterIcon } from "../shared";
 
 type BirdStatus = "disconnected" | "connected" | "expired";
 
-interface BirdStatusData {
+type BirdStatusData = {
   status: BirdStatus;
   checked_at: string | null;
 }
@@ -78,6 +78,10 @@ export function TwitterBirdRow() {
   }
 
   async function onDisconnect() {
+    // eslint-disable-next-line no-alert -- native confirm before destructive disconnect
+    if (!confirm("Disconnect X mentions & bios? Your synced data will be kept but no new mentions or bio changes will sync.")) {
+      return;
+    }
     setBusy(true);
     try {
       await client.DELETE("/api/v1/integrations/twitter/cookies", {});

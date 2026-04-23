@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 
-interface AnimatedNumberProps {
+type AnimatedNumberProps = {
   value: number;
   duration?: number;
   className?: string;

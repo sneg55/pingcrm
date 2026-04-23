@@ -1,9 +1,6 @@
 "use client";
 
-export const dynamic = "force-dynamic";
-
-import { Suspense, useState, useEffect, useCallback } from "react";
-import { useSearchParams, useRouter } from "next/navigation";
+import { Suspense, useState, useCallback } from "react";
 import { Plug, FileDown, Clock, Tag, User, RefreshCw } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useSettingsController, type TabId } from "./_hooks/use-settings-controller";
@@ -15,6 +12,8 @@ import { ImportTab } from "./_components/import-tab";
 import { FollowUpRulesTab } from "./_components/followup-tab";
 import { TagsTab } from "./_components/tags-tab";
 import { AccountTab } from "./_components/account-tab";
+
+export const dynamic = "force-dynamic";
 
 /* ── Tab metadata (labels + icons for the bar) ── */
 const TABS = [

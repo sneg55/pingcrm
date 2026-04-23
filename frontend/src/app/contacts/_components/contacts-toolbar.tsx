@@ -1,6 +1,6 @@
 "use client";
 
-import { RefObject } from "react";
+import { type RefObject } from "react";
 import { useRouter } from "next/navigation";
 import {
   Search,
@@ -39,7 +39,7 @@ const datePresets = [
 // Props
 // ---------------------------------------------------------------------------
 
-export interface ContactsToolbarProps {
+export type ContactsToolbarProps = {
   // Search
   searchInput: string;
   setSearchInput: (value: string) => void;

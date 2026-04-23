@@ -2,9 +2,6 @@
 
 import { useState, type ReactNode } from "react";
 import {
-  Mail,
-  MessageCircle,
-  Twitter,
   Sparkles,
   Clock,
   X,
@@ -15,8 +12,6 @@ import {
   Calendar,
   CalendarClock,
   CheckCircle2,
-  RefreshCw,
-  Send,
 } from "lucide-react";
 import { useQueryClient } from "@tanstack/react-query";
 import {
@@ -69,7 +64,7 @@ function strengthDotColor(label: string): string {
 }
 
 /* ── Trigger pill config ── */
-interface TriggerConfig {
+type TriggerConfig = {
   icon: ReactNode;
   label: string;
   colors: string;
@@ -149,7 +144,9 @@ function SuggestionCard({
         setSendError(err instanceof Error ? err.message : "Failed to send message");
       }
     } else {
-      void navigator.clipboard.writeText(message).catch(() => {});
+      void navigator.clipboard.writeText(message).catch((err: unknown) => {
+        console.error("clipboard write failed", err);
+      });
       if (ch === "twitter" && c?.twitter_handle) {
         window.open(`https://x.com/${c.twitter_handle.replace(/^@/, "")}`, "_blank");
       }
@@ -174,12 +171,6 @@ function SuggestionCard({
   const handleDismiss = () => {
     updateSuggestion.mutate({ id: suggestion.id, input: { status: "dismissed" } });
   };
-
-  /* ── Send button label varies by channel ── */
-  const sendLabel =
-    channel === "email" ? "Send Email" : channel === "twitter" ? "Send DM" : "Send";
-  const sendIcon =
-    channel === "email" ? <Mail className="w-3.5 h-3.5" /> : channel === "twitter" ? <Send className="w-3.5 h-3.5" /> : <Send className="w-3.5 h-3.5" />;
 
   return (
     <div

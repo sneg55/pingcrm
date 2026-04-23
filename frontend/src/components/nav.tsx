@@ -84,12 +84,12 @@ function NavDropdown({
   href: string;
   label: string;
   icon: React.ComponentType<{ className?: string }>;
-  children: { href: string; label: string; icon: React.ComponentType<{ className?: string }> }[];
+  children: Array<{ href: string; label: string; icon: React.ComponentType<{ className?: string }> }>;
   pathname: string;
 }) {
   const [open, setOpen] = useState(false);
   const timeoutRef = useRef<NodeJS.Timeout | null>(null);
-  const isActive = pathname === href || pathname.startsWith(href + "/") || pathname === "/identity";
+  const isActive = pathname === href || pathname.startsWith(`${href  }/`) || pathname === "/identity";
 
   const handleEnter = () => {
     if (timeoutRef.current) clearTimeout(timeoutRef.current);
@@ -439,7 +439,7 @@ export function Nav() {
               );
             }
             const { href, label, icon: Icon } = item;
-            const isActive = pathname === href || pathname.startsWith(href + "/");
+            const isActive = pathname === href || pathname.startsWith(`${href  }/`);
             return (
               <Link
                 key={href}
@@ -521,7 +521,7 @@ export function Nav() {
           <div className="max-w-6xl mx-auto px-4 py-3 space-y-1">
             {navLinks.map((item) => {
               const Icon = item.icon;
-              const isActive = pathname === item.href || pathname.startsWith(item.href + "/") || (item.href === "/contacts" && pathname === "/identity");
+              const isActive = pathname === item.href || pathname.startsWith(`${item.href  }/`) || (item.href === "/contacts" && pathname === "/identity");
               return (
                 <div key={item.href}>
                   <Link

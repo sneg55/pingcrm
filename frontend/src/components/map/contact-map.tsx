@@ -11,7 +11,7 @@ import type { Bbox } from "@/hooks/use-viewport-contacts";
 
 type Pin = components["schemas"]["ContactMapPin"];
 
-export interface ContactMapProps {
+export type ContactMapProps = {
   token: string;
   pins: Pin[];
   focus?: { latitude: number; longitude: number } | null;
@@ -79,7 +79,8 @@ export function ContactMap({
       const feature = e.features?.[0];
       if (!feature) return;
       if (feature.layer?.id === "clusters") {
-        const clusterId = feature.properties?.cluster_id;
+        const rawClusterId: unknown = feature.properties?.cluster_id;
+        const clusterId = typeof rawClusterId === "number" ? rawClusterId : Number(rawClusterId);
         const src = mapRef.current?.getMap().getSource(SOURCE_ID) as
           | { getClusterExpansionZoom: (id: number, cb: (err: unknown, zoom: number) => void) => void }
           | undefined;

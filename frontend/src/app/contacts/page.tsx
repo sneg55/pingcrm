@@ -1,7 +1,5 @@
 "use client";
 
-export const dynamic = "force-dynamic";
-
 import { Suspense, useState } from "react";
 import Link from "next/link";
 import {
@@ -27,6 +25,8 @@ import { formatDistanceToNow } from "date-fns";
 import { useContactsPage } from "./_hooks/use-contacts-page";
 import { ContactsToolbar } from "./_components/contacts-toolbar";
 
+export const dynamic = "force-dynamic";
+
 // ---------------------------------------------------------------------------
 // Constants
 // ---------------------------------------------------------------------------
@@ -39,6 +39,9 @@ const sortColumns = [
   { key: "activity", label: "Activity" },
   { key: "interaction", label: "Last Conversation" },
 ] as const;
+
+const ARCHIVED_PRIORITY = "archived";
+const ARCHIVED_OPACITY_CLASS = "opacity-60";
 
 // ---------------------------------------------------------------------------
 // Score number badge
@@ -332,7 +335,7 @@ function Pagination({
   const to = Math.min(page * pageSize, total);
 
   // Build page numbers to show
-  const pages: (number | "...")[] = [];
+  const pages: Array<number | "..."> = [];
   if (totalPages <= 5) {
     for (let i = 1; i <= totalPages; i++) pages.push(i);
   } else {
@@ -394,7 +397,6 @@ function ContactsPageContent() {
     searchInput,
     setSearchInput,
     debounceRef,
-    search,
     page,
     scoreFilter,
     priorityFilter,
@@ -540,7 +542,7 @@ function ContactsPageContent() {
                   type="checkbox"
                   checked={selectedIds.size > 0 && selectedIds.size >= totalCount}
                   ref={(el) => { if (el) el.indeterminate = selectedIds.size > 0 && selectedIds.size < totalCount; }}
-                  onChange={toggleSelectAll}
+                  onChange={() => { void toggleSelectAll(); }}
                   disabled={selectingAll}
                   className="w-3.5 h-3.5 rounded border-stone-300 dark:border-stone-600 text-teal-600"
                   aria-label="Select all"
@@ -601,17 +603,17 @@ function ContactsPageContent() {
                         <Link
                           href={`/contacts/${contact.id}`}
                           className={`text-sm font-medium text-stone-900 dark:text-stone-100 hover:text-teal-700 dark:hover:text-teal-400 truncate block ${
-                            contact.priority_level === "archived" ? "opacity-60" : ""
+                            contact.priority_level === ARCHIVED_PRIORITY ? ARCHIVED_OPACITY_CLASS : ""
                           }`}
                         >
                           {name}
                         </Link>
-                        {contact.priority_level === "archived" && <ArchivedChip />}
+                        {contact.priority_level === ARCHIVED_PRIORITY && <ArchivedChip />}
                       </div>
                       <div className="flex items-center gap-1.5">
                         {primaryEmail && (
                           <p className={`text-xs text-stone-400 dark:text-stone-500 truncate ${
-                            contact.priority_level === "archived" ? "opacity-60" : ""
+                            contact.priority_level === ARCHIVED_PRIORITY ? ARCHIVED_OPACITY_CLASS : ""
                           }`}>{primaryEmail}</p>
                         )}
                         <PlatformIcons
@@ -625,7 +627,7 @@ function ContactsPageContent() {
 
                   {/* Company */}
                   <div className={`text-xs text-stone-600 dark:text-stone-300 truncate flex items-center gap-1.5 ${
-                    contact.priority_level === "archived" ? "opacity-60" : ""
+                    contact.priority_level === ARCHIVED_PRIORITY ? ARCHIVED_OPACITY_CLASS : ""
                   }`}>
                     {contact.company ? (
                       <>
@@ -649,7 +651,7 @@ function ContactsPageContent() {
 
                   {/* Activity count */}
                   <div className="text-right font-mono-data text-xs text-stone-500 dark:text-stone-400">
-                    {(contact as any).interaction_count ?? 0}
+                    {contact.interaction_count ?? 0}
                   </div>
 
                   {/* Last interaction */}
@@ -676,15 +678,15 @@ function ContactsPageContent() {
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2">
                         <p className={`text-sm font-medium text-stone-900 dark:text-stone-100 truncate ${
-                          contact.priority_level === "archived" ? "opacity-60" : ""
+                          contact.priority_level === ARCHIVED_PRIORITY ? ARCHIVED_OPACITY_CLASS : ""
                         }`}>
                           {name}
                         </p>
-                        {contact.priority_level === "archived" && <ArchivedChip />}
+                        {contact.priority_level === ARCHIVED_PRIORITY && <ArchivedChip />}
                         <ScoreNumberBadge score={contact.relationship_score} />
                       </div>
                       <p className={`text-xs text-stone-500 dark:text-stone-400 truncate ${
-                        contact.priority_level === "archived" ? "opacity-60" : ""
+                        contact.priority_level === ARCHIVED_PRIORITY ? ARCHIVED_OPACITY_CLASS : ""
                       }`}>
                         {[contact.title, contact.company].filter(Boolean).join(" at ") || contact.emails?.[0] || ""}
                       </p>
@@ -722,13 +724,15 @@ function ContactsPageContent() {
             onRemoveTag={(tag) => bulkUpdate.mutate({ contact_ids: selectedArray, remove_tags: [tag] })}
             onSetPriority={(level) => bulkUpdate.mutate({ contact_ids: selectedArray, priority_level: level })}
             onSetCompany={(company) => bulkUpdate.mutate({ contact_ids: selectedArray, company })}
-            onArchive={() => bulkUpdate.mutate({ contact_ids: selectedArray, priority_level: "archived" })}
+            onArchive={() => bulkUpdate.mutate({ contact_ids: selectedArray, priority_level: ARCHIVED_PRIORITY })}
             onDelete={() => {
+              // eslint-disable-next-line no-alert -- native confirm before destructive bulk delete
               if (confirm(`Delete ${selectedArray.length} contact${selectedArray.length > 1 ? "s" : ""}? This cannot be undone.`)) {
                 deleteMutation.mutate(selectedArray);
               }
             }}
             onMerge={() => {
+              // eslint-disable-next-line no-alert -- native confirm before destructive bulk merge
               if (selectedArray.length >= 2 && confirm(`Merge ${selectedArray.length} contacts into one? This cannot be undone.`)) {
                 mergeMutation.mutate(selectedArray);
               }

@@ -16,7 +16,7 @@ const client = createClient<paths>({
 
 // Auth interceptor — attach JWT from localStorage
 client.use({
-  async onRequest({ request }) {
+  onRequest({ request }) {
     const token =
       typeof window !== "undefined"
         ? localStorage.getItem("access_token")
@@ -26,7 +26,7 @@ client.use({
     }
     return request;
   },
-  async onResponse({ response }) {
+  onResponse({ response }) {
     if (response.status === 401 && typeof window !== "undefined") {
       localStorage.removeItem("access_token");
       if (!window.location.pathname.startsWith("/auth")) {
