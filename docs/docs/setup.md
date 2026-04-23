@@ -5,14 +5,12 @@ title: Setup Guide
 
 # Setup Guide
 
-This guide walks you through setting up PingCRM for local development.
+This guide walks you through setting up PingCRM for local development. Docker Compose is the recommended path -- skip ahead to [Manual Setup](#manual-setup-alternative) if you'd rather install each service yourself.
 
 ## Prerequisites
 
-- **Python 3.12+**
-- **Node.js 18+** and npm
-- **PostgreSQL 14+**
-- **Redis 6+**
+- **Docker** and **Docker Compose** (recommended)
+- Or, for manual setup: **Python 3.12+**, **Node.js 18+**, **PostgreSQL 14+**, **Redis 6+**
 
 ## 1. Clone the Repository
 
@@ -21,88 +19,53 @@ git clone https://github.com/sneg55/pingcrm.git
 cd pingcrm
 ```
 
-## 2. Database Setup
+## 2. Docker Setup (Recommended)
 
-Create the PostgreSQL database:
-
-```bash
-createdb pingcrm
-```
-
-Or via psql:
-
-```sql
-CREATE DATABASE pingcrm;
-```
-
-## 3. Redis Setup
-
-Install and start Redis:
+Spin up PostgreSQL, Redis, the backend, the frontend, and the Celery worker with a single command.
 
 ```bash
-# macOS
-brew install redis
-brew services start redis
-
-# Ubuntu/Debian
-sudo apt install redis-server
-sudo systemctl start redis
-```
-
-Verify Redis is running:
-
-```bash
-redis-cli ping
-# Should return: PONG
-```
-
-## 4. Backend Setup
-
-```bash
-cd backend
-
-# Create virtual environment
-python3.12 -m venv .venv
-source .venv/bin/activate  # On Windows: .venv\Scripts\activate
-
-# Install dependencies
-pip install -r requirements.txt
-
 # Configure environment variables
-cp .env.example .env
+cp backend/.env.example backend/.env
+
+# Set required variables (edit backend/.env or export in your shell)
+export POSTGRES_PASSWORD=your_secure_password
+
+# Start all services
+docker compose up
+
+# Run database migrations (first time or after model changes)
+docker compose exec backend alembic upgrade head
 ```
 
-Edit `.env` with your credentials:
+The dev compose file (`docker-compose.yml`) builds images from local source and mounts volumes for avatar storage. Open [http://localhost:3000](http://localhost:3000) in your browser.
 
-```env
-# REQUIRED: Generate a secure secret key
-SECRET_KEY=<run: python -c "import secrets; print(secrets.token_urlsafe(64))">
+### Environment variables
 
-# Database
-DATABASE_URL=postgresql+asyncpg://localhost:5432/pingcrm
+Docker Compose reads from `./backend/.env` (via `env_file`) and also accepts overrides through shell environment variables. At minimum, set:
 
-# Redis
-REDIS_URL=redis://localhost:6379/0
-```
+- `POSTGRES_PASSWORD` -- required, used by both the `postgres` and `backend` services
+- `SECRET_KEY` -- required, generate with `python -c "import secrets; print(secrets.token_urlsafe(64))"`
+- `AUTH_TOKEN` / `CT0` -- optional, for Bird CLI Twitter access (see [Twitter/X Integration](features/twitter.md#bird-cli-steipetebird))
 
-Run database migrations:
+All other integration credentials (`GOOGLE_CLIENT_ID`, `TWITTER_CLIENT_ID`, etc.) are passed through as optional environment variables. Skip ahead to [Platform Credentials](#3-platform-credentials) to fill them in.
+
+### Production
+
+The production compose file (`docker-compose.prod.yml`) uses pre-built images from `ghcr.io` and adds a Caddy reverse proxy with automatic HTTPS:
 
 ```bash
-alembic upgrade head
+docker compose -f docker-compose.prod.yml up -d
 ```
 
-## 5. Frontend Setup
+Key differences from dev:
+- Pre-built container images instead of local builds
+- Caddy reverse proxy on ports 80/443
+- `restart: unless-stopped` on all services
+- No `env_file` -- all config via environment variables
 
-```bash
-cd frontend
-npm install
-```
+## 3. Platform Credentials
 
-No additional configuration needed. The frontend proxies `/api/*` requests to the backend via Next.js rewrites (default: `http://localhost:8000`, configurable via `NEXT_PUBLIC_API_URL`).
-
-## 6. Platform Credentials
-
-All integrations are optional. The app works without them -- add contacts manually or via CSV.
+All integrations are optional. The app works without them -- add contacts manually or via CSV. Add the credentials below to `backend/.env` (Docker) or `backend/.env` with your venv (manual).
 
 ### Google OAuth (Login + Gmail + Contacts + Calendar)
 
@@ -157,88 +120,89 @@ TELEGRAM_API_HASH=your_api_hash
 ANTHROPIC_API_KEY=your_api_key
 ```
 
-## 7. Running the Application
+---
 
-You need **3 terminal windows**:
+## Manual Setup (Alternative)
 
-### Terminal 1 -- Backend API
+Prefer to run services directly on your host? Install PostgreSQL, Redis, Python, and Node.js yourself.
+
+### Database
+
+```bash
+createdb pingcrm
+```
+
+### Redis
+
+```bash
+# macOS
+brew install redis
+brew services start redis
+
+# Ubuntu/Debian
+sudo apt install redis-server
+sudo systemctl start redis
+
+# Verify
+redis-cli ping  # PONG
+```
+
+### Backend
 
 ```bash
 cd backend
-source .venv/bin/activate
-uvicorn app.main:app --reload
-# Runs on http://localhost:8000
+python3.12 -m venv .venv
+source .venv/bin/activate  # Windows: .venv\Scripts\activate
+pip install -r requirements.txt
+cp .env.example .env
 ```
 
-### Terminal 2 -- Frontend
+Edit `.env`:
+
+```env
+SECRET_KEY=<run: python -c "import secrets; print(secrets.token_urlsafe(64))">
+DATABASE_URL=postgresql+asyncpg://localhost:5432/pingcrm
+REDIS_URL=redis://localhost:6379/0
+```
+
+Run migrations:
+
+```bash
+alembic upgrade head
+```
+
+### Frontend
 
 ```bash
 cd frontend
-npm run dev
-# Runs on http://localhost:3000
+npm install
 ```
 
-### Terminal 3 -- Celery Worker + Beat
+The frontend proxies `/api/*` to the backend via Next.js rewrites (default: `http://localhost:8000`, configurable via `NEXT_PUBLIC_API_URL`).
+
+### Running the Application
+
+You need **3 terminal windows**:
 
 ```bash
-cd backend
-source .venv/bin/activate
+# Terminal 1 -- Backend API (http://localhost:8000)
+cd backend && source .venv/bin/activate
+uvicorn app.main:app --reload
+
+# Terminal 2 -- Frontend (http://localhost:3000)
+cd frontend && npm run dev
+
+# Terminal 3 -- Celery worker + beat
+cd backend && source .venv/bin/activate
 celery -A worker.celery_app worker --beat --loglevel=info
 ```
 
 For production, run beat and worker as separate processes:
 
 ```bash
-# Scheduler
 celery -A worker.celery_app beat --loglevel=info
-
-# Worker
 celery -A worker.celery_app worker --loglevel=info
 ```
-
-Open [http://localhost:3000](http://localhost:3000) in your browser.
-
-## Docker Setup (Alternative)
-
-Instead of installing each service manually, you can run the entire stack with Docker Compose.
-
-### Development
-
-```bash
-# Set required variables
-export POSTGRES_PASSWORD=your_secure_password
-
-# Start all services (PostgreSQL, Redis, backend, frontend, Celery worker)
-docker compose up
-
-# Run database migrations (first time or after model changes)
-docker compose exec backend alembic upgrade head
-```
-
-The dev compose file (`docker-compose.yml`) builds images from local source and mounts volumes for avatar storage. The frontend is exposed on port **3000**.
-
-### Environment variables
-
-Docker Compose reads from `./backend/.env` (via `env_file`) and also accepts overrides through shell environment variables. At minimum, set:
-
-- `POSTGRES_PASSWORD` -- required, used by both the `postgres` and `backend` services
-- `AUTH_TOKEN` / `CT0` -- optional, for Bird CLI Twitter access (see [Twitter/X Integration](features/twitter.md#bird-cli-steipetebird))
-
-All other integration credentials (`GOOGLE_CLIENT_ID`, `TWITTER_CLIENT_ID`, etc.) are passed through as optional environment variables.
-
-### Production
-
-The production compose file (`docker-compose.prod.yml`) uses pre-built images from `ghcr.io` and adds a Caddy reverse proxy with automatic HTTPS:
-
-```bash
-docker compose -f docker-compose.prod.yml up -d
-```
-
-Key differences from dev:
-- Pre-built container images instead of local builds
-- Caddy reverse proxy on ports 80/443
-- `restart: unless-stopped` on all services
-- No `env_file` -- all config via environment variables
 
 ---
 
