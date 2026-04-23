@@ -49,7 +49,7 @@ beforeEach(() => {
 // ---------------------------------------------------------------------------
 describe("TagTaxonomyPanel loading state", () => {
   it("shows a spinner while the taxonomy is loading", () => {
-    // eslint-disable-next-line @typescript-eslint/no-empty-function -- intentional never-resolving promise to simulate loading state
+     
     mockGET.mockReturnValue(new Promise(() => {}));
     renderWithQuery(<TagTaxonomyPanel />);
     expect(screen.getByTestId("icon-Loader2")).toBeInTheDocument();

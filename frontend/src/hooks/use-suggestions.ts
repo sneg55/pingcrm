@@ -59,7 +59,8 @@ export function useUpdateSuggestion() {
         "/api/v1/suggestions/{suggestion_id}",
         {
           params: { path: { suggestion_id: id } },
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any -- local UpdateSuggestionInput does not match generated body schema exactly
+           
+          // biome-ignore lint/suspicious/noExplicitAny: local UpdateSuggestionInput does not match generated body schema exactly
           body: input as any,
         }
       );

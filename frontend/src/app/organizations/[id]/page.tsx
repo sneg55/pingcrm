@@ -284,7 +284,8 @@ export default function OrganizationDetailPage() {
     mutationFn: async (updates: Partial<OrganizationData>) => {
       const res = await client.PATCH("/api/v1/organizations/{org_id}", {
         params: { path: { org_id: id } },
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any -- local OrganizationData has fields not in generated OrganizationUpdate schema
+         
+        // biome-ignore lint/suspicious/noExplicitAny: local OrganizationData has fields not in generated OrganizationUpdate schema
         body: updates as any,
       });
       return res.data?.data;

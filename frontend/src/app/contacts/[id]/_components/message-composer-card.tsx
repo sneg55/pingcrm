@@ -10,7 +10,7 @@ import {
   useUpdateSuggestion,
   useSendMessage,
 } from "@/hooks/use-suggestions";
-import { type Contact } from "@/hooks/use-contacts";
+import type { Contact } from "@/hooks/use-contacts";
 
 export function MessageComposerCard({
   contact,

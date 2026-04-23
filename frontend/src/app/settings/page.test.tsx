@@ -88,7 +88,7 @@ describe("SettingsPage", () => {
 
   it("shows loading spinner initially", async () => {
     // Make /api/v1/auth/me hang
-    // eslint-disable-next-line @typescript-eslint/no-empty-function -- intentional never-resolving promise to simulate loading state
+     
     mockedClient.GET.mockReturnValue(new Promise(() => {}));
     render(<SettingsPage />);
     expect(screen.getByText("Loading accounts...")).toBeInTheDocument();

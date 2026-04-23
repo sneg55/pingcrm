@@ -106,7 +106,8 @@ export function useCreateContact() {
   return useMutation({
     mutationFn: async (input: ContactCreateInput) => {
       const { data } = await client.POST("/api/v1/contacts", {
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any -- local ContactCreateInput shape does not match generated ContactCreate schema exactly
+         
+        // biome-ignore lint/suspicious/noExplicitAny: local ContactCreateInput shape does not match generated ContactCreate schema exactly
         body: input as any,
       });
       return data;
@@ -184,7 +185,8 @@ export function useUpdateContact() {
     }) => {
       const { data, error, response } = await client.PUT("/api/v1/contacts/{contact_id}", {
         params: { path: { contact_id: id } },
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any -- local ContactCreateInput shape does not match generated ContactUpdate schema exactly
+         
+        // biome-ignore lint/suspicious/noExplicitAny: local ContactCreateInput shape does not match generated ContactUpdate schema exactly
         body: input as any,
       });
       if (error) {

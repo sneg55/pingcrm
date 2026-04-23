@@ -238,7 +238,7 @@ describe("Nav", () => {
   it("View all results links to /organizations when Companies tab is active", () => {
     setupMocks();
     const mockPush = vi.fn();
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- mocked router type mismatch in test
+     
     mockedUseRouter.mockReturnValue({ push: mockPush, replace: vi.fn(), back: vi.fn() } as any);
 
     render(<Nav />);

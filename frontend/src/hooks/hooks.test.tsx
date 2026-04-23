@@ -1,7 +1,7 @@
 import { renderHook, waitFor } from "@testing-library/react";
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import React from "react";
+import type React from "react";
 
 import { client } from "@/lib/api-client";
 import { useContacts, useContact, useContactDuplicates } from "./use-contacts";
@@ -111,7 +111,7 @@ describe("useContacts", () => {
 
   it("starts in loading state", () => {
     // Never resolves — stays loading
-    // eslint-disable-next-line @typescript-eslint/no-empty-function -- intentional never-resolving promise to stay in loading state
+     
     mockClient.GET.mockReturnValue(new Promise(() => {}));
 
     const { result } = renderHook(() => useContacts(), { wrapper: makeWrapper() });

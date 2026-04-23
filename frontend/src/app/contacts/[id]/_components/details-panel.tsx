@@ -9,7 +9,7 @@ import { CompanyFavicon } from "@/components/company-favicon";
 import { client } from "@/lib/api-client";
 import { useAuth } from "@/hooks/use-auth";
 import { formatDistanceToNow } from "date-fns";
-import { type Contact } from "@/hooks/use-contacts";
+import type { Contact } from "@/hooks/use-contacts";
 
 /* ── Copy button ── */
 

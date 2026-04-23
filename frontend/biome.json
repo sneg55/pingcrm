@@ -1,0 +1,107 @@
+{
+	"$schema": "https://biomejs.dev/schemas/2.4.12/schema.json",
+	"vcs": {
+		"enabled": true,
+		"clientKind": "git",
+		"useIgnoreFile": false
+	},
+	"files": {
+		"includes": [
+			"**",
+			"!**/dist/**",
+			"!**/build/**",
+			"!**/coverage/**",
+			"!**/node_modules/**",
+			"!**/.next/**",
+			"!**/src/lib/api-types.d.ts",
+			"!**/*.css"
+		]
+	},
+	"formatter": {
+		"enabled": false
+	},
+	"assist": {
+		"enabled": false
+	},
+	"linter": {
+		"enabled": true,
+		"rules": {
+			"recommended": false,
+			"correctness": {
+				"noUnusedVariables": {
+					"level": "error",
+					"options": { "ignoreRestSiblings": true }
+				},
+				"noUnusedPrivateClassMembers": "error",
+				"noUnreachable": "error",
+				"noConstantCondition": "error",
+				"noConstantMathMinMaxClamp": "error",
+				"noInvalidUseBeforeDeclaration": "error"
+			},
+			"suspicious": {
+				"noExplicitAny": "error",
+				"noDebugger": "error",
+				"noConsole": {
+					"level": "error",
+					"options": { "allow": ["warn", "error"] }
+				},
+				"noEmptyBlockStatements": "error",
+				"noDoubleEquals": "error",
+				"noDuplicateObjectKeys": "error",
+				"noDuplicateParameters": "error",
+				"noFallthroughSwitchClause": "error",
+				"noSelfCompare": "error",
+				"noVar": "error"
+			},
+			"style": {
+				"useConst": "error",
+				"useTemplate": "error",
+				"useShorthandAssign": "error",
+				"useConsistentBuiltinInstantiation": "error",
+				"useImportType": "error",
+				"useExportType": "error",
+				"useNodejsImportProtocol": "error",
+				"useThrowOnlyError": "error",
+				"noNonNullAssertion": "error",
+				"noRestrictedImports": {
+					"level": "error",
+					"options": {
+						"paths": {
+							"lodash": "Use native JS or lodash-es.",
+							"moment": "Use date-fns or Temporal.",
+							"axios": "Use fetch."
+						}
+					}
+				}
+			},
+			"complexity": {
+				"useOptionalChain": "error",
+				"noUselessTypeConstraint": "error",
+				"noUselessConstructor": "error",
+				"noUselessRename": "error",
+				"noUselessTernary": "error",
+				"noBannedTypes": "error"
+			},
+			"security": {
+				"noGlobalEval": "error"
+			},
+			"performance": {
+				"noDelete": "error"
+			}
+		}
+	},
+	"overrides": [
+		{
+			"includes": ["**/*.{test,spec}.{ts,tsx}", "**/tests/**/*.{ts,tsx}"],
+			"linter": {
+				"rules": {
+					"style": { "noNonNullAssertion": "off" },
+					"suspicious": {
+						"noExplicitAny": "off",
+						"noEmptyBlockStatements": "off"
+					}
+				}
+			}
+		}
+	]
+}

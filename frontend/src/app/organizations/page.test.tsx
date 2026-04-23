@@ -185,7 +185,7 @@ describe("OrganizationsPage", () => {
 
   describe("Loading state", () => {
     it("shows loading text while data is fetching", async () => {
-      // eslint-disable-next-line @typescript-eslint/no-empty-function -- intentional never-resolving promise to simulate pending state
+       
       mockGet.mockImplementation(() => new Promise(() => {}));
 
       renderPage();

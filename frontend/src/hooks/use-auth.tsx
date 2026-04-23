@@ -64,7 +64,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (rememberMe) params.set("remember_me", "true");
 
     const { data } = await client.POST("/api/v1/auth/login", {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- URLSearchParams body for form-encoded login, schema expects JSON shape
+       
+      // biome-ignore lint/suspicious/noExplicitAny: URLSearchParams body for form-encoded login, schema expects JSON shape
       body: params as any,
       bodySerializer: () => params,
       headers: { "Content-Type": "application/x-www-form-urlencoded" },
@@ -112,11 +113,14 @@ export function useAuth(): AuthContextValue {
     return {
       user: null,
       isLoading: true,
-      // eslint-disable-next-line @typescript-eslint/no-empty-function -- safe no-op fallback outside provider (e.g. tests)
+       
+      // biome-ignore lint/suspicious/noEmptyBlockStatements: safe no-op fallback outside provider (e.g. tests)
       login: async () => {},
-      // eslint-disable-next-line @typescript-eslint/no-empty-function -- safe no-op fallback outside provider (e.g. tests)
+       
+      // biome-ignore lint/suspicious/noEmptyBlockStatements: safe no-op fallback outside provider (e.g. tests)
       register: async () => {},
-      // eslint-disable-next-line @typescript-eslint/no-empty-function -- safe no-op fallback outside provider (e.g. tests)
+       
+      // biome-ignore lint/suspicious/noEmptyBlockStatements: safe no-op fallback outside provider (e.g. tests)
       logout: () => {},
     };
   }

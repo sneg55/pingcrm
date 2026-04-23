@@ -1,6 +1,6 @@
 import { formatDistanceToNow, format } from "date-fns";
 import { cn } from "@/lib/utils";
-import { type Contact, type ActivityData } from "@/hooks/use-contacts";
+import type { Contact, ActivityData } from "@/hooks/use-contacts";
 import { scorePillClasses } from "../_lib/formatters";
 
 export function RelationshipHealth({

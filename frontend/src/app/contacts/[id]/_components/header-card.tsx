@@ -18,7 +18,7 @@ import {
 import { useQuery } from "@tanstack/react-query";
 import { cn } from "@/lib/utils";
 import { client } from "@/lib/api-client";
-import { type Contact } from "@/hooks/use-contacts";
+import type { Contact } from "@/hooks/use-contacts";
 import { scorePillClasses, avatarColor, getInitials } from "../_lib/formatters";
 
 /* ── Tags pills ── */
