@@ -5,6 +5,7 @@ import asyncio
 import json
 import logging
 import random
+import re
 import uuid
 from datetime import UTC, datetime
 from typing import Any
@@ -190,6 +191,15 @@ async def _get_cached_tweets(contact: Contact, user: Any = None) -> list[dict[st
     return tweets
 
 
+_DASH_RE = re.compile(r"\s*[—–]\s*")
+_DOUBLE_COMMA_RE = re.compile(r",\s*,")
+
+
+def _strip_dashes(text: str) -> str:
+    """Replace em/en dashes with commas. LLMs overuse them and users dislike the style."""
+    return _DOUBLE_COMMA_RE.sub(",", _DASH_RE.sub(", ", text))
+
+
 def analyze_conversation_tone(interactions: list[Interaction]) -> str:
     """Determine conversation tone (formal/casual) from past interactions.
 
@@ -308,7 +318,7 @@ async def compose_followup_message(
         )
     else:
         reason = "A scheduled follow-up is due."
-        example = "Example: 'Hey, just checking in — how have things been going?'"
+        example = "Example: 'Hey, just checking in. How have things been going?'"
 
     # Override reason/example for revival (Pool B) contacts
     if revival_context and trigger_type != "birthday":
@@ -322,7 +332,7 @@ async def compose_followup_message(
             reason += f"\nA recent event provides a natural reason to reconnect: {event_summary}"
         example = (
             'Example: "Hey Alex, it\'s been way too long! I saw your company just '
-            'raised a round — congrats. Would love to catch up when you have a moment."'
+            'raised a round, congrats. Would love to catch up when you have a moment."'
         )
 
     # ------------------------------------------------------------------
@@ -347,7 +357,7 @@ async def compose_followup_message(
         instruction_lines.append(
             f"- The last conversation is {_CONVO_STALE_DAYS}+ days old but Twitter activity "
             f"is within {_TWITTER_FRESH_DAYS} days. Anchor the message on the fresh Twitter "
-            "signal — do NOT reopen the stale thread or reference the old conversation excerpt."
+            "signal. Do NOT reopen the stale thread or reference the old conversation excerpt."
         )
     twitter_instruction = ("\n" + "\n".join(instruction_lines)) if instruction_lines else ""
 
@@ -370,14 +380,15 @@ INSTRUCTIONS:
 - Write 2-3 sentences max
 - Be warm and genuine, not salesy
 - Reference the reason naturally{twitter_instruction}
-- Do NOT use placeholders like [Name] — use the actual first name: {first_name}
+- Do NOT use placeholders like [Name]. Use the actual first name: {first_name}
+- Do NOT use em dashes (—) or en dashes (–). Use commas, periods, or "and" instead.
 - Output only the message text, no subject line, no explanation
 {example}
 
 Message:"""
 
     if not settings.ANTHROPIC_API_KEY:
-        return f"Hey {first_name}, just wanted to check in — how have things been going?"
+        return f"Hey {first_name}, just wanted to check in. How have things been going?"
 
     client = anthropic.AsyncAnthropic(api_key=settings.ANTHROPIC_API_KEY)
 
@@ -395,7 +406,9 @@ Message:"""
             contact_id,
         )
         # Fallback to a simple template-based message
-        draft = f"Hey {first_name}, just wanted to check in — how have things been going?"
+        draft = f"Hey {first_name}, just wanted to check in. How have things been going?"
+
+    draft = _strip_dashes(draft)
 
     logger.info(
         "compose_followup_message: composed message for contact %s (trigger=%s)",

@@ -731,7 +731,7 @@ async def test_anchor_instruction_in_prompt_when_fresh_tweet_and_stale_convo(moc
 
     prompt = mock_client.messages.create.call_args.kwargs["messages"][0]["content"]
     assert "Anchor the message on the fresh Twitter signal" in prompt
-    assert "do NOT reopen the stale thread" in prompt
+    assert "Do NOT reopen the stale thread" in prompt
 
 
 @pytest.mark.asyncio
