@@ -103,7 +103,7 @@ export function ContactsToolbar({
               setSearchInput(value);
               if (debounceRef.current) clearTimeout(debounceRef.current);
               debounceRef.current = setTimeout(() => {
-                setParams({ q: value || undefined });
+                setParams({ q: value.trim() || undefined });
               }, 300);
             }}
             className="w-full pl-10 pr-4 py-2.5 text-sm rounded-lg border border-stone-200 dark:border-stone-700 focus:outline-none focus:ring-2 focus:ring-teal-400 placeholder:text-stone-400 dark:placeholder:text-stone-500 bg-white dark:bg-stone-900 text-stone-900 dark:text-stone-100"

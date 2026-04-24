@@ -313,7 +313,7 @@ function OrganizationsPageContent() {
                 setSearchInput(value);
                 if (debounceRef.current) clearTimeout(debounceRef.current);
                 debounceRef.current = setTimeout(() => {
-                  setParams({ q: value || undefined });
+                  setParams({ q: value.trim() || undefined });
                 }, 300);
               }}
               className="w-full pl-9 pr-4 py-2.5 rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400"

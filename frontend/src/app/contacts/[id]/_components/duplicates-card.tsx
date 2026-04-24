@@ -230,7 +230,7 @@ export function DuplicatesCard({ contactId }: { contactId: string }) {
 
   // Debounce search input for API queries
   useEffect(() => {
-    const timer = setTimeout(() => setDebouncedSearch(search), 300);
+    const timer = setTimeout(() => setDebouncedSearch(search.trim()), 300);
     return () => clearTimeout(timer);
   }, [search]);
 

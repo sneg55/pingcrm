@@ -149,27 +149,28 @@ function NavSearch() {
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
+  const trimmedQuery = query.trim();
   const [tab, setTab] = useState<"all" | "contacts" | "companies">("all");
   const inputRef = useRef<HTMLInputElement>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
   const { data } = useContacts({
-    search: tab === "companies" ? undefined : (query || undefined),
+    search: tab === "companies" ? undefined : (trimmedQuery || undefined),
     page_size: tab === "all" ? 4 : 6,
   });
-  const results = query.length >= 2 ? (data?.data ?? []) : [];
+  const results = trimmedQuery.length >= 2 ? (data?.data ?? []) : [];
 
   const orgQuery = useQuery({
-    queryKey: ["organizations", "nav-search", query, tab],
+    queryKey: ["organizations", "nav-search", trimmedQuery, tab],
     queryFn: async () => {
       const { data } = await client.GET("/api/v1/organizations", {
-        params: { query: { search: query, page_size: tab === "all" ? 4 : 6 } },
+        params: { query: { search: trimmedQuery, page_size: tab === "all" ? 4 : 6 } },
       });
       return (data?.data ?? []) as Array<{ id: string; name: string; contact_count: number }>;
     },
-    enabled: query.length >= 2 && tab !== "contacts",
+    enabled: trimmedQuery.length >= 2 && tab !== "contacts",
   });
-  const orgResults = query.length >= 2 ? (orgQuery.data ?? []) : [];
+  const orgResults = trimmedQuery.length >= 2 ? (orgQuery.data ?? []) : [];
 
   const combinedResults = useMemo<SearchResult[]>(() => {
     if (tab === "contacts") {
@@ -278,7 +279,7 @@ function NavSearch() {
           value={query}
           onChange={(e) => {
               setQuery(e.target.value);
-              if (e.target.value.length < 2) setTab("all");
+              if (e.target.value.trim().length < 2) setTab("all");
             }}
           onKeyDown={(e) => {
             if (e.key === "Enter" && combinedResults.length > 0) {
@@ -290,7 +291,7 @@ function NavSearch() {
           className="w-40 sm:w-56 text-sm bg-transparent outline-none placeholder:text-stone-400 dark:placeholder:text-stone-500 dark:text-stone-100"
         />
       </div>
-      {query.length >= 2 && (
+      {trimmedQuery.length >= 2 && (
         <div className="absolute top-full left-0 right-0 mt-1 bg-white dark:bg-stone-900 rounded-lg border border-stone-200 dark:border-stone-700 shadow-lg z-50 flex flex-col">
           {/* Tab bar */}
           <div className="flex items-center gap-1 px-3 pt-2 pb-1 border-b border-stone-100 dark:border-stone-800">
@@ -348,17 +349,17 @@ function NavSearch() {
               ))
             )}
           </div>
-          {query && (
+          {trimmedQuery && (
             <button
               onClick={() => {
                 const dest = tab === "companies"
-                  ? `/organizations?q=${encodeURIComponent(query)}`
-                  : `/contacts?q=${encodeURIComponent(query)}`;
+                  ? `/organizations?q=${encodeURIComponent(trimmedQuery)}`
+                  : `/contacts?q=${encodeURIComponent(trimmedQuery)}`;
                 navigate(dest);
               }}
               className="shrink-0 w-full px-3 py-2 text-xs text-teal-600 dark:text-teal-400 hover:bg-teal-50 dark:hover:bg-teal-950 border-t border-stone-100 dark:border-stone-800 transition-colors rounded-b-lg"
             >
-              View all results for &ldquo;{query}&rdquo;
+              View all results for &ldquo;{trimmedQuery}&rdquo;
             </button>
           )}
         </div>

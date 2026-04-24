@@ -90,7 +90,7 @@ function ArchivedContactsInner() {
   // Debounced search
   useEffect(() => {
     const timer = setTimeout(() => {
-      updateUrl({ q: searchInput || null });
+      updateUrl({ q: searchInput.trim() || null });
     }, 300);
     return () => clearTimeout(timer);
   }, [searchInput, updateUrl]);
