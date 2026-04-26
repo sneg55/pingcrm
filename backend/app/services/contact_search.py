@@ -25,6 +25,7 @@ def build_contact_filter_query(
     has_interactions: bool | None = None,
     interaction_days: int | None = None,
     has_birthday: bool | None = None,
+    ghosted: bool | None = None,
     archived_only: bool = False,
     include_archived: bool = False,
 ) -> object:
@@ -40,6 +41,9 @@ def build_contact_filter_query(
         date_to: ISO date string (YYYY-MM-DD) — include contacts created on/before.
         has_interactions: Filter to contacts with (True) or without (False) any interactions.
         interaction_days: Filter to contacts with last_interaction_at within N days.
+        ghosted: If True, return only contacts whose 3 most recent message-direction
+            interactions (outbound/inbound) are all 'outbound'. False and None
+            are no-ops.
         archived_only: If True, return only archived contacts (wins over include_archived).
         include_archived: If True, return both active and archived contacts.
 
@@ -140,6 +144,25 @@ def build_contact_filter_query(
     if priority and priority in ("high", "medium", "low"):
         base_query = base_query.where(Contact.priority_level == priority)
 
+    if ghosted is True:
+        last_three = (
+            select(Interaction.direction.label("direction"))
+            .where(
+                Interaction.contact_id == Contact.id,
+                Interaction.direction.in_(("outbound", "inbound")),
+            )
+            .order_by(Interaction.occurred_at.desc())
+            .limit(3)
+            .subquery()
+        )
+        outbound_in_last_three = (
+            select(func.count())
+            .select_from(last_three)
+            .where(last_three.c.direction == "outbound")
+            .scalar_subquery()
+        )
+        base_query = base_query.where(outbound_in_last_three == 3)
+
     return base_query
 
 
@@ -159,6 +182,7 @@ async def list_contacts_paginated(
     has_interactions: bool | None = None,
     interaction_days: int | None = None,
     has_birthday: bool | None = None,
+    ghosted: bool | None = None,
     archived_only: bool = False,
     include_archived: bool = False,
     sort_by: str = "score",
@@ -180,6 +204,7 @@ async def list_contacts_paginated(
         has_interactions=has_interactions,
         interaction_days=interaction_days,
         has_birthday=has_birthday,
+        ghosted=ghosted,
         archived_only=archived_only,
         include_archived=include_archived,
     )
