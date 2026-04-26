@@ -400,6 +400,7 @@ function ContactsPageContent() {
     page,
     scoreFilter,
     priorityFilter,
+    ghostedFilter,
     tagFilter,
     sourceFilter,
     dateFrom,
@@ -461,6 +462,7 @@ function ContactsPageContent() {
           debounceRef={debounceRef}
           scoreFilter={scoreFilter}
           priorityFilter={priorityFilter}
+          ghostedFilter={ghostedFilter}
           tagFilter={tagFilter}
           sourceFilter={sourceFilter}
           dateFrom={dateFrom}

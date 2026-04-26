@@ -47,6 +47,7 @@ export type ContactsToolbarProps = {
   // Quick filter chips
   scoreFilter: string | undefined;
   priorityFilter: string | undefined;
+  ghostedFilter: boolean;
   // Expanded filter panel
   tagFilter: string;
   sourceFilter: string;
@@ -75,6 +76,7 @@ export function ContactsToolbar({
   debounceRef,
   scoreFilter,
   priorityFilter,
+  ghostedFilter,
   tagFilter,
   sourceFilter,
   dateFrom,
@@ -163,6 +165,20 @@ export function ContactsToolbar({
               </button>
             );
           })}
+        </div>
+        <div className="hidden sm:block w-px h-5 bg-stone-200 dark:bg-stone-700" />
+        <div className="flex flex-wrap items-center gap-1.5">
+          <button
+            onClick={() => setParams({ ghosted: ghostedFilter ? undefined : "true" })}
+            title="Last 3 messages were yours, no reply."
+            className={`inline-flex items-center gap-1 px-2.5 py-1 text-xs font-medium rounded-full border transition-colors ${
+              ghostedFilter
+                ? "bg-stone-100 dark:bg-stone-800 text-stone-700 dark:text-stone-200 border-stone-300 dark:border-stone-600 ring-1 ring-stone-300 ring-offset-1"
+                : "bg-white dark:bg-stone-900 border-stone-200 dark:border-stone-700 text-stone-500 dark:text-stone-400 hover:bg-stone-50 dark:hover:bg-stone-800"
+            }`}
+          >
+            Ghosted
+          </button>
         </div>
         {activeFilterCount > 0 && (
           <div className="flex items-center gap-2 sm:ml-auto">
