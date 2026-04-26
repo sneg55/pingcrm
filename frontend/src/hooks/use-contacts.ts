@@ -52,6 +52,7 @@ export type ContactsParams = {
   has_interactions?: boolean;
   interaction_days?: number;
   has_birthday?: boolean;
+  ghosted?: boolean;
   archived_only?: boolean;
   include_archived?: boolean;
   sort?: string;

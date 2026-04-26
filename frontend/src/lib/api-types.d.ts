@@ -4407,6 +4407,8 @@ export interface operations {
                 interaction_days?: number | null;
                 /** @description Filter to contacts with (true) or without (false) a birthday set */
                 has_birthday?: boolean | null;
+                /** @description Filter to contacts whose 3 most recent messages were all outbound (no reply) */
+                ghosted?: boolean | null;
                 /** @description Filter by priority level: high, medium, low */
                 priority?: string | null;
                 /** @description Return only archived contacts */
@@ -4487,6 +4489,7 @@ export interface operations {
                 has_interactions?: boolean | null;
                 interaction_days?: number | null;
                 has_birthday?: boolean | null;
+                ghosted?: boolean | null;
                 archived_only?: boolean;
                 include_archived?: boolean;
             };
