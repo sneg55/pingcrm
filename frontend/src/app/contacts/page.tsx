@@ -483,9 +483,13 @@ function ContactsPageContent() {
             <div className="w-14 h-14 rounded-full bg-stone-100 dark:bg-stone-800 flex items-center justify-center mx-auto mb-4">
               <SearchX className="w-7 h-7 text-stone-400 dark:text-stone-500" />
             </div>
-            <h3 className="text-base font-display font-bold text-stone-900 dark:text-stone-100 mb-1">No contacts found</h3>
+            <h3 className="text-base font-display font-bold text-stone-900 dark:text-stone-100 mb-1">
+              {ghostedFilter && activeFilterCount === 1 ? "No one's ghosting you" : "No contacts found"}
+            </h3>
             <p className="text-sm text-stone-500 dark:text-stone-400 mb-5 max-w-sm mx-auto">
-              Try adjusting your filters or search terms, or add a new contact.
+              {ghostedFilter && activeFilterCount === 1
+                ? "Nice. Everyone you've messaged has replied within the last 3."
+                : "Try adjusting your filters or search terms, or add a new contact."}
             </p>
             <div className="flex items-center justify-center gap-3">
               {activeFilterCount > 0 && (
