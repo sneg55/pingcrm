@@ -395,6 +395,24 @@
             "description": "Filter to contacts with (true) or without (false) a birthday set"
           },
           {
+            "name": "ghosted",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "boolean"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Filter to contacts whose 3 most recent messages were all outbound (no reply)",
+              "title": "Ghosted"
+            },
+            "description": "Filter to contacts whose 3 most recent messages were all outbound (no reply)"
+          },
+          {
             "name": "priority",
             "in": "query",
             "required": false,
@@ -690,6 +708,22 @@
                 }
               ],
               "title": "Has Birthday"
+            }
+          },
+          {
+            "name": "ghosted",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "boolean"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Ghosted"
             }
           },
           {
