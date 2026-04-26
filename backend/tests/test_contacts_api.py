@@ -397,3 +397,57 @@ async def test_activity_endpoint_monthly_trend(client: AsyncClient, auth_headers
     assert resp.status_code == 200
     trend = resp.json()["data"]["monthly_trend"]
     assert isinstance(trend, list)
+
+
+@pytest.mark.asyncio
+async def test_list_contacts_ghosted_filter(
+    client: AsyncClient, db, test_user: User, auth_headers: dict
+):
+    """GET /api/v1/contacts?ghosted=true returns only ghosted contacts."""
+    from datetime import UTC, datetime, timedelta
+    from app.models.interaction import Interaction
+
+    ghost = Contact(
+        id=uuid.uuid4(),
+        user_id=test_user.id,
+        full_name="HTTP Ghost",
+        relationship_score=5,
+        priority_level="medium",
+        source="manual",
+    )
+    chatty = Contact(
+        id=uuid.uuid4(),
+        user_id=test_user.id,
+        full_name="HTTP Chatty",
+        relationship_score=5,
+        priority_level="medium",
+        source="manual",
+    )
+    db.add_all([ghost, chatty])
+    now = datetime.now(UTC)
+    for offset in (10, 20, 30):
+        db.add(Interaction(
+            id=uuid.uuid4(),
+            contact_id=ghost.id,
+            user_id=test_user.id,
+            platform="telegram",
+            direction="outbound",
+            occurred_at=now - timedelta(minutes=offset),
+        ))
+    db.add(Interaction(
+        id=uuid.uuid4(),
+        contact_id=chatty.id,
+        user_id=test_user.id,
+        platform="telegram",
+        direction="inbound",
+        occurred_at=now - timedelta(minutes=5),
+    ))
+    await db.commit()
+
+    response = await client.get(
+        "/api/v1/contacts?ghosted=true", headers=auth_headers
+    )
+
+    assert response.status_code == 200
+    names = [c["full_name"] for c in response.json()["data"]]
+    assert names == ["HTTP Ghost"]

@@ -153,7 +153,8 @@ def build_contact_filter_query(
             )
             .order_by(Interaction.occurred_at.desc())
             .limit(3)
-            .subquery()
+            .correlate(Contact)
+            .lateral()
         )
         outbound_in_last_three = (
             select(func.count())
