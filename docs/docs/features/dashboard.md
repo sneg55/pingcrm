@@ -5,34 +5,34 @@ title: Dashboard
 
 # Dashboard
 
-The `/dashboard` page provides a high-level overview of your networking activity and relationship health. All statistics are fetched via React Query hooks, ensuring data stays fresh with background refetching.
+The `/dashboard` page is the daily-driver view: stat cards at the top, follow-ups and activity in the centre, and an "is anything slipping" panel on the right. All data is fetched through React Query hooks and refreshes on focus.
 
-## Stats Overview
+## Stat Cards
 
-The top of the dashboard displays key metrics at a glance:
+Three counters at the top of the page, each with a week-over-week trend arrow when prior data is available:
 
-- **Total Contacts** -- the number of contacts in your CRM.
-- **Pending Suggestions** -- follow-up suggestions awaiting your review.
-- **Identity Matches** -- cross-platform identity matches detected across Gmail, Telegram, Twitter, and LinkedIn.
+- **Total contacts** — every contact in the CRM, archived and active.
+- **Active relationships** — sum of contacts in the `active` and `strong` score buckets. The trend compares against the same value seven days ago.
+- **Interactions this week** — total interactions across all platforms in the last 7 days, with the previous 7 days as comparison.
 
-## Reach Out This Week
+When a fresh account has zero contacts, the stat cards are replaced with an inline onboarding card that prompts you to connect an account or import a CSV.
 
-This section surfaces the top 3 contacts you should reach out to. Each entry includes:
+## Pending Follow-ups
 
-- The contact name and relationship score.
-- A reason explaining why outreach is recommended (e.g., "No interaction in 90+ days", "Job change detected").
-- An AI-drafted message you can review, edit, and send directly from the dashboard.
+Up to five pending suggestions from the follow-up engine, each rendered as an expandable card. Click a card to reveal the AI-drafted message inline; from there you can:
+
+- **Send** through the suggested channel (email, Telegram, Twitter, LinkedIn).
+- **Snooze** for 2 weeks, 1 month, or 3 months.
+- **Dismiss** to remove the suggestion.
+
+A trigger badge on each card shows why the suggestion fired: `90+ days`, `New event`, `Scheduled`, or `Birthday`. The "View all →" link jumps to the full `/suggestions` page.
 
 ## Recent Activity
 
-A chronological feed of the latest interactions across all connected platforms. This includes sent and received emails, Telegram messages, Twitter DMs, LinkedIn messages, manually logged notes, and meeting records.
+A chronological feed of the most recent interactions across every platform — sent and received emails, Telegram messages, Twitter DMs, LinkedIn messages, manual notes, and meeting records. Each row links to the relevant contact.
 
-## Relationship Health
+## Needs Attention
 
-A breakdown of your contact base by relationship status:
+A side panel listing high-priority contacts where outreach is overdue (no interaction past their priority threshold). Each row links to the contact detail page; an inline pill in the header shows the count when any are present. When everyone is on schedule, the panel reads "All caught up!".
 
-- **Active** -- contacts with recent, regular interactions.
-- **Warming** -- contacts where interaction frequency is increasing.
-- **Going Cold** -- contacts where interaction frequency has dropped and attention may be needed.
-
-This distribution helps you quickly identify whether your network is being maintained or if outreach is falling behind.
+The list is capped to a small number on the dashboard; click "View all →" to open the contacts page sorted by overdue.

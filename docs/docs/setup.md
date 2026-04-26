@@ -45,9 +45,10 @@ Docker Compose reads from `./backend/.env` (via `env_file`) and also accepts ove
 
 - `POSTGRES_PASSWORD` -- required, used by both the `postgres` and `backend` services
 - `SECRET_KEY` -- required, generate with `python -c "import secrets; print(secrets.token_urlsafe(64))"`
-- `AUTH_TOKEN` / `CT0` -- optional, for Bird CLI Twitter access (see [Twitter/X Integration](features/twitter.md#bird-cli-steipetebird))
 
 All other integration credentials (`GOOGLE_CLIENT_ID`, `TWITTER_CLIENT_ID`, etc.) are passed through as optional environment variables. Skip ahead to [Platform Credentials](#3-platform-credentials) to fill them in.
+
+Twitter/X uses **per-user cookies** captured by the Chrome extension — there is no longer a global `AUTH_TOKEN` / `CT0` server-wide setting. Each user pairs their browser once and the extension keeps cookies fresh; see [Twitter/X Integration](features/twitter.md#connecting-your-x-account-bird-cli) for details.
 
 ### Production
 
@@ -223,10 +224,11 @@ celery -A worker.celery_app worker --loglevel=info
 | `TELEGRAM_API_ID` | No | Telegram MTProto API ID |
 | `TELEGRAM_API_HASH` | No | Telegram MTProto API hash |
 | `ANTHROPIC_API_KEY` | No | Anthropic API key for Claude |
-| `AUTH_TOKEN` | No | `auth_token` cookie from x.com for Bird CLI |
-| `CT0` | No | `ct0` CSRF cookie from x.com for Bird CLI |
 | `APOLLO_API_KEY` | No | Apollo API key for contact enrichment |
+| `MAPBOX_SECRET_TOKEN` | No | Mapbox token used by the worker for geocoding (see [Map](features/map.md#configuration)) |
+| `MAPBOX_PUBLIC_TOKEN` | No | Mapbox token surfaced to the browser via `/api/v1/map/config` |
 | `CHROME_EXTENSION_ID` | No | Chrome extension ID for LinkedIn data ingestion via the browser extension |
+| `WHATSAPP_WEBHOOK_SECRET` | No | HMAC secret shared with the WhatsApp sidecar |
 | `ENVIRONMENT` | No | Runtime environment (e.g., `development`, `production`) |
 | `NEXT_PUBLIC_API_URL` | No | Backend URL for frontend (default: `http://localhost:8000`) |
 

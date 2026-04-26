@@ -239,6 +239,8 @@ Celery with Redis as both broker and result backend. Tasks use JSON serializatio
 | `send_weekly_digests` | Monday 09:00 UTC | Email weekly networking digest |
 | `recheck_telegram_bios` | Every 3 days | Re-check Telegram bios for changes |
 | `cleanup_stale_telegram_locks` | Hourly (:15) | Remove stale Telegram rate-limit locks |
+| `scan_meeting_preps` | Every 10 minutes | Scan upcoming Calendar meetings and email pre-meeting prep briefs |
+| `check_whatsapp_sessions` | Daily 01:00 UTC | Verify WhatsApp sidecar sessions are still connected |
 
 ### Task Safety
 
@@ -377,7 +379,7 @@ Contacts
 └───────────────┬────────────────────┘
                 ▼
 ┌────────────────────────────────────┐
-│ Tier 4: Manual Review              │
+│ Tier 3: Manual Review              │
 │ - UI presents side-by-side diff    │
 │ - User confirms or rejects match   │
 └────────────────────────────────────┘

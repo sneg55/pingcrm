@@ -1,30 +1,45 @@
 /**
- * Any CSS included here will be global. The classic template
- * bundles Infima by default. Infima is a CSS framework designed to
- * work well for content-centric websites.
+ * PingCRM docs theme — teal/stone palette to match the app.
+ * Built on Infima (Docusaurus default).
  */
 
-/* You can override the default Infima variables here. */
 :root {
-  --ifm-color-primary: #2e8555;
-  --ifm-color-primary-dark: #29784c;
-  --ifm-color-primary-darker: #277148;
-  --ifm-color-primary-darkest: #205d3b;
-  --ifm-color-primary-light: #33925d;
-  --ifm-color-primary-lighter: #359962;
-  --ifm-color-primary-lightest: #3cad6e;
+  /* Tailwind teal-600 family */
+  --ifm-color-primary: #0d9488;
+  --ifm-color-primary-dark: #0c857a;
+  --ifm-color-primary-darker: #0b7d73;
+  --ifm-color-primary-darkest: #09675f;
+  --ifm-color-primary-light: #0ea399;
+  --ifm-color-primary-lighter: #10aba0;
+  --ifm-color-primary-lightest: #14b8a6;
   --ifm-code-font-size: 95%;
-  --docusaurus-highlighted-code-line-bg: rgba(0, 0, 0, 0.1);
+  --docusaurus-highlighted-code-line-bg: rgba(13, 148, 136, 0.1);
+
+  /* Stone-tinted neutrals */
+  --ifm-background-color: #fafaf9;
+  --ifm-background-surface-color: #ffffff;
+  --ifm-color-emphasis-100: #f5f5f4;
+  --ifm-color-emphasis-200: #e7e5e4;
+  --ifm-color-emphasis-300: #d6d3d1;
+  --ifm-color-emphasis-700: #44403c;
+  --ifm-color-emphasis-800: #292524;
+  --ifm-color-emphasis-900: #1c1917;
 }
 
-/* For readability concerns, you should choose a lighter palette in dark mode. */
 [data-theme='dark'] {
-  --ifm-color-primary: #25c2a0;
-  --ifm-color-primary-dark: #21af90;
-  --ifm-color-primary-darker: #1fa588;
-  --ifm-color-primary-darkest: #1a8870;
-  --ifm-color-primary-light: #29d5b0;
-  --ifm-color-primary-lighter: #32d8b4;
-  --ifm-color-primary-lightest: #4fddbf;
-  --docusaurus-highlighted-code-line-bg: rgba(0, 0, 0, 0.3);
+  /* Tailwind teal-400 family for AA contrast on dark surfaces */
+  --ifm-color-primary: #2dd4bf;
+  --ifm-color-primary-dark: #14b8a6;
+  --ifm-color-primary-darker: #0d9488;
+  --ifm-color-primary-darkest: #0f766e;
+  --ifm-color-primary-light: #5eead4;
+  --ifm-color-primary-lighter: #7eebd8;
+  --ifm-color-primary-lightest: #99f6e4;
+  --docusaurus-highlighted-code-line-bg: rgba(45, 212, 191, 0.16);
+
+  --ifm-background-color: #1c1917;
+  --ifm-background-surface-color: #292524;
+  --ifm-color-emphasis-100: #292524;
+  --ifm-color-emphasis-200: #44403c;
+  --ifm-color-emphasis-300: #57534e;
 }
