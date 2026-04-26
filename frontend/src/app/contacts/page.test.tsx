@@ -287,6 +287,35 @@ describe("ContactsPage", () => {
     });
   });
 
+  describe("Ghosted filter from URL", () => {
+    it("shows the Ghosted pill as active when ghosted=true in URL", () => {
+      currentParams = new URLSearchParams("ghosted=true");
+      mockUseContacts.mockReturnValue({ data: undefined, isLoading: false, isError: false });
+      renderPage();
+      expect(screen.getByText("Ghosted")).toBeInTheDocument();
+    });
+
+    it("passes ghosted to useContacts from URL", () => {
+      currentParams = new URLSearchParams("ghosted=true");
+      mockUseContacts.mockReturnValue({ data: undefined, isLoading: false, isError: false });
+      renderPage();
+      expect(mockUseContacts).toHaveBeenCalledWith(
+        expect.objectContaining({ ghosted: true })
+      );
+    });
+
+    it("toggles ghosted=true into the URL when the pill is clicked", () => {
+      currentParams = new URLSearchParams();
+      mockUseContacts.mockReturnValue({ data: undefined, isLoading: false, isError: false });
+      renderPage();
+      fireEvent.click(screen.getByText("Ghosted"));
+      expect(mockReplace).toHaveBeenCalledWith(
+        expect.stringContaining("ghosted=true"),
+        expect.anything()
+      );
+    });
+  });
+
   describe("Filter persistence via URL", () => {
     it("reads search from q param", () => {
       currentParams = new URLSearchParams("q=bob");
