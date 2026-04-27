@@ -22,6 +22,8 @@ def build_contact_filter_query(
     priority: str | None = None,
     date_from: str | None = None,
     date_to: str | None = None,
+    interaction_from: str | None = None,
+    interaction_to: str | None = None,
     has_interactions: bool | None = None,
     interaction_days: int | None = None,
     has_birthday: bool | None = None,
@@ -39,6 +41,10 @@ def build_contact_filter_query(
         score: Score tier filter: 'strong' (8-10), 'active' (4-7), 'dormant' (0-3).
         date_from: ISO date string (YYYY-MM-DD) — include contacts created on/after.
         date_to: ISO date string (YYYY-MM-DD) — include contacts created on/before.
+        interaction_from: ISO date string (YYYY-MM-DD) — include contacts whose
+            last_interaction_at is on/after this date.
+        interaction_to: ISO date string (YYYY-MM-DD) — include contacts whose
+            last_interaction_at is on/before this date (inclusive of full day).
         has_interactions: Filter to contacts with (True) or without (False) any interactions.
         interaction_days: Filter to contacts with last_interaction_at within N days.
         ghosted: If True, return only contacts whose 3 most recent message-direction
@@ -113,6 +119,20 @@ def build_contact_filter_query(
         except ValueError:
             pass  # silent-ok: invalid date string — filter simply not applied
 
+    if interaction_from:
+        try:
+            dt_from = datetime.strptime(interaction_from, "%Y-%m-%d").replace(tzinfo=UTC)
+            base_query = base_query.where(Contact.last_interaction_at >= dt_from)
+        except ValueError:
+            pass  # silent-ok: invalid date string — filter simply not applied
+
+    if interaction_to:
+        try:
+            dt_to = datetime.strptime(interaction_to, "%Y-%m-%d").replace(tzinfo=UTC) + timedelta(days=1)
+            base_query = base_query.where(Contact.last_interaction_at < dt_to)
+        except ValueError:
+            pass  # silent-ok: invalid date string — filter simply not applied
+
     if has_interactions is True:
         base_query = base_query.where(Contact.last_interaction_at.isnot(None))
     elif has_interactions is False:
@@ -180,6 +200,8 @@ async def list_contacts_paginated(
     priority: str | None = None,
     date_from: str | None = None,
     date_to: str | None = None,
+    interaction_from: str | None = None,
+    interaction_to: str | None = None,
     has_interactions: bool | None = None,
     interaction_days: int | None = None,
     has_birthday: bool | None = None,
@@ -202,6 +224,8 @@ async def list_contacts_paginated(
         priority=priority,
         date_from=date_from,
         date_to=date_to,
+        interaction_from=interaction_from,
+        interaction_to=interaction_to,
         has_interactions=has_interactions,
         interaction_days=interaction_days,
         has_birthday=has_birthday,

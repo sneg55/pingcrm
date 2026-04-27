@@ -339,6 +339,42 @@
             "description": "Filter contacts created on or before this date (YYYY-MM-DD)"
           },
           {
+            "name": "interaction_from",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Filter contacts whose last interaction was on or after this date (YYYY-MM-DD)",
+              "title": "Interaction From"
+            },
+            "description": "Filter contacts whose last interaction was on or after this date (YYYY-MM-DD)"
+          },
+          {
+            "name": "interaction_to",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Filter contacts whose last interaction was on or before this date (YYYY-MM-DD)",
+              "title": "Interaction To"
+            },
+            "description": "Filter contacts whose last interaction was on or before this date (YYYY-MM-DD)"
+          },
+          {
             "name": "has_interactions",
             "in": "query",
             "required": false,
@@ -658,6 +694,38 @@
                 }
               ],
               "title": "Date To"
+            }
+          },
+          {
+            "name": "interaction_from",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Interaction From"
+            }
+          },
+          {
+            "name": "interaction_to",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Interaction To"
             }
           },
           {
