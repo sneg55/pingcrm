@@ -75,6 +75,38 @@ async def create_contact(
                 },
             )
 
+    # Check email uniqueness (case-insensitive across the emails array)
+    if contact_in.emails:
+        from sqlalchemy import text as _sql_text
+        from app.services.contact_resolver import normalize_email
+        for raw_email in contact_in.emails:
+            email_norm = normalize_email(raw_email)
+            if not email_norm:
+                continue
+            dup_row = await db.execute(
+                _sql_text(
+                    """
+                    SELECT id, full_name FROM contacts
+                    WHERE user_id = :uid
+                      AND EXISTS (
+                        SELECT 1 FROM unnest(emails) e
+                        WHERE lower(trim(e)) = :norm
+                      )
+                    LIMIT 1
+                    """
+                ),
+                {"uid": current_user.id, "norm": email_norm},
+            )
+            row = dup_row.first()
+            if row:
+                raise HTTPException(
+                    status_code=status.HTTP_409_CONFLICT,
+                    detail={
+                        "message": f"Another contact already has email {raw_email}",
+                        "conflicting_contact": {"id": str(row[0]), "full_name": row[1]},
+                    },
+                )
+
     contact = Contact(**contact_in.model_dump(), user_id=current_user.id)
     db.add(contact)
     await db.flush()

@@ -139,7 +139,10 @@ async def test_import_csv_alternate_column_names(db: AsyncSession, user: User):
     assert carol.given_name == "Carol"
     assert carol.family_name == "White"
     assert carol.title == "Designer"
-    assert carol.twitter_handle == "@carolw"
+    # Handles normalized on write: leading @ stripped, lowercased.
+    # Matches how the Twitter and Telegram sync paths already store handles,
+    # so future case-insensitive lookups across all sources find the same row.
+    assert carol.twitter_handle == "carolw"
     assert carol.telegram_username == "carolw_tg"
 
 

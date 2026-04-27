@@ -359,23 +359,27 @@ async def sync_telegram_chats(user: User, db: AsyncSession, *, max_dialogs: int 
                 contact = await _find_contact_by_phone(entity.phone, user.id, db)
 
             if contact is None:
-                # Auto-create contact from Telegram entity
+                # Auto-create contact from Telegram entity (race-safe: serializes
+                # against concurrent telegram syncs on the same user_id+telegram_user_id).
+                from app.services.contact_resolver import (
+                    find_or_create_contact_by_telegram_user_id,
+                )
                 first_name = getattr(entity, "first_name", None) or ""
                 last_name = getattr(entity, "last_name", None) or ""
                 full = f"{first_name} {last_name}".strip() or entity.username or str(entity.id)
-                contact = Contact(
-                    user_id=user.id,
-                    given_name=first_name or entity.username or str(entity.id),
-                    family_name=last_name or None,
-                    full_name=full,
-                    telegram_username=(entity.username or "").lower().lstrip("@") or None,
-                    telegram_user_id=str(entity.id),
-                    phones=[entity.phone] if entity.phone else [],
-                    source="telegram",
+                contact, created = await find_or_create_contact_by_telegram_user_id(
+                    db, user.id, str(entity.id),
+                    defaults=dict(
+                        given_name=first_name or entity.username or str(entity.id),
+                        family_name=last_name or None,
+                        full_name=full,
+                        telegram_username=entity.username or None,
+                        phones=[entity.phone] if entity.phone else [],
+                        source="telegram",
+                    ),
                 )
-                db.add(contact)
-                await db.flush()
-                created_contacts += 1
+                if created:
+                    created_contacts += 1
             else:
                 # Backfill telegram_user_id if missing
                 if not contact.telegram_user_id:
@@ -603,20 +607,23 @@ async def sync_telegram_chats_batch(
                     contact = await _find_contact_by_phone(phone, user.id, db)
 
                 if contact is None:
-                    full = f"{first_name} {last_name}".strip() or username or str(eid)
-                    contact = Contact(
-                        user_id=user.id,
-                        given_name=first_name or username or str(eid),
-                        family_name=last_name or None,
-                        full_name=full,
-                        telegram_username=(username or "").lower().lstrip("@") or None,
-                        telegram_user_id=str(eid),
-                        phones=[phone] if phone else [],
-                        source="telegram",
+                    from app.services.contact_resolver import (
+                        find_or_create_contact_by_telegram_user_id,
                     )
-                    db.add(contact)
-                    await db.flush()
-                    created_contacts += 1
+                    full = f"{first_name} {last_name}".strip() or username or str(eid)
+                    contact, created = await find_or_create_contact_by_telegram_user_id(
+                        db, user.id, str(eid),
+                        defaults=dict(
+                            given_name=first_name or username or str(eid),
+                            family_name=last_name or None,
+                            full_name=full,
+                            telegram_username=username or None,
+                            phones=[phone] if phone else [],
+                            source="telegram",
+                        ),
+                    )
+                    if created:
+                        created_contacts += 1
                 else:
                     if not contact.telegram_user_id:
                         contact.telegram_user_id = str(eid)

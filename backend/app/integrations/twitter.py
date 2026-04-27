@@ -27,6 +27,7 @@ from app.integrations.twitter_auth import (
 )
 from app.models.contact import Contact
 from app.models.user import User
+from app.services.contact_resolver import find_or_create_contact_by_twitter_user_id
 
 logger = logging.getLogger(__name__)
 
@@ -441,20 +442,20 @@ async def sync_twitter_dms(
             username = profile.get("username", "")
             name = profile.get("name", "")
 
-            # Create a new contact
+            # Find or create — race-safe against concurrent sync workers.
             parts = name.split(None, 1) if name else []
-            contact = Contact(
-                user_id=user.id,
-                given_name=parts[0] if parts else username or twitter_id,
-                family_name=parts[1] if len(parts) > 1 else None,
-                full_name=name or username or None,
-                twitter_handle=username or None,
-                twitter_user_id=twitter_id,
-                source="twitter",
+            contact, created = await find_or_create_contact_by_twitter_user_id(
+                db, user.id, twitter_id,
+                defaults=dict(
+                    given_name=parts[0] if parts else username or twitter_id,
+                    family_name=parts[1] if len(parts) > 1 else None,
+                    full_name=name or username or None,
+                    twitter_handle=username or None,
+                    source="twitter",
+                ),
             )
-            db.add(contact)
-            await db.flush()
-            created_contacts += 1
+            if created:
+                created_contacts += 1
             id_to_contact[twitter_id] = contact
 
             # Now create interactions for this contact's events

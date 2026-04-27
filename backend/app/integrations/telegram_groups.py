@@ -153,23 +153,26 @@ async def sync_telegram_group_members(user: User, db: AsyncSession) -> dict[str,
                 tg_user_id = str(member.id)
 
                 if contact is None:
+                    from app.services.contact_resolver import (
+                        find_or_create_contact_by_telegram_user_id,
+                    )
                     first_name = getattr(member, "first_name", None) or ""
                     last_name = getattr(member, "last_name", None) or ""
                     full = f"{first_name} {last_name}".strip() or member.username or tg_user_id
-                    contact = Contact(
-                        user_id=user.id,
-                        given_name=first_name or member.username or tg_user_id,
-                        family_name=last_name or None,
-                        full_name=full,
-                        telegram_username=tg_username,
-                        telegram_user_id=tg_user_id,
-                        phones=[member.phone] if member.phone else [],
-                        source="telegram",
-                        tags=[tag_label],
+                    contact, created = await find_or_create_contact_by_telegram_user_id(
+                        db, user.id, tg_user_id,
+                        defaults=dict(
+                            given_name=first_name or member.username or tg_user_id,
+                            family_name=last_name or None,
+                            full_name=full,
+                            telegram_username=member.username or None,
+                            phones=[member.phone] if member.phone else [],
+                            source="telegram",
+                            tags=[tag_label],
+                        ),
                     )
-                    db.add(contact)
-                    await db.flush()
-                    new_contacts += 1
+                    if created:
+                        new_contacts += 1
                 else:
                     # Backfill telegram info if missing
                     if tg_username and not contact.telegram_username:

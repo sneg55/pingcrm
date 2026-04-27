@@ -18,6 +18,7 @@ from app.models.follow_up import FollowUpSuggestion
 from app.models.interaction import Interaction
 from app.models.user import User
 from app.schemas.responses import BackfillItem, Envelope, LinkedInPushResult
+from app.services.contact_resolver import find_or_create_contact_by_linkedin_profile_id
 
 logger = logging.getLogger(__name__)
 
@@ -185,21 +186,23 @@ async def push_linkedin_data(
             contacts_updated += 1
         else:
             name_parts = (profile.full_name or "").split(None, 1)
-            contact = Contact(
-                user_id=current_user.id,
-                full_name=profile.full_name,
-                given_name=name_parts[0] if name_parts else None,
-                family_name=name_parts[1] if len(name_parts) > 1 else None,
-                linkedin_profile_id=profile.profile_id,
-                linkedin_url=profile_url_normalized,
-                linkedin_headline=profile.headline,
-                linkedin_bio=profile.about,
-                company=profile.company,
-                location=profile.location,
+            contact, created = await find_or_create_contact_by_linkedin_profile_id(
+                db, current_user.id, profile.profile_id,
+                defaults=dict(
+                    full_name=profile.full_name,
+                    given_name=name_parts[0] if name_parts else None,
+                    family_name=name_parts[1] if len(name_parts) > 1 else None,
+                    linkedin_url=profile_url_normalized,
+                    linkedin_headline=profile.headline,
+                    linkedin_bio=profile.about,
+                    company=profile.company,
+                    location=profile.location,
+                ),
             )
-            db.add(contact)
-            await db.flush()
-            contacts_created += 1
+            if created:
+                contacts_created += 1
+            else:
+                contacts_updated += 1
             # Save avatar for the newly created contact
             local_path = await _save_avatar(profile, str(contact.id))
             if local_path:
@@ -248,19 +251,26 @@ async def push_linkedin_data(
                 profile_id_map[msg.profile_id] = contact
 
         if not contact:
-            # Auto-create contact stub — split full name into given/family
+            # Auto-create contact stub. Without a profile_id we have no stable
+            # identity, so just insert; otherwise route through the resolver.
             name_parts = (msg.profile_name or "").split(None, 1)
-            contact = Contact(
-                user_id=current_user.id,
+            stub_defaults = dict(
                 full_name=msg.profile_name,
                 given_name=name_parts[0] if name_parts else None,
                 family_name=name_parts[1] if len(name_parts) > 1 else None,
-                linkedin_profile_id=msg.profile_id,
                 linkedin_url=f"https://www.linkedin.com/in/{msg.profile_id}" if msg.profile_id else None,
             )
-            db.add(contact)
-            await db.flush()
-            contacts_created += 1
+            if msg.profile_id:
+                contact, created = await find_or_create_contact_by_linkedin_profile_id(
+                    db, current_user.id, msg.profile_id, defaults=stub_defaults,
+                )
+                if created:
+                    contacts_created += 1
+            else:
+                contact = Contact(user_id=current_user.id, **stub_defaults)
+                db.add(contact)
+                await db.flush()
+                contacts_created += 1
             # Update in-memory maps
             if msg.profile_id:
                 profile_id_map[msg.profile_id] = contact

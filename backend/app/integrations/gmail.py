@@ -147,14 +147,31 @@ async def _find_contact_by_bcc_hash(
 async def _find_contact_by_email(
     email_addr: str, user_id: uuid.UUID, db: AsyncSession
 ) -> Contact | None:
-    """Look up a Contact belonging to *user_id* whose emails list contains *email_addr*."""
+    """Look up a Contact belonging to *user_id* whose emails list contains
+    *email_addr* (case-insensitive, after lower+trim)."""
+    from sqlalchemy import text
+    from app.services.contact_resolver import normalize_email
+    norm = normalize_email(email_addr)
+    if not norm:
+        return None
     result = await db.execute(
-        select(Contact).where(
-            Contact.user_id == user_id,
-            Contact.emails.contains([email_addr]),
-        ).limit(1)
+        text(
+            """
+            SELECT id FROM contacts
+            WHERE user_id = :uid
+              AND EXISTS (
+                SELECT 1 FROM unnest(emails) e
+                WHERE lower(trim(e)) = :norm
+              )
+            LIMIT 1
+            """
+        ),
+        {"uid": user_id, "norm": norm},
     )
-    return result.scalar_one_or_none()
+    row = result.first()
+    if not row:
+        return None
+    return await db.get(Contact, row[0])
 
 
 def _process_thread_messages(

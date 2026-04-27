@@ -15,6 +15,7 @@ from app.core.config import settings
 from app.models.contact import Contact
 from app.models.interaction import Interaction
 from app.models.user import User
+from app.services.contact_resolver import find_or_create_contact_by_email
 
 logger = logging.getLogger(__name__)
 
@@ -121,17 +122,7 @@ async def _find_or_create_contact(
     user_name: str | None = None,
     is_one_on_one: bool = False,
 ) -> Contact:
-    """Find an existing contact by email or create a new one."""
-    result = await db.execute(
-        select(Contact).where(
-            Contact.user_id == user_id,
-            Contact.emails.contains([email_addr]),
-        ).limit(1)
-    )
-    contact = result.scalar_one_or_none()
-    if contact:
-        return contact
-
+    """Find an existing contact by email (case-insensitive, race-safe) or create one."""
     # Parse display name into given/family
     given_name = None
     family_name = None
@@ -155,16 +146,15 @@ async def _find_or_create_contact(
             if given_name:
                 display_name = f"{given_name} {family_name}".strip() if family_name else given_name
 
-    contact = Contact(
-        user_id=user_id,
-        full_name=display_name,
-        given_name=given_name,
-        family_name=family_name,
-        emails=[email_addr],
-        source="google_calendar",
+    contact, _ = await find_or_create_contact_by_email(
+        db, user_id, email_addr,
+        defaults=dict(
+            full_name=display_name,
+            given_name=given_name,
+            family_name=family_name,
+            source="google_calendar",
+        ),
     )
-    db.add(contact)
-    await db.flush()
     return contact
 
 

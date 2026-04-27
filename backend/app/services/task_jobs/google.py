@@ -5,7 +5,7 @@ import uuid
 
 from celery import shared_task
 from google.auth.exceptions import RefreshError
-from sqlalchemy import select
+from sqlalchemy import select, text
 
 from app.core.database import task_session
 from app.models.contact import Contact
@@ -92,18 +92,32 @@ def sync_google_contacts_for_user(self, user_id: str) -> dict:
                             )
                             existing = r.scalar_one_or_none()
 
-                        # Fall back to email matching
+                        # Fall back to email matching (case-insensitive via resolver)
                         if not existing and emails:
+                            from app.services.contact_resolver import normalize_email
                             for email in emails:
+                                norm = normalize_email(email)
+                                if not norm:
+                                    continue
                                 r = await db.execute(
-                                    select(Contact).where(
-                                        Contact.user_id == uid,
-                                        Contact.emails.any(email),
-                                    ).limit(1)
+                                    text(
+                                        """
+                                        SELECT id FROM contacts
+                                        WHERE user_id = :uid
+                                          AND EXISTS (
+                                            SELECT 1 FROM unnest(emails) e
+                                            WHERE lower(trim(e)) = :norm
+                                          )
+                                        LIMIT 1
+                                        """
+                                    ),
+                                    {"uid": uid, "norm": norm},
                                 )
-                                existing = r.scalar_one_or_none()
-                                if existing:
-                                    break
+                                row = r.first()
+                                if row:
+                                    existing = await db.get(Contact, row[0])
+                                    if existing:
+                                        break
 
                         if existing:
                             if raw_name and not existing.full_name:

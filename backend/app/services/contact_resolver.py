@@ -63,16 +63,22 @@ def _apply_defaults_for_create(
     extra_emails: list[str] | None = None,
 ) -> Contact:
     """Build a fresh Contact from defaults, with the locked identity field
-    forced to its normalized value (defaults can't override it)."""
-    payload: dict[str, Any] = dict(defaults or {})
-    payload.pop(locked_field, None)
+    forced to its normalized value (defaults can't override it).
 
-    # Normalize handle-shaped fields if present in defaults
+    `extra_emails` (used by the email resolver) is merged with any emails
+    already in *defaults*, dedup'd case-insensitively, and stored as the
+    final `emails` array."""
+    payload: dict[str, Any] = dict(defaults or {})
+
+    # Normalize handle-shaped fields if present in defaults (and not the
+    # locked field — the locked one already gets the canonical value below).
     for field in ("telegram_username", "twitter_handle"):
         if field in payload and field != locked_field:
             payload[field] = normalize_handle(payload[field])
 
-    # Merge emails: combine locked email (if any) with defaults emails, dedup case-insensitively
+    # Merge emails: combine `extra_emails` with any defaults emails. This
+    # runs before the `locked_field` overwrite so that for `locked_field='emails'`
+    # the merged list becomes the locked value, not just `extra_emails`.
     if extra_emails is not None:
         existing = payload.pop("emails", None) or []
         merged = []
@@ -83,6 +89,11 @@ def _apply_defaults_for_create(
                 seen.add(n)
                 merged.append(n)
         payload["emails"] = merged
+        # If we just computed the emails array and emails is the locked field,
+        # the merged list IS the locked value — skip the overwrite below.
+        if locked_field == "emails":
+            payload["user_id"] = user_id
+            return Contact(**payload)
 
     payload[locked_field] = locked_value
     payload["user_id"] = user_id

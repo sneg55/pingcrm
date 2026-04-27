@@ -96,6 +96,12 @@ async def import_csv(
     created: list[dict] = []
     errors: list[str] = []
 
+    from app.services.contact_resolver import (
+        find_or_create_contact_by_email,
+        find_or_create_contact_by_telegram_username,
+        find_or_create_contact_by_twitter_handle,
+    )
+
     for i, row in enumerate(reader):
         try:
             raw_name = row.get("full_name") or row.get("name")
@@ -104,23 +110,46 @@ async def import_csv(
             # Use parsed org only if no explicit company column value
             effective_company = csv_company or parsed_org
 
-            contact = Contact(
-                user_id=user_id,
+            row_emails = [e.strip() for e in row.get("emails", "").split(";") if e.strip()]
+            row_phones = [p.strip() for p in row.get("phones", "").split(";") if p.strip()]
+            row_tags = [t.strip() for t in row.get("tags", "").split(";") if t.strip()] or None
+            twitter_handle = row.get("twitter_handle") or row.get("twitter") or row.get("x_handle")
+            telegram_username = row.get("telegram_username") or row.get("telegram")
+
+            base_defaults = dict(
                 full_name=parsed_name,
                 given_name=row.get("given_name") or row.get("first_name"),
                 family_name=row.get("family_name") or row.get("last_name"),
-                emails=[e.strip() for e in row.get("emails", "").split(";") if e.strip()],
-                phones=[p.strip() for p in row.get("phones", "").split(";") if p.strip()],
+                emails=row_emails,
+                phones=row_phones,
                 company=effective_company,
                 title=row.get("title") or row.get("job_title"),
-                twitter_handle=row.get("twitter_handle") or row.get("twitter") or row.get("x_handle"),
-                telegram_username=row.get("telegram_username") or row.get("telegram"),
+                twitter_handle=twitter_handle or None,
+                telegram_username=telegram_username or None,
                 notes=row.get("notes") or row.get("note"),
-                tags=[t.strip() for t in row.get("tags", "").split(";") if t.strip()] or None,
+                tags=row_tags,
                 source="csv",
             )
-            db.add(contact)
-            await db.flush()
+
+            # Use the strongest available identifier to dedup; fall back through
+            # email -> twitter handle -> telegram username -> insert without dedup.
+            contact = None
+            if row_emails:
+                contact, _ = await find_or_create_contact_by_email(
+                    db, user_id, row_emails[0], defaults=base_defaults,
+                )
+            elif twitter_handle:
+                contact, _ = await find_or_create_contact_by_twitter_handle(
+                    db, user_id, twitter_handle, defaults=base_defaults,
+                )
+            elif telegram_username:
+                contact, _ = await find_or_create_contact_by_telegram_username(
+                    db, user_id, telegram_username, defaults=base_defaults,
+                )
+            else:
+                contact = Contact(user_id=user_id, **base_defaults)
+                db.add(contact)
+                await db.flush()
 
             from app.services.organization_service import auto_create_organization
             await auto_create_organization(contact, user_id, db)
@@ -213,13 +242,27 @@ async def import_linkedin_connections(
                 existing_contact = r.scalars().first()
 
             if not existing_contact and email:
-                r = await db.execute(
-                    select(Contact).where(
-                        Contact.user_id == user_id,
-                        Contact.emails.any(email),
+                from sqlalchemy import text as _sql_text
+                from app.services.contact_resolver import normalize_email
+                email_norm = normalize_email(email)
+                if email_norm:
+                    r = await db.execute(
+                        _sql_text(
+                            """
+                            SELECT id FROM contacts
+                            WHERE user_id = :uid
+                              AND EXISTS (
+                                SELECT 1 FROM unnest(emails) e
+                                WHERE lower(trim(e)) = :norm
+                              )
+                            LIMIT 1
+                            """
+                        ),
+                        {"uid": user_id, "norm": email_norm},
                     )
-                )
-                existing_contact = r.scalars().first()
+                    row = r.first()
+                    if row:
+                        existing_contact = await db.get(Contact, row[0])
 
             # Last-resort name match — only when the row has no stable identifier.
             if not existing_contact and not url_normalized and not email:
