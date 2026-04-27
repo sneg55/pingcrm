@@ -51,8 +51,8 @@ export type ContactsToolbarProps = {
   // Expanded filter panel
   tagFilter: string;
   sourceFilter: string;
-  dateFrom: string;
-  dateTo: string;
+  interactionFrom: string;
+  interactionTo: string;
   includeArchived: boolean;
   showFilters: boolean;
   activeFilterCount: number;
@@ -79,8 +79,8 @@ export function ContactsToolbar({
   ghostedFilter,
   tagFilter,
   sourceFilter,
-  dateFrom,
-  dateTo,
+  interactionFrom,
+  interactionTo,
   includeArchived,
   showFilters,
   activeFilterCount,
@@ -251,13 +251,13 @@ export function ContactsToolbar({
               <div className="flex flex-wrap gap-1.5 mb-3">
                 {datePresets.map(({ label, days }) => {
                   const presetDate = new Date(Date.now() - days * 86400000).toISOString().split("T")[0];
-                  const isActive = dateFrom === presetDate;
+                  const isActive = interactionFrom === presetDate;
                   return (
                     <button
                       key={label}
                       onClick={() => setParams({
-                        date_from: isActive ? undefined : presetDate,
-                        date_to: isActive ? undefined : new Date().toISOString().split("T")[0],
+                        interaction_from: isActive ? undefined : presetDate,
+                        interaction_to: isActive ? undefined : new Date().toISOString().split("T")[0],
                       })}
                       className={`px-2 py-1 text-[11px] font-medium rounded-md border transition-colors ${
                         isActive
@@ -275,8 +275,8 @@ export function ContactsToolbar({
                   <label className="text-[10px] text-stone-400 dark:text-stone-500 mb-0.5 block">From</label>
                   <input
                     type="date"
-                    value={dateFrom}
-                    onChange={(e) => setParams({ date_from: e.target.value || undefined })}
+                    value={interactionFrom}
+                    onChange={(e) => setParams({ interaction_from: e.target.value || undefined })}
                     className="w-full text-xs border border-stone-200 dark:border-stone-700 rounded-lg px-2.5 py-1.5 text-stone-700 dark:text-stone-300 focus:outline-none focus:ring-2 focus:ring-teal-400 bg-white dark:bg-stone-900"
                   />
                 </div>
@@ -284,8 +284,8 @@ export function ContactsToolbar({
                   <label className="text-[10px] text-stone-400 dark:text-stone-500 mb-0.5 block">To</label>
                   <input
                     type="date"
-                    value={dateTo}
-                    onChange={(e) => setParams({ date_to: e.target.value || undefined })}
+                    value={interactionTo}
+                    onChange={(e) => setParams({ interaction_to: e.target.value || undefined })}
                     className="w-full text-xs border border-stone-200 dark:border-stone-700 rounded-lg px-2.5 py-1.5 text-stone-700 dark:text-stone-300 focus:outline-none focus:ring-2 focus:ring-teal-400 bg-white dark:bg-stone-900"
                   />
                 </div>

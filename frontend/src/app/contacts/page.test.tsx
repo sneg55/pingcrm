@@ -329,15 +329,15 @@ describe("ContactsPage", () => {
     });
 
     it("reads all filters from URL params", () => {
-      currentParams = new URLSearchParams("source=telegram&tag=vc&date_from=2025-01-01&date_to=2025-06-01");
+      currentParams = new URLSearchParams("source=telegram&tag=vc&interaction_from=2025-01-01&interaction_to=2025-06-01");
       mockUseContacts.mockReturnValue({ data: undefined, isLoading: false, isError: false });
       renderPage();
       expect(mockUseContacts).toHaveBeenCalledWith(
         expect.objectContaining({
           source: "telegram",
           tag: "vc",
-          date_from: "2025-01-01",
-          date_to: "2025-06-01",
+          interaction_from: "2025-01-01",
+          interaction_to: "2025-06-01",
         })
       );
     });

@@ -403,8 +403,8 @@ function ContactsPageContent() {
     ghostedFilter,
     tagFilter,
     sourceFilter,
-    dateFrom,
-    dateTo,
+    interactionFrom,
+    interactionTo,
     includeArchived,
     sortParam,
     showFilters,
@@ -465,8 +465,8 @@ function ContactsPageContent() {
           ghostedFilter={ghostedFilter}
           tagFilter={tagFilter}
           sourceFilter={sourceFilter}
-          dateFrom={dateFrom}
-          dateTo={dateTo}
+          interactionFrom={interactionFrom}
+          interactionTo={interactionTo}
           includeArchived={includeArchived}
           showFilters={showFilters}
           activeFilterCount={activeFilterCount}

@@ -4401,6 +4401,10 @@ export interface operations {
                 date_from?: string | null;
                 /** @description Filter contacts created on or before this date (YYYY-MM-DD) */
                 date_to?: string | null;
+                /** @description Filter contacts whose last interaction was on or after this date (YYYY-MM-DD) */
+                interaction_from?: string | null;
+                /** @description Filter contacts whose last interaction was on or before this date (YYYY-MM-DD) */
+                interaction_to?: string | null;
                 /** @description Filter to contacts with (true) or without (false) interactions */
                 has_interactions?: boolean | null;
                 /** @description Filter to contacts with last interaction within N days */
@@ -4486,6 +4490,8 @@ export interface operations {
                 priority?: string | null;
                 date_from?: string | null;
                 date_to?: string | null;
+                interaction_from?: string | null;
+                interaction_to?: string | null;
                 has_interactions?: boolean | null;
                 interaction_days?: number | null;
                 has_birthday?: boolean | null;

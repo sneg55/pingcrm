@@ -21,8 +21,8 @@ export function useContactsPage() {
   const priorityFilter = searchParams.get("priority") ?? undefined;
   const tagFilter = searchParams.get("tag") ?? "";
   const sourceFilter = searchParams.get("source") ?? "";
-  const dateFrom = searchParams.get("date_from") ?? "";
-  const dateTo = searchParams.get("date_to") ?? "";
+  const interactionFrom = searchParams.get("interaction_from") ?? "";
+  const interactionTo = searchParams.get("interaction_to") ?? "";
   const includeArchived = searchParams.get("include_archived") === "1";
   const sortParam = searchParams.get("sort") ?? "score";
   const showFilters = searchParams.get("filters") === "1";
@@ -68,8 +68,8 @@ export function useContactsPage() {
     priority: priorityFilter,
     tag: tagFilter || undefined,
     source: sourceFilter || undefined,
-    date_from: dateFrom || undefined,
-    date_to: dateTo || undefined,
+    interaction_from: interactionFrom || undefined,
+    interaction_to: interactionTo || undefined,
     ghosted: ghostedFilter || undefined,
     include_archived: includeArchived || undefined,
     sort: sortParam,
@@ -77,7 +77,7 @@ export function useContactsPage() {
 
   const contacts = data?.data ?? [];
   const meta = data?.meta;
-  const activeFilterCount = [tagFilter, sourceFilter, dateFrom, dateTo, scoreFilter, priorityFilter, includeArchived, ghostedFilter].filter(Boolean).length;
+  const activeFilterCount = [tagFilter, sourceFilter, interactionFrom, interactionTo, scoreFilter, priorityFilter, includeArchived, ghostedFilter].filter(Boolean).length;
   const stats = statsQuery.data?.total != null ? statsQuery.data : null;
   const activeRelationships = stats ? (stats.strong ?? 0) + (stats.active ?? 0) : 0;
 
@@ -158,8 +158,8 @@ export function useContactsPage() {
             source: sourceFilter || undefined,
             score: scoreFilter || undefined,
             priority: priorityFilter || undefined,
-            date_from: dateFrom || undefined,
-            date_to: dateTo || undefined,
+            interaction_from: interactionFrom || undefined,
+            interaction_to: interactionTo || undefined,
             ghosted: ghostedFilter || undefined,
             include_archived: includeArchived || undefined,
           },
@@ -187,8 +187,8 @@ export function useContactsPage() {
     ghostedFilter,
     tagFilter,
     sourceFilter,
-    dateFrom,
-    dateTo,
+    interactionFrom,
+    interactionTo,
     includeArchived,
     sortParam,
     showFilters,
