@@ -328,7 +328,10 @@ async def sync_telegram_chats(user: User, db: AsyncSession, *, max_dialogs: int 
     dialogs_checked = 0
     dialogs_skipped = 0
     created_contacts = 0
-    affected_contact_ids: set[str] = set()
+    # Tracks per-contact the latest interaction occurred_at observed in this
+    # sync. Passed to dismiss_suggestions_for_contacts so a backfilled
+    # historical message can't kill a freshly-created suggestion.
+    affected_max_occurred_at: dict[str, datetime] = {}
     avatar_queue: list[tuple[object, Contact]] = []  # (entity, contact) pairs needing avatars
 
     try:
@@ -466,7 +469,10 @@ async def sync_telegram_chats(user: User, db: AsyncSession, *, max_dialogs: int 
                                 )
                                 if is_new:
                                     new_count += 1
-                                    affected_contact_ids.add(str(contact.id))
+                                    cid_str = str(contact.id)
+                                    prev = affected_max_occurred_at.get(cid_str)
+                                    if prev is None or prev < occurred_at:
+                                        affected_max_occurred_at[cid_str] = occurred_at
                                 if (
                                     contact.last_interaction_at is None
                                     or contact.last_interaction_at < occurred_at
@@ -499,7 +505,10 @@ async def sync_telegram_chats(user: User, db: AsyncSession, *, max_dialogs: int 
                     )
                     if is_new:
                         new_count += 1
-                        affected_contact_ids.add(str(contact.id))
+                        cid_str = str(contact.id)
+                        prev = affected_max_occurred_at.get(cid_str)
+                        if prev is None or prev < occurred_at:
+                            affected_max_occurred_at[cid_str] = occurred_at
 
                     # Keep last_interaction_at up-to-date
                     if (
@@ -541,7 +550,10 @@ async def sync_telegram_chats(user: User, db: AsyncSession, *, max_dialogs: int 
     return {
         "new_interactions": new_count,
         "new_contacts": created_contacts,
-        "affected_contact_ids": list(affected_contact_ids),
+        "affected_contact_ids": list(affected_max_occurred_at.keys()),
+        "affected_contact_max_occurred_at": {
+            cid: ts.isoformat() for cid, ts in affected_max_occurred_at.items()
+        },
     }
 
 
@@ -576,7 +588,7 @@ async def sync_telegram_chats_batch(
 
     new_count = 0
     created_contacts = 0
-    affected_contact_ids: set[str] = set()
+    affected_max_occurred_at: dict[str, datetime] = {}
     avatar_queue: list[tuple[object, Contact]] = []
 
     try:
@@ -680,7 +692,10 @@ async def sync_telegram_chats_batch(
                                 )
                                 if is_new:
                                     new_count += 1
-                                    affected_contact_ids.add(str(contact.id))
+                                    cid_str = str(contact.id)
+                                    prev = affected_max_occurred_at.get(cid_str)
+                                    if prev is None or prev < occurred_at:
+                                        affected_max_occurred_at[cid_str] = occurred_at
                                 if contact.last_interaction_at is None or contact.last_interaction_at < occurred_at:
                                     contact.last_interaction_at = occurred_at
                         continue
@@ -704,7 +719,10 @@ async def sync_telegram_chats_batch(
                     )
                     if is_new:
                         new_count += 1
-                        affected_contact_ids.add(str(contact.id))
+                        cid_str = str(contact.id)
+                        prev = affected_max_occurred_at.get(cid_str)
+                        if prev is None or prev < occurred_at:
+                            affected_max_occurred_at[cid_str] = occurred_at
 
                     if contact.last_interaction_at is None or contact.last_interaction_at < occurred_at:
                         contact.last_interaction_at = occurred_at
@@ -735,7 +753,10 @@ async def sync_telegram_chats_batch(
     return {
         "new_interactions": new_count,
         "new_contacts": created_contacts,
-        "affected_contact_ids": list(affected_contact_ids),
+        "affected_contact_ids": list(affected_max_occurred_at.keys()),
+        "affected_contact_max_occurred_at": {
+            cid: ts.isoformat() for cid, ts in affected_max_occurred_at.items()
+        },
     }
 
 

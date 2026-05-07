@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import uuid
+from datetime import datetime
 
 from celery import shared_task
 from sqlalchemy import select
@@ -74,7 +75,8 @@ def sync_telegram_chats_for_user(self, user_id: str, max_dialogs: int = 100, loc
                 raise
 
             chat_info = chat_result if isinstance(chat_result, dict) else {
-                "new_interactions": chat_result, "new_contacts": 0, "affected_contact_ids": [],
+                "new_interactions": chat_result, "new_contacts": 0,
+                "affected_contact_ids": [], "affected_contact_max_occurred_at": {},
             }
 
             affected = [uuid.UUID(str(cid)) for cid in chat_info.get("affected_contact_ids", [])]
@@ -84,8 +86,12 @@ def sync_telegram_chats_for_user(self, user_id: str, max_dialogs: int = 100, loc
                 except Exception:
                     logger.warning("telegram_chats: score recalc failed for contact %s", cid, exc_info=True)
 
-            if affected:
-                await dismiss_suggestions_for_contacts(affected)
+            occurred_map = {
+                uuid.UUID(cid): datetime.fromisoformat(ts)
+                for cid, ts in chat_info.get("affected_contact_max_occurred_at", {}).items()
+            }
+            if occurred_map:
+                await dismiss_suggestions_for_contacts(occurred_map)
 
             await record_sync_complete(
                 sync_event,
@@ -165,8 +171,12 @@ def sync_telegram_chats_batch_task(self, user_id: str, entity_ids: list[int], lo
                 except Exception:
                     logger.warning("telegram_chats_batch: score recalc failed for %s", cid, exc_info=True)
 
-            if affected:
-                await dismiss_suggestions_for_contacts(affected)
+            occurred_map = {
+                uuid.UUID(cid): datetime.fromisoformat(ts)
+                for cid, ts in batch_result.get("affected_contact_max_occurred_at", {}).items()
+            }
+            if occurred_map:
+                await dismiss_suggestions_for_contacts(occurred_map)
 
             await db.commit()
 
