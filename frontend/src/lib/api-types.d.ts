@@ -3890,6 +3890,8 @@ export interface components {
             birthday_reminders: boolean;
             /** Preferred Channel */
             preferred_channel: string;
+            /** Dormancy Threshold Days */
+            dormancy_threshold_days: number;
         };
         /** SuggestionPrefsInput */
         SuggestionPrefsInput: {
@@ -3901,6 +3903,8 @@ export interface components {
             birthday_reminders?: boolean | null;
             /** Preferred Channel */
             preferred_channel?: string | null;
+            /** Dormancy Threshold Days */
+            dormancy_threshold_days?: number | null;
         };
         /** SuggestionUpdateBody */
         SuggestionUpdateBody: {

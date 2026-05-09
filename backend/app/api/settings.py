@@ -60,6 +60,10 @@ class SuggestionPrefsInput(BaseModel):
     include_dormant: bool | None = None
     birthday_reminders: bool | None = None
     preferred_channel: str | None = Field(default=None, pattern="^(auto|email|telegram|twitter)$")
+    # Upper bound (in days) for Pool A "active" contacts. Anything dormant
+    # longer than this falls through to Pool B (revival). Was hardcoded 365
+    # in followup_engine.DORMANCY_THRESHOLD_DAYS; now per-user.
+    dormancy_threshold_days: int | None = Field(default=None, ge=30, le=3650)
 
 
 class SuggestionPrefsData(BaseModel):
@@ -67,6 +71,7 @@ class SuggestionPrefsData(BaseModel):
     include_dormant: bool
     birthday_reminders: bool
     preferred_channel: str
+    dormancy_threshold_days: int
 
 
 _DEFAULT_SUGGESTION_PREFS = {
@@ -74,6 +79,7 @@ _DEFAULT_SUGGESTION_PREFS = {
     "include_dormant": True,
     "birthday_reminders": True,
     "preferred_channel": "auto",
+    "dormancy_threshold_days": 365,
 }
 
 

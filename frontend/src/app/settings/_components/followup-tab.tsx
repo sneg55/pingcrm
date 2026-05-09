@@ -30,6 +30,7 @@ export function FollowUpRulesTab() {
   const [dormantRevival, setDormantRevival] = useState(true);
   const [birthdayReminders, setBirthdayReminders] = useState(true);
   const [preferredChannel, setPreferredChannel] = useState("auto");
+  const [dormancyDays, setDormancyDays] = useState("365");
 
   // Load suggestion prefs
   useEffect(() => {
@@ -42,6 +43,7 @@ export function FollowUpRulesTab() {
           setDormantRevival(prefs.include_dormant ?? true);
           setBirthdayReminders(prefs.birthday_reminders ?? true);
           setPreferredChannel(prefs.preferred_channel ?? "auto");
+          setDormancyDays(String(prefs.dormancy_threshold_days ?? 365));
         }
       } catch (err) {
         console.error("load suggestion prefs failed", err);
@@ -241,6 +243,28 @@ export function FollowUpRulesTab() {
               </p>
             </div>
             <Toggle checked={dormantRevival} onChange={(v) => { setDormantRevival(v); void saveSuggestionPref({ include_dormant: v }); }} />
+          </div>
+
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <p className="text-sm text-stone-700 dark:text-stone-300">Active window (days)</p>
+              <p className="text-xs text-stone-400 dark:text-stone-500">
+                How recently a contact must have been in touch to be a Pool A candidate.
+                Older contacts fall through to Pool B (revival).
+              </p>
+            </div>
+            <select
+              value={dormancyDays}
+              onChange={(e) => { setDormancyDays(e.target.value); void saveSuggestionPref({ dormancy_threshold_days: parseInt(e.target.value) }); }}
+              className="w-full sm:w-auto text-sm border border-stone-200 dark:border-stone-700 rounded-lg px-3 py-1.5 text-stone-700 dark:text-stone-300 bg-white dark:bg-stone-900 focus:outline-none focus:ring-2 focus:ring-teal-400"
+            >
+              <option value="180">6 months</option>
+              <option value="365">1 year (default)</option>
+              <option value="730">2 years</option>
+              <option value="1095">3 years</option>
+              <option value="1825">5 years</option>
+              <option value="3650">10 years</option>
+            </select>
           </div>
 
           <div className="flex items-center justify-between">
