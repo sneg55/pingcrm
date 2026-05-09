@@ -203,10 +203,13 @@ async def _collect_pool_a_candidates(
     now: datetime,
     queued_contact_ids: set[uuid.UUID],
     priority_settings: dict | None = None,
+    dormancy_days: int = DORMANCY_THRESHOLD_DAYS,
 ) -> dict[uuid.UUID, _Candidate]:
-    """Collect candidates from triggers 1-4 for active (non-dormant) contacts."""
+    """Collect candidates from triggers 1-4 for active (non-dormant) contacts.
+    ``dormancy_days`` is the user's configured upper bound — contacts whose
+    last interaction is older than this fall through to Pool B."""
     candidates: dict[uuid.UUID, _Candidate] = {}
-    dormancy_cutoff = now - timedelta(days=DORMANCY_THRESHOLD_DAYS)
+    dormancy_cutoff = now - timedelta(days=dormancy_days)
 
     # ------------------------------------------------------------------
     # Trigger 1: Time-based — no interaction in N+ days, score < 4, not dormant
@@ -345,10 +348,12 @@ async def _collect_pool_b_candidates(
     db: AsyncSession,
     now: datetime,
     queued_contact_ids: set[uuid.UUID],
+    dormancy_days: int = DORMANCY_THRESHOLD_DAYS,
 ) -> dict[uuid.UUID, _Candidate]:
-    """Collect candidates from dormant contacts worth reviving."""
+    """Collect candidates from dormant contacts worth reviving. ``dormancy_days``
+    is the lower bound: contacts dormant longer than this are Pool B candidates."""
     candidates: dict[uuid.UUID, _Candidate] = {}
-    dormancy_cutoff = now - timedelta(days=DORMANCY_THRESHOLD_DAYS)
+    dormancy_cutoff = now - timedelta(days=dormancy_days)
     hard_cap_cutoff = now - timedelta(days=HARD_CAP_DORMANCY_YEARS * 365)
 
     # Build interaction span subquery (CTE)
@@ -566,13 +571,16 @@ async def _generate_suggestions_inner(
     )
     queued_contact_ids: set[uuid.UUID] = {row[0] for row in existing_result.all()}
 
-    # Skip contacts whose suggestion was recently dismissed (30-day cooldown)
+    # Skip contacts whose suggestion was recently *user*-dismissed (30-day cooldown).
+    # System dismissals (sync paths auto-clearing pending suggestions on new
+    # activity) are NOT a user-rejection signal and must not lock contacts out.
     dismiss_cutoff = now - timedelta(days=30)
     dismissed_result = await db.execute(
         select(FollowUpSuggestion.contact_id).where(
             FollowUpSuggestion.user_id == user_id,
             FollowUpSuggestion.status == "dismissed",
             FollowUpSuggestion.updated_at >= dismiss_cutoff,
+            FollowUpSuggestion.dismissed_by == "user",
         )
     )
     queued_contact_ids.update(row[0] for row in dismissed_result.all())
@@ -588,12 +596,18 @@ async def _generate_suggestions_inner(
     )
     queued_contact_ids.update(row[0] for row in recently_followed_up.all())
 
-    # Collect candidates from both pools
-    pool_a = await _collect_pool_a_candidates(user_id, db, now, queued_contact_ids, priority_settings)
-    # Respect include_dormant preference — skip Pool B if disabled
+    # Collect candidates from both pools. The user's configured dormancy
+    # threshold defines the boundary: <= threshold = Pool A, > threshold = Pool B.
     _prefs = settings.get("suggestion_prefs", {})
+    dormancy_days = int(_prefs.get("dormancy_threshold_days", DORMANCY_THRESHOLD_DAYS))
+    pool_a = await _collect_pool_a_candidates(
+        user_id, db, now, queued_contact_ids, priority_settings, dormancy_days=dormancy_days,
+    )
+    # Respect include_dormant preference — skip Pool B if disabled
     if _prefs.get("include_dormant", True):
-        pool_b = await _collect_pool_b_candidates(user_id, db, now, queued_contact_ids)
+        pool_b = await _collect_pool_b_candidates(
+            user_id, db, now, queued_contact_ids, dormancy_days=dormancy_days,
+        )
     else:
         pool_b = {}
 

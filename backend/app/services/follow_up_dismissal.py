@@ -21,10 +21,18 @@ from sqlalchemy.ext.asyncio import AsyncSession
 async def dismiss_outdated_pending_suggestions(
     db: AsyncSession,
     contact_ids: Iterable[uuid.UUID],
+    *,
+    by: str = "system",
 ) -> int:
     """Dismiss pending suggestions for the given contacts, but only those
     whose ``created_at`` is on/before the contact's current
     ``last_interaction_at``. Returns the number of rows dismissed.
+
+    The ``by`` parameter audits the dismissal source. Default is ``'system'``
+    because every caller of this helper is a sync path; a user-driven
+    dismissal goes through the explicit suggestions API endpoints. The
+    followup engine's 30-day cooldown only applies to ``dismissed_by='user'``,
+    so system dismissals don't lock contacts out.
 
     Callers must update ``Contact.last_interaction_at`` *before* invoking
     this — the integration code already does so as it inserts each new
@@ -39,7 +47,7 @@ async def dismiss_outdated_pending_suggestions(
         text(
             """
             UPDATE follow_up_suggestions
-            SET status = 'dismissed', updated_at = now()
+            SET status = 'dismissed', updated_at = now(), dismissed_by = :by
             FROM contacts c
             WHERE follow_up_suggestions.contact_id = c.id
               AND follow_up_suggestions.contact_id = ANY(:ids)
@@ -48,6 +56,6 @@ async def dismiss_outdated_pending_suggestions(
               AND follow_up_suggestions.created_at <= c.last_interaction_at
             """
         ),
-        {"ids": ids},
+        {"ids": ids, "by": by},
     )
     return result.rowcount or 0

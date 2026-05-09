@@ -30,6 +30,10 @@ class FollowUpSuggestion(Base):
     suggested_channel: Mapped[str] = mapped_column(String, nullable=False)
 
     status: Mapped[str] = mapped_column(String, default="pending", nullable=False)
+    # Audit: who dismissed this suggestion. 'user' = explicit UI/API action,
+    # 'system' = auto-dismiss from a sync path. Only 'user' dismissals trigger
+    # the 30-day cooldown in the followup engine.
+    dismissed_by: Mapped[str | None] = mapped_column(String(8), nullable=True)
     pool: Mapped[str | None] = mapped_column(String, nullable=True)
     scheduled_for: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 

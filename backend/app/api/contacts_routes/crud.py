@@ -162,6 +162,7 @@ async def bulk_update_contacts(
         )
         for suggestion in pending_result.scalars().all():
             suggestion.status = "dismissed"
+            suggestion.dismissed_by = "system"
 
     await db.flush()
     return envelope({"updated": len(contacts)})
@@ -337,6 +338,7 @@ async def update_contact(
         )
         for suggestion in pending_result.scalars().all():
             suggestion.status = "dismissed"
+            suggestion.dismissed_by = "system"
 
     # Clear stale twitter_user_id when handle changes
     if twitter_handle_changed:

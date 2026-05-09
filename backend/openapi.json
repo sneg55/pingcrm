@@ -11924,6 +11924,10 @@
           "preferred_channel": {
             "type": "string",
             "title": "Preferred Channel"
+          },
+          "dormancy_threshold_days": {
+            "type": "integer",
+            "title": "Dormancy Threshold Days"
           }
         },
         "type": "object",
@@ -11931,7 +11935,8 @@
           "max_suggestions",
           "include_dormant",
           "birthday_reminders",
-          "preferred_channel"
+          "preferred_channel",
+          "dormancy_threshold_days"
         ],
         "title": "SuggestionPrefsData"
       },
@@ -11983,6 +11988,19 @@
               }
             ],
             "title": "Preferred Channel"
+          },
+          "dormancy_threshold_days": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "maximum": 3650.0,
+                "minimum": 30.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Dormancy Threshold Days"
           }
         },
         "type": "object",

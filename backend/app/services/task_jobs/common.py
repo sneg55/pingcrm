@@ -57,7 +57,7 @@ async def dismiss_suggestions_for_contacts(
                     FollowUpSuggestion.status == "pending",
                     FollowUpSuggestion.created_at <= occurred_at,
                 )
-                .values(status="dismissed")
+                .values(status="dismissed", dismissed_by="system")
             )
             total += result.rowcount or 0
         await db.commit()

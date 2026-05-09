@@ -82,7 +82,8 @@ async def list_suggestions(
     current_user: User = Depends(get_extension_or_web_user),
 ) -> Envelope[list[dict]]:
     """List pending follow-up suggestions for the current user, with contact info."""
-    # Auto-dismiss stale suggestions where the contact interacted after creation
+    # Auto-dismiss stale suggestions where the contact interacted after creation.
+    # Tagged 'system' so the engine's 30-day cooldown doesn't apply.
     from sqlalchemy import update as sa_update
     await db.execute(
         sa_update(FollowUpSuggestion)
@@ -95,7 +96,7 @@ async def list_suggestions(
                 )
             ),
         )
-        .values(status="dismissed")
+        .values(status="dismissed", dismissed_by="system")
     )
     await db.flush()
 
@@ -183,6 +184,11 @@ async def update_suggestion(
         )
 
     suggestion.status = update_in.status
+
+    # Tag user-driven dismissals so the engine's 30-day cooldown applies.
+    # System dismissals (sync paths) leave dismissed_by='system' and bypass cooldown.
+    if update_in.status == "dismissed":
+        suggestion.dismissed_by = "user"
 
     # Persist edited message/channel if provided
     if update_in.suggested_message is not None:
