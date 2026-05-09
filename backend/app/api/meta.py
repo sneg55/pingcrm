@@ -263,16 +263,13 @@ async def push_meta_data(
             contact.last_interaction_at = occurred_at
         contact.interaction_count = (contact.interaction_count or 0) + 1
 
-    # Auto-dismiss pending suggestions for contacts with new interactions
+    # Auto-dismiss only when contact.last_interaction_at is on/after the
+    # suggestion's created_at — prevents backfilled old Meta messages from
+    # killing fresh suggestions.
     if contacts_with_new_interactions:
-        from sqlalchemy import update as sa_update
-        await db.execute(
-            sa_update(FollowUpSuggestion)
-            .where(
-                FollowUpSuggestion.contact_id.in_(list(contacts_with_new_interactions)),
-                FollowUpSuggestion.status == "pending",
-            )
-            .values(status="dismissed")
+        from app.services.follow_up_dismissal import dismiss_outdated_pending_suggestions
+        await dismiss_outdated_pending_suggestions(
+            db, list(contacts_with_new_interactions),
         )
 
     await db.flush()

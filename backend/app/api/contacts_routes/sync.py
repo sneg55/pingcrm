@@ -271,13 +271,8 @@ async def sync_contact_emails(
     new_count = await _sync_emails(current_user, contact, db)
 
     if new_count > 0:
-        from app.models.follow_up import FollowUpSuggestion
-        from sqlalchemy import update as sa_update
-        await db.execute(
-            sa_update(FollowUpSuggestion)
-            .where(FollowUpSuggestion.contact_id == contact_id, FollowUpSuggestion.status == "pending")
-            .values(status="dismissed")
-        )
+        from app.services.follow_up_dismissal import dismiss_outdated_pending_suggestions
+        await dismiss_outdated_pending_suggestions(db, [contact_id])
         await db.flush()
 
     await r.setex(cache_key, _EMAIL_SYNC_TTL, "1")
@@ -319,15 +314,12 @@ async def sync_contact_telegram(
         logger.warning("sync_contact_telegram: entity resolution failed for contact %s: %s", contact_id, exc)
         return envelope({"new_interactions": 0, "skipped": True, "reason": "entity_not_resolved"})
 
-    # Auto-dismiss pending suggestions if new interactions were synced
+    # Auto-dismiss only when the contact's last_interaction_at is on/after
+    # the suggestion's created_at — backfilled old messages must not kill
+    # fresh suggestions.
     if changes.get("new_interactions", 0) > 0:
-        from app.models.follow_up import FollowUpSuggestion
-        from sqlalchemy import update as sa_update
-        await db.execute(
-            sa_update(FollowUpSuggestion)
-            .where(FollowUpSuggestion.contact_id == contact_id, FollowUpSuggestion.status == "pending")
-            .values(status="dismissed")
-        )
+        from app.services.follow_up_dismissal import dismiss_outdated_pending_suggestions
+        await dismiss_outdated_pending_suggestions(db, [contact_id])
         await db.flush()
 
     await r.setex(cache_key, _TELEGRAM_SYNC_TTL, "1")
@@ -365,13 +357,8 @@ async def sync_contact_twitter(
     changes = await sync_twitter_contact_dms(current_user, contact, db)
 
     if changes.get("new_interactions", 0) > 0:
-        from app.models.follow_up import FollowUpSuggestion
-        from sqlalchemy import update as sa_update
-        await db.execute(
-            sa_update(FollowUpSuggestion)
-            .where(FollowUpSuggestion.contact_id == contact_id, FollowUpSuggestion.status == "pending")
-            .values(status="dismissed")
-        )
+        from app.services.follow_up_dismissal import dismiss_outdated_pending_suggestions
+        await dismiss_outdated_pending_suggestions(db, [contact_id])
         await db.flush()
 
     await r.setex(cache_key, _TWITTER_SYNC_TTL, "1")
