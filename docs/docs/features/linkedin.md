@@ -7,15 +7,26 @@ title: LinkedIn Integration
 
 PingCRM syncs LinkedIn messages and profiles through a Chrome extension. The extension calls LinkedIn's internal Voyager API directly from your browser — no LinkedIn credentials are sent to the backend.
 
+## Installing the Extension
+
+The PingCRM Chrome extension is **not published on the Chrome Web Store**. It ships as source from the main PingCRM repository and is installed in developer mode:
+
+1. Download the extension source from the [PingCRM GitHub repo](https://github.com/sneg55/pingcrm) — either clone the repo or download a ZIP and extract it. The extension lives in the `chrome-extension/` folder.
+2. Open `chrome://extensions` in Chrome (or any Chromium browser — Edge, Brave, Arc).
+3. Toggle **Developer mode** on in the top-right corner.
+4. Click **Load unpacked** and select the `chrome-extension/` folder from the repo.
+5. The PingCRM extension appears in your toolbar — pin it for easy access.
+
+To update later, `git pull` in the cloned repo (or re-download the ZIP) and click the **reload** icon on the extension's card in `chrome://extensions`.
+
 ## Extension Pairing
 
 Connecting the extension uses a one-time pairing code instead of a password:
 
-1. Install the PingCRM Chrome extension.
-2. Open the extension popup — it displays a code like `PING-X7K3M2`.
-3. Open PingCRM **Settings → Integrations → LinkedIn** and click **Connect**.
-4. Enter the code in the modal and click **Pair**.
-5. The extension polls the backend and, once matched, shows **Connected**.
+1. Open the extension popup — it displays a code like `PING-X7K3M2`.
+2. Open PingCRM **Settings → Integrations → LinkedIn** and click **Connect**.
+3. Enter the code in the modal and click **Pair**.
+4. The extension polls the backend and, once matched, shows **Connected**.
 
 Pairing codes expire after 10 minutes. The issued token is valid for 30 days and renews silently on use: when a sync receives a 401, the extension transparently exchanges the expired token for a fresh 30-day one via `/api/v1/extension/refresh`, so you normally never see a pairing prompt after the first setup. Tokens that are more than 90 days past expiry are not renewable — the popup then flips to the unpaired view and you re-pair with a new code.
 
