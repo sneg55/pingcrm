@@ -123,3 +123,39 @@ async def test_update_priority_accepts_boundary_values(
     assert data["high"] == 7
     assert data["medium"] == 180
     assert data["low"] == 365
+
+
+@pytest.mark.asyncio
+async def test_update_suggestion_prefs_persists_consecutive_writes(
+    client: AsyncClient, auth_headers: dict
+):
+    """Two consecutive PUTs must both persist.
+
+    Regression for a silent-write bug where the JSONB column wasn't wrapped
+    with MutableDict, so in-place mutations of the same dict reference were
+    not detected by SQLAlchemy and subsequent UPDATEs were no-ops.
+    """
+    # First save — works even with the bug because the column was NULL.
+    r1 = await client.put(
+        "/api/v1/settings/suggestions",
+        json={"dormancy_threshold_days": 730},
+        headers=auth_headers,
+    )
+    assert r1.status_code == 200
+    assert r1.json()["data"]["dormancy_threshold_days"] == 730
+
+    g1 = await client.get("/api/v1/settings/suggestions", headers=auth_headers)
+    assert g1.json()["data"]["dormancy_threshold_days"] == 730
+
+    # Second save — this is what regressed: same dict reference, so the
+    # change wasn't flagged and didn't persist.
+    r2 = await client.put(
+        "/api/v1/settings/suggestions",
+        json={"dormancy_threshold_days": 1095},
+        headers=auth_headers,
+    )
+    assert r2.status_code == 200
+    assert r2.json()["data"]["dormancy_threshold_days"] == 1095
+
+    g2 = await client.get("/api/v1/settings/suggestions", headers=auth_headers)
+    assert g2.json()["data"]["dormancy_threshold_days"] == 1095
