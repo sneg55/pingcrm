@@ -87,14 +87,47 @@ def _add_interaction(
 
 
 @pytest.mark.asyncio
-async def test_ghost_3_outbound_suppressed(db: AsyncSession, test_user: User):
-    """A contact with 3 consecutive outbound interactions (no inbound reply)
-    must be excluded from suggestions entirely."""
+async def test_ghost_3_outbound_recent_suppressed(db: AsyncSession, test_user: User):
+    """A contact with 3 consecutive outbound interactions, all within the
+    ghost-recency window, must be excluded from suggestions entirely."""
     contact = await _make_contact(
-        db, test_user, name="Ghost Contact", days_since_last=120
+        db, test_user, name="Ghost Contact", days_since_last=45
     )
 
-    # 3 consecutive outbound (most recent first is what the window query sees)
+    # Pool A medium qualifies (last_interaction_at > 60d ago is required, but
+    # the 45d setup here is for the high-priority Pool A path which uses 30d)
+    contact.priority_level = "high"
+    await db.flush()
+
+    # 3 consecutive outbound, most recent within the 30-day ghost window
+    _add_interaction(db, contact, test_user, "outbound", days_ago=10)
+    _add_interaction(db, contact, test_user, "outbound", days_ago=15)
+    _add_interaction(db, contact, test_user, "outbound", days_ago=20)
+    await db.commit()
+    await db.refresh(contact)
+
+    with _patch_compose():
+        suggestions = await generate_suggestions(test_user.id, db)
+
+    suggested_contact_ids = {s.contact_id for s in suggestions}
+    assert contact.id not in suggested_contact_ids, (
+        "Contact with 3 recent consecutive outbound interactions should be suppressed"
+    )
+
+
+@pytest.mark.asyncio
+async def test_ghost_3_outbound_old_silence_not_suppressed(
+    db: AsyncSession, test_user: User
+):
+    """A contact whose 3 consecutive outbound interactions are old (outside
+    the ghost-recency window) is dormant — not ghosting — and should still
+    receive a follow-up suggestion. This is the whole point of follow-ups:
+    re-engaging conversations that have gone quiet."""
+    contact = await _make_contact(
+        db, test_user, name="Old Silence", days_since_last=120
+    )
+
+    # All 3 outbound are months old — well outside the 30-day ghost window
     _add_interaction(db, contact, test_user, "outbound", days_ago=120)
     _add_interaction(db, contact, test_user, "outbound", days_ago=150)
     _add_interaction(db, contact, test_user, "outbound", days_ago=180)
@@ -105,28 +138,28 @@ async def test_ghost_3_outbound_suppressed(db: AsyncSession, test_user: User):
         suggestions = await generate_suggestions(test_user.id, db)
 
     suggested_contact_ids = {s.contact_id for s in suggestions}
-    assert contact.id not in suggested_contact_ids, (
-        "Contact with 3 consecutive outbound interactions should be suppressed"
+    assert contact.id in suggested_contact_ids, (
+        "Contact with 3 OLD consecutive outbound (silence) should be suggested — "
+        "they're dormant, not ghosting."
     )
 
 
 @pytest.mark.asyncio
-async def test_ghost_2_outbound_reduced_priority(db: AsyncSession, test_user: User):
-    """A contact with exactly 2 consecutive outbound interactions should still
+async def test_ghost_2_outbound_recent_reduced_priority(db: AsyncSession, test_user: User):
+    """A contact with 2 recent consecutive outbound interactions should still
     appear in suggestions, but with halved priority (not fully suppressed)."""
-    # Create two contacts: one with 2 consecutive outbound, one clean.
-    # The 2-outbound contact should still be suggested if there is budget.
     ghost_contact = await _make_contact(
-        db, test_user, name="Two Outbound", days_since_last=120
+        db, test_user, name="Two Outbound", days_since_last=45
     )
+    ghost_contact.priority_level = "high"
     clean_contact = await _make_contact(
         db, test_user, name="Clean Contact", days_since_last=120
     )
 
-    # ghost_contact: last 2 interactions are outbound
-    _add_interaction(db, ghost_contact, test_user, "outbound", days_ago=120)
-    _add_interaction(db, ghost_contact, test_user, "outbound", days_ago=150)
-    _add_interaction(db, ghost_contact, test_user, "inbound", days_ago=200)  # older inbound
+    # ghost_contact: last 2 interactions are recent outbound
+    _add_interaction(db, ghost_contact, test_user, "outbound", days_ago=10)
+    _add_interaction(db, ghost_contact, test_user, "outbound", days_ago=15)
+    _add_interaction(db, ghost_contact, test_user, "inbound", days_ago=200)
 
     # clean_contact: mixed interactions — no ghost penalty
     _add_interaction(db, clean_contact, test_user, "inbound", days_ago=120)
@@ -139,17 +172,12 @@ async def test_ghost_2_outbound_reduced_priority(db: AsyncSession, test_user: Us
     with _patch_compose():
         suggestions = await generate_suggestions(test_user.id, db)
 
-    # At least the clean contact should be suggested
     suggested_contact_ids = {s.contact_id for s in suggestions}
     assert clean_contact.id in suggested_contact_ids, (
         "Clean contact should be suggested"
     )
-    # The 2-outbound contact is not fully suppressed — it may appear if budget allows,
-    # but we just verify it is not treated the same as a 3-outbound ghost (no hard ban)
-    # We confirm the engine ran without error; if budget is tight, ghost_contact may be
-    # squeezed out, so we only assert it is NOT fully excluded due to the ghost rule
-    # (i.e. pool entries exist — the priority halving is internal state).
-    # The observable invariant: suggestions list is non-empty and no error raised.
+    # The 2-outbound contact is not fully banned — priority is halved internally;
+    # we just verify the engine completed and produced suggestions.
     assert len(suggestions) >= 1
 
 

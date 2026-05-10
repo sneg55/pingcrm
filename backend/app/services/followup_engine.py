@@ -66,6 +66,12 @@ B3_EVENT_WINDOW_DAYS = 14
 POOL_B_EVENT_BONUS = 300
 HARD_CAP_DORMANCY_YEARS = 5
 
+# Ghost detection only applies when the silence is fresh: 3 consecutive
+# outbound messages 6 months ago aren't ghosting — that's exactly when a
+# follow-up reminder is most useful. Apply the rule only if the contact's
+# most recent interaction is within this window.
+GHOST_RECENCY_DAYS = 30
+
 # Contact must have at least one reachable channel
 _has_channel = or_(
     func.coalesce(func.array_length(Contact.emails, 1), 0) > 0,
@@ -646,12 +652,13 @@ async def _generate_suggestions_inner(
                 if cid in pool_b:
                     pool_b[cid].priority += 100.0
 
-    # Ghost detection: suppress contacts where last N interactions are all outbound (no reply)
-    # Single query using row_number() window function instead of N+1 per-contact queries
+    # Ghost detection: suppress contacts where last N interactions are all outbound (no reply).
+    # Only applies when the silence is fresh — see GHOST_RECENCY_DAYS. For older
+    # outbound chains the contact is dormant, not ghosting, and a follow-up
+    # reminder is exactly what the user wants.
     all_candidate_ids = set(pool_a.keys()) | set(pool_b.keys())
     if all_candidate_ids:
         from app.models.interaction import Interaction as _Interaction
-        from sqlalchemy import literal_column
         rn = func.row_number().over(
             partition_by=_Interaction.contact_id,
             order_by=_Interaction.occurred_at.desc(),
@@ -660,6 +667,7 @@ async def _generate_suggestions_inner(
             select(
                 _Interaction.contact_id,
                 _Interaction.direction,
+                _Interaction.occurred_at,
                 rn,
             )
             .where(
@@ -669,27 +677,38 @@ async def _generate_suggestions_inner(
             .subquery()
         )
         ghost_result = await db.execute(
-            select(subq.c.contact_id, subq.c.direction)
+            select(subq.c.contact_id, subq.c.direction, subq.c.occurred_at)
             .where(subq.c.rn <= 3)
             .order_by(subq.c.contact_id, subq.c.rn)
         )
-        # Group by contact_id
+        # Group by contact_id; preserve order so position 0 is most recent.
         from collections import defaultdict
-        recent_dirs: dict[uuid.UUID, list[str]] = defaultdict(list)
+        recent: dict[uuid.UUID, list[tuple[str, datetime]]] = defaultdict(list)
         for row in ghost_result.all():
-            recent_dirs[row[0]].append(row[1])
+            recent[row[0]].append((row[1], row[2]))
 
-        for cid, directions in recent_dirs.items():
+        ghost_cutoff = now - timedelta(days=GHOST_RECENCY_DAYS)
+        for cid, entries in recent.items():
+            most_recent_at = entries[0][1]
+            if most_recent_at and most_recent_at.tzinfo is None:
+                most_recent_at = most_recent_at.replace(tzinfo=UTC)
+            # Skip ghost rule entirely when the silence is old — the contact
+            # is dormant, not ghosting, and follow-up is the right move.
+            if not most_recent_at or most_recent_at < ghost_cutoff:
+                continue
             consecutive_outbound = 0
-            for d in directions:
-                if d == "outbound":
+            for direction, _occurred_at in entries:
+                if direction == "outbound":
                     consecutive_outbound += 1
                 else:
                     break
             if consecutive_outbound >= 3:
                 pool_a.pop(cid, None)
                 pool_b.pop(cid, None)
-                logger.debug("generate_suggestions: skipping contact %s (ghosting — %d consecutive outbound)", cid, consecutive_outbound)
+                logger.debug(
+                    "generate_suggestions: skipping contact %s (ghosting — %d consecutive outbound, last %s)",
+                    cid, consecutive_outbound, most_recent_at,
+                )
             elif consecutive_outbound == 2:
                 if cid in pool_a:
                     pool_a[cid].priority *= 0.5
