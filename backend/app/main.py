@@ -33,6 +33,7 @@ from app.api.whatsapp import router as whatsapp_router
 from app.api.meta import router as meta_router
 from app.api.twitter_cookies import router as twitter_cookies_router
 from app.api.map import router as map_router
+from app.api.version import router as version_router
 
 setup_logging()
 logger = logging.getLogger(__name__)
@@ -104,6 +105,7 @@ app.include_router(whatsapp_router)
 app.include_router(meta_router)
 app.include_router(twitter_cookies_router)
 app.include_router(map_router)
+app.include_router(version_router)
 
 # MCP SSE endpoint — manually assembled to avoid the mcp library's
 # sse_app() bug: it wraps the SSE ASGI handler in a request-response
