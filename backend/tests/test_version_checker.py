@@ -61,3 +61,24 @@ async def test_fetch_returns_none_on_malformed_json(caplog):
         mock.get(GITHUB_RELEASES_URL).respond(200, content=b"not json")
         result = await fetch_latest_release()
     assert result is None
+
+
+from app.services.version_checker import compare_versions
+
+
+@pytest.mark.parametrize(
+    "current,latest_tag,expected",
+    [
+        ("v1.6.0", "v1.7.0", True),
+        ("1.6.0", "1.7.0", True),
+        ("v1.7.0", "v1.7.0", False),
+        ("v1.8.0", "v1.7.0", False),
+        ("v1.7.0-rc.1", "v1.7.0", True),
+        ("dev", "v1.7.0", None),
+        ("abc1234", "v1.7.0", None),
+        ("v1.6.0", "garbage", None),
+        ("v1.6.0", None, None),
+    ],
+)
+def test_compare_versions(current, latest_tag, expected):
+    assert compare_versions(current, latest_tag) is expected
