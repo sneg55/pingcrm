@@ -63,6 +63,9 @@ from app.services.task_jobs.geocoding import (
     geocode_contact,
     backfill_all_contacts,
 )
+from app.services.task_jobs.version_check import (
+    check_for_updates,
+)
 
 __all__ = [
     # common
@@ -112,4 +115,6 @@ __all__ = [
     # geocoding
     "geocode_contact",
     "backfill_all_contacts",
+    # version check
+    "check_for_updates",
 ]

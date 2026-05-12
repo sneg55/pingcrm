@@ -6,6 +6,7 @@ import { ThemeProvider } from "@/components/theme-provider";
 import { AuthProvider } from "@/hooks/use-auth";
 import { Nav } from "@/components/nav";
 import { ErrorReporter } from "@/components/error-reporter";
+import { VersionBanner } from "@/components/version-banner";
 
 const dmSans = DM_Sans({
   subsets: ["latin"],
@@ -49,6 +50,7 @@ export default function RootLayout({
           <QueryProvider>
             <AuthProvider>
               <ErrorReporter />
+              <VersionBanner />
               <Nav />
               {children}
             </AuthProvider>

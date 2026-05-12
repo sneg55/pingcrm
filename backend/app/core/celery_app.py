@@ -87,5 +87,10 @@ celery_app.conf.update(
             "task": "app.services.tasks.check_whatsapp_sessions",
             "schedule": crontab(minute=0, hour=1),
         },
+        # Check GitHub for new PingCRM releases every 6 hours
+        "version-check-every-6h": {
+            "task": "app.services.tasks.check_for_updates",
+            "schedule": crontab(minute=15, hour="*/6"),
+        },
     },
 )

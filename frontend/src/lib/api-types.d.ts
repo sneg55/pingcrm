@@ -2031,6 +2031,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/version": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Version
+         * @description Return current app version and latest available release, if known.
+         */
+        get: operations["get_version_api_v1_version_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/errors": {
         parameters: {
             query?: never;
@@ -3061,6 +3081,16 @@ export interface components {
         /** Envelope[UserWithAccountsData] */
         Envelope_UserWithAccountsData_: {
             data?: components["schemas"]["UserWithAccountsData"] | null;
+            /** Error */
+            error?: string | null;
+            /** Meta */
+            meta?: {
+                [key: string]: unknown;
+            } | null;
+        };
+        /** Envelope[VersionData] */
+        Envelope_VersionData_: {
+            data?: components["schemas"]["VersionData"] | null;
             /** Error */
             error?: string | null;
             /** Meta */
@@ -4232,6 +4262,29 @@ export interface components {
             msg: string;
             /** Error Type */
             type: string;
+        };
+        /**
+         * VersionData
+         * @description Response payload for GET /api/v1/version.
+         */
+        VersionData: {
+            /** Current */
+            current: string;
+            /** Latest */
+            latest?: string | null;
+            /** Release Url */
+            release_url?: string | null;
+            /** Release Notes */
+            release_notes?: string | null;
+            /** Update Available */
+            update_available?: boolean | null;
+            /** Checked At */
+            checked_at?: string | null;
+            /**
+             * Disabled
+             * @default false
+             */
+            disabled: boolean;
         };
         /** WhatsAppSessionData */
         WhatsAppSessionData: {
@@ -7622,6 +7675,26 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["Envelope_MapConfig_"];
+                };
+            };
+        };
+    };
+    get_version_api_v1_version_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope_VersionData_"];
                 };
             };
         };

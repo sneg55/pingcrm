@@ -14,6 +14,7 @@ from starlette.exceptions import HTTPException as StarletteHTTPException
 from app.core.config import settings
 from app.core.logging_config import setup_logging
 from app.core.middleware import RequestCorrelationMiddleware
+from app.core.version import APP_VERSION
 from app.api.auth import router as auth_router
 from app.api.contacts import router as contacts_router
 from app.api.identity import router as identity_router
@@ -32,6 +33,7 @@ from app.api.whatsapp import router as whatsapp_router
 from app.api.meta import router as meta_router
 from app.api.twitter_cookies import router as twitter_cookies_router
 from app.api.map import router as map_router
+from app.api.version import router as version_router
 
 setup_logging()
 logger = logging.getLogger(__name__)
@@ -68,7 +70,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
 app = FastAPI(
     title="PingCRM API",
     description="AI-powered networking assistant backend",
-    version="0.1.0",
+    version=APP_VERSION,
     lifespan=lifespan,
 )
 
@@ -103,6 +105,7 @@ app.include_router(whatsapp_router)
 app.include_router(meta_router)
 app.include_router(twitter_cookies_router)
 app.include_router(map_router)
+app.include_router(version_router)
 
 # MCP SSE endpoint — manually assembled to avoid the mcp library's
 # sse_app() bug: it wraps the SSE ASGI handler in a request-response
