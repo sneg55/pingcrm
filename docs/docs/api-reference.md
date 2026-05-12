@@ -302,3 +302,4 @@ The pairing poll is unauthenticated; everything else requires the extension JWT.
 |--------|----------|-------------|
 | GET | `/api/health` | Liveness probe |
 | POST | `/api/v1/errors` | Frontend error reporting |
+| GET | `/api/v1/version` | Current app version and latest GitHub release (for self-hoster update banner) |
