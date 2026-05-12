@@ -73,6 +73,12 @@ docker compose up -d
 
 Full walk-through with integration setup: **[docs.pingcrm.xyz/setup](https://docs.pingcrm.xyz/setup)**
 
+### Staying up to date
+
+PingCRM checks GitHub for new releases and shows an in-app banner when one
+is available. See [Update Notifications](docs/docs/operations/updates.md)
+for details and opt-out.
+
 ---
 
 ## Stack
