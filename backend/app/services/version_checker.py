@@ -1,10 +1,17 @@
 """Self-hoster version-check: poll GitHub releases, compare, cache."""
+import json
 import logging
+import os
 import re
+from datetime import datetime, timezone
 from typing import Any
 
 import httpx
 from packaging.version import InvalidVersion, Version
+
+from app.core.redis import get_redis
+from app.core.version import APP_VERSION
+from app.schemas.version import VersionData
 
 logger = logging.getLogger(__name__)
 
@@ -82,3 +89,70 @@ def compare_versions(current: str, latest_tag: str | None) -> bool | None:
     if current_v is None or latest_v is None:
         return None
     return latest_v > current_v
+
+
+CACHE_KEY = "pingcrm:version:latest"
+FAILURE_KEY = "pingcrm:version:failure"
+CACHE_TTL_S = 12 * 60 * 60       # 12 hours
+FAILURE_TTL_S = 5 * 60           # 5 minutes
+DISABLE_ENV = "DISABLE_UPDATE_CHECK"
+
+
+def is_disabled() -> bool:
+    return bool(os.getenv(DISABLE_ENV))
+
+
+async def refresh_cache() -> None:
+    """Fetch latest release and persist to Redis, or write failure marker."""
+    if is_disabled():
+        return
+
+    payload = await fetch_latest_release()
+    redis = get_redis()
+
+    if payload is None:
+        await redis.set(FAILURE_KEY, "1", ex=FAILURE_TTL_S)
+        return
+
+    record = {
+        "tag_name": payload.get("tag_name"),
+        "name": payload.get("name"),
+        "html_url": payload.get("html_url"),
+        "body": payload.get("body"),
+        "fetched_at": datetime.now(timezone.utc).isoformat(),
+    }
+    await redis.set(CACHE_KEY, json.dumps(record), ex=CACHE_TTL_S)
+
+
+async def get_cached_status() -> VersionData:
+    """Read cached release info and compute the user-facing status."""
+    if is_disabled():
+        return VersionData(current=APP_VERSION, disabled=True)
+
+    redis = get_redis()
+    raw = await redis.get(CACHE_KEY)
+    if raw is None:
+        return VersionData(current=APP_VERSION)
+
+    if isinstance(raw, bytes):
+        raw = raw.decode()
+    record = json.loads(raw)
+    latest_tag = record.get("tag_name")
+
+    fetched_at = record.get("fetched_at")
+    checked_at = datetime.fromisoformat(fetched_at) if fetched_at else None
+
+    return VersionData(
+        current=APP_VERSION,
+        latest=latest_tag,
+        release_url=record.get("html_url"),
+        release_notes=record.get("body"),
+        update_available=compare_versions(APP_VERSION, latest_tag),
+        checked_at=checked_at,
+    )
+
+
+async def has_recent_failure() -> bool:
+    """True if a recent GitHub fetch failure marker exists."""
+    redis = get_redis()
+    return bool(await redis.get(FAILURE_KEY))
