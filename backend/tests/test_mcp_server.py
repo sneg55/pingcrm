@@ -530,3 +530,31 @@ class TestScoreTierMapping:
         from mcp_server.tools.contacts import _SCORE_MAP
 
         assert _SCORE_MAP.get("invalid") is None
+
+
+class TestToolSchemasAcceptNull:
+    """Optional tool parameters must accept JSON `null` — some MCP clients
+    (e.g. Claude Code) inject null for any unset optional field, and a
+    non-nullable `str` field will reject those calls with -32602.
+    """
+
+    @pytest.mark.asyncio
+    async def test_all_tool_schemas_allow_null_for_optional_fields(self):
+        from mcp_server.server import mcp_app, _register_tools
+
+        _register_tools()
+        tools = await mcp_app.list_tools()
+        by_name = {t.name: t for t in tools}
+
+        # Every property on every tool should accept null in addition to its
+        # primary type. Schemas look like {"anyOf": [{"type": "string"}, {"type": "null"}], ...}.
+        for tool_name, tool in by_name.items():
+            for field, schema in tool.inputSchema.get("properties", {}).items():
+                accepts_null = (
+                    schema.get("type") == "null"
+                    or any(s.get("type") == "null" for s in schema.get("anyOf", []))
+                )
+                assert accepts_null, (
+                    f"{tool_name}.{field} does not accept null — "
+                    f"clients that inject null for unset optionals will get -32602"
+                )

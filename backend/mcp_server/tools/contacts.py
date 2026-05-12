@@ -149,14 +149,28 @@ async def _get_contact(
 
 
 @mcp_app.tool()
-async def search_contacts(query: str = "", tag: str = "", score: str = "", priority: str = "", limit: int = 20) -> str:
+async def search_contacts(
+    query: str | None = None,
+    tag: str | None = None,
+    score: str | None = None,
+    priority: str | None = None,
+    limit: int | None = None,
+) -> str:
     """Search your contacts by name, company, tag, score tier (strong/warm/cold), or priority level."""
     async with get_session() as db:
-        return await _search_contacts(_current_user_id, db, query=query or None, tag=tag or None, score=score or None, priority=priority or None, limit=limit)
+        return await _search_contacts(
+            _current_user_id,
+            db,
+            query=query or None,
+            tag=tag or None,
+            score=score or None,
+            priority=priority or None,
+            limit=limit if limit is not None else 20,
+        )
 
 
 @mcp_app.tool()
-async def get_contact(contact_id: str = "", name: str = "") -> str:
+async def get_contact(contact_id: str | None = None, name: str | None = None) -> str:
     """Get full profile for a contact. Provide either contact_id (UUID) or name for fuzzy search."""
     async with get_session() as db:
         return await _get_contact(_current_user_id, db, contact_id=contact_id or None, name=name or None)

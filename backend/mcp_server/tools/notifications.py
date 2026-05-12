@@ -54,7 +54,12 @@ async def _get_notifications(
 
 
 @mcp_app.tool()
-async def get_notifications(unread_only: bool = True, limit: int = 20) -> str:
+async def get_notifications(unread_only: bool | None = None, limit: int | None = None) -> str:
     """Get recent notifications. Set unread_only=false to see all."""
     async with get_session() as db:
-        return await _get_notifications(_current_user_id, db, unread_only=unread_only, limit=limit)
+        return await _get_notifications(
+            _current_user_id,
+            db,
+            unread_only=unread_only if unread_only is not None else True,
+            limit=limit if limit is not None else 20,
+        )

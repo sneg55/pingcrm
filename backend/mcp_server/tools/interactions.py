@@ -70,7 +70,17 @@ async def _get_interactions(
 
 
 @mcp_app.tool()
-async def get_interactions(contact_id: str = "", limit: int = 10, platform: str = "") -> str:
+async def get_interactions(
+    contact_id: str | None = None,
+    limit: int | None = None,
+    platform: str | None = None,
+) -> str:
     """Get recent interactions with a contact. Optionally filter by platform (telegram/email/twitter/linkedin)."""
     async with get_session() as db:
-        return await _get_interactions(_current_user_id, db, contact_id=contact_id, limit=limit, platform=platform or None)
+        return await _get_interactions(
+            _current_user_id,
+            db,
+            contact_id=contact_id or "",
+            limit=limit if limit is not None else 10,
+            platform=platform or None,
+        )

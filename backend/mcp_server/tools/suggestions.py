@@ -61,7 +61,7 @@ async def _get_suggestions(
 
 
 @mcp_app.tool()
-async def get_suggestions(limit: int = 10) -> str:
+async def get_suggestions(limit: int | None = None) -> str:
     """Get pending follow-up suggestions — contacts you should reach out to."""
     async with get_session() as db:
-        return await _get_suggestions(_current_user_id, db, limit=limit)
+        return await _get_suggestions(_current_user_id, db, limit=limit if limit is not None else 10)
