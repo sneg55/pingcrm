@@ -14,6 +14,7 @@ from starlette.exceptions import HTTPException as StarletteHTTPException
 from app.core.config import settings
 from app.core.logging_config import setup_logging
 from app.core.middleware import RequestCorrelationMiddleware
+from app.core.version import APP_VERSION
 from app.api.auth import router as auth_router
 from app.api.contacts import router as contacts_router
 from app.api.identity import router as identity_router
@@ -68,7 +69,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
 app = FastAPI(
     title="PingCRM API",
     description="AI-powered networking assistant backend",
-    version="0.1.0",
+    version=APP_VERSION,
     lifespan=lifespan,
 )
 
