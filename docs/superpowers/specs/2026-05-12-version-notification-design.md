@@ -292,7 +292,7 @@ cd frontend && npm run generate:api
 - Authenticated, cache empty, failure marker present → returns `update_available=None`, no enqueue.
 - `DISABLE_UPDATE_CHECK=1` → returns `disabled=true`, never reads cache.
 
-`backend/tests/test_route_inventory.py` — append `/api/v1/version` to the `expected` list per project rule.
+`backend/tests/test_route_inventory.py` — no update needed. The inventory snapshot only tracks `/api/v1/contacts/*` routes (see `_collect_contact_routes`), so the new `/api/v1/version` endpoint is out of its scope.
 
 `scripts/check_response_models.py` — passes automatically since endpoint declares `response_model=Envelope[VersionData]`.
 
