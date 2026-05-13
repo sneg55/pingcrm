@@ -61,6 +61,11 @@ def _extract_plain_body(payload: dict) -> str:
                 try:
                     return base64.urlsafe_b64decode(data).decode("utf-8", errors="replace")
                 except Exception:
+                    logger.warning(
+                        "gmail body part decode failed",
+                        extra={"provider": "gmail"},
+                        exc_info=True,
+                    )
                     return None
         for sub in part.get("parts", []):
             result = _find_text_part(sub)

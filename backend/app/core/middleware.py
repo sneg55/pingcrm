@@ -33,16 +33,14 @@ class RequestCorrelationMiddleware(BaseHTTPMiddleware):
         try:
             response = await call_next(request)
         except Exception:
-            duration_ms = round((time.monotonic() - start) * 1000)
             logger.exception(
-                "request_error %s %s (%dms)",
+                "request_error %s %s",
                 method,
                 path,
-                duration_ms,
                 extra={
                     "http_method": method,
                     "http_path": path,
-                    "duration_ms": duration_ms,
+                    "duration_ms": round((time.monotonic() - start) * 1000),
                     "http_status": 500,
                 },
             )

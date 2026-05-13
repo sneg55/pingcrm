@@ -213,14 +213,14 @@ def apply_tags_to_contacts(self, user_id: str, contact_ids: list[str] | None = N
     try:
         return _run(_apply(uid))
     except Exception as exc:
+        logger.exception("apply_tags_to_contacts raised for %s", user_id)
         # Don't retry on soft time limit — partial results already committed
-        from celery.exceptions import SoftTimeLimitExceeded
+        from celery.exceptions import SoftTimeLimitExceeded  # noqa: E402
         if isinstance(exc, SoftTimeLimitExceeded):
             logger.warning("apply_tags_to_contacts: soft time limit hit for %s", user_id)
             # Notify user — partial progress was saved via periodic commits
             notify_tagging_failure.delay(str(uid), "Tagging timed out. Partial progress was saved. Try again to tag remaining contacts.")
             return {"status": "timeout", "tagged_count": 0}
-        logger.exception("apply_tags_to_contacts failed for %s, retrying.", user_id)
         if self.request.retries >= self.max_retries:
             notify_tagging_failure.delay(str(uid), f"Tagging failed after retries: {str(exc)[:200]}")
         raise self.retry(exc=exc, countdown=30) from exc

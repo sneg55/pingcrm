@@ -70,6 +70,10 @@ def sync_telegram_chats_for_user(self, user_id: str, max_dialogs: int = 100, loc
             try:
                 chat_result = await sync_telegram_chats(user, db, max_dialogs=max_dialogs)
             except Exception as exc:
+                logger.exception(
+                    "sync_telegram_chats failed",
+                    extra={"provider": "telegram", "user_id": str(uid)},
+                )
                 await record_sync_failure(sync_event, str(exc), db=db)
                 await db.commit()
                 raise
@@ -136,13 +140,13 @@ def sync_telegram_chats_for_user(self, user_id: str, max_dialogs: int = 100, loc
     try:
         return _run(_sync(uid))
     except Exception as exc:
-        from telethon.errors import FloodWaitError
+        logger.exception("sync_telegram_chats raised for %s", user_id)
+        from telethon.errors import FloodWaitError  # noqa: E402
         if isinstance(exc, FloodWaitError):
             # FloodWait: release lock and return partial result so the chain (groups → bios → notify) continues
             logger.warning("sync_telegram_chats: FloodWait for %s (%ds) — releasing lock and returning partial result to preserve chain.", user_id, exc.seconds)
             _release_lock(user_id, lock_token)
             return {"status": "partial_flood_wait", "new_interactions": 0, "new_contacts": 0}
-        logger.exception("sync_telegram_chats failed for %s, retrying.", user_id)
         if self.request.retries >= self.max_retries:
             _release_lock(user_id, lock_token)
             notify_sync_failure.delay(str(uid), "Telegram chats", str(exc))
@@ -200,13 +204,13 @@ def sync_telegram_chats_batch_task(self, user_id: str, entity_ids: list[int], lo
     try:
         return _run(_sync(uid))
     except Exception as exc:
-        from telethon.errors import FloodWaitError
+        logger.exception("sync_telegram_chats_batch raised for %s (batch of %d)", user_id, len(entity_ids))
+        from telethon.errors import FloodWaitError  # noqa: E402
         if isinstance(exc, FloodWaitError):
             # FloodWait: release lock and return partial result so the chain continues
             logger.warning("sync_telegram_chats_batch: FloodWait for %s (%ds) — releasing lock and returning partial result to preserve chain.", user_id, exc.seconds)
             _release_lock(user_id, lock_token)
             return {"status": "partial_flood_wait", "new_interactions": 0, "new_contacts": 0}
-        logger.exception("sync_telegram_chats_batch failed for %s (batch of %d), retrying.", user_id, len(entity_ids))
         if self.request.retries >= self.max_retries:
             _release_lock(user_id, lock_token)
             notify_sync_failure.delay(user_id, "telegram", str(exc))

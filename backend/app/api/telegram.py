@@ -128,12 +128,15 @@ async def telegram_verify(
             db,
         )
     except Exception as exc:
-        from telethon.errors import SessionPasswordNeededError
+        logger.exception(
+            "telegram_verify raised",
+            extra={"provider": "telegram", "user_id": str(current_user.id)},
+        )
+        from telethon.errors import SessionPasswordNeededError  # noqa: E402
 
         if isinstance(exc, SessionPasswordNeededError):
             await db.flush()
             return {"data": {"connected": False, "requires_2fa": True}, "error": None}
-        logger.exception("telegram_verify failed for user %s.", current_user.id)
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Telegram verification failed. Please check your code and try again.",
