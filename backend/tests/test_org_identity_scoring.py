@@ -54,3 +54,33 @@ def test_normalize_website(url, expected):
 )
 def test_same_non_generic_domain(domain_a, domain_b, expected):
     assert _same_non_generic_domain(domain_a, domain_b) is expected
+
+
+from app.services.org_identity_scoring import _same_linkedin
+
+
+@pytest.mark.parametrize(
+    "url_a,url_b,expected",
+    [
+        (
+            "https://www.linkedin.com/company/anthropic/",
+            "linkedin.com/company/anthropic",
+            True,
+        ),
+        (
+            "https://linkedin.com/company/anthropic-ai/about/",
+            "https://www.linkedin.com/company/anthropic-ai",
+            True,
+        ),
+        (
+            "https://linkedin.com/company/anthropic",
+            "https://linkedin.com/company/openai",
+            False,
+        ),
+        ("https://linkedin.com/company/anthropic", None, False),
+        (None, None, False),
+        ("garbage", "garbage", False),
+    ],
+)
+def test_same_linkedin(url_a, url_b, expected):
+    assert _same_linkedin(url_a, url_b) is expected

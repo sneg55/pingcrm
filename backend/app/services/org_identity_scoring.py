@@ -63,3 +63,10 @@ def _same_non_generic_domain(a: str | None, b: str | None) -> bool:
     if da != db:
         return False
     return da not in GENERIC_DOMAINS
+
+
+def _same_linkedin(a: str | None, b: str | None) -> bool:
+    """True iff both URLs normalize to the same linkedin.com/company/<slug>."""
+    na = _normalize_linkedin_url(a)
+    nb = _normalize_linkedin_url(b)
+    return na is not None and na == nb
