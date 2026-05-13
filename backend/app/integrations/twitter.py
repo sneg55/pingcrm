@@ -15,6 +15,10 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
+from app.integrations.twitter_contacts import (
+    _build_twitter_id_to_contact_map,
+    _cached_resolve_handles,
+)
 from app.integrations.twitter_auth import (
     _TOKEN_REFRESH_BUFFER_SECONDS,
     _refresh_and_retry,
