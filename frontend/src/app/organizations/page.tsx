@@ -3,7 +3,7 @@
 import { Suspense, useState, useCallback, useRef, useMemo } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import { useQuery, useQueryClient, useMutation } from "@tanstack/react-query";
-import { Search, CheckSquare, GitMerge, Trash2, BarChart3, MessageSquare, Users, ArrowDown, ArrowUpDown } from "lucide-react";
+import { Search, CheckSquare, GitMerge, Trash2, BarChart3, MessageSquare, Users, ArrowDown, ArrowUpDown, ScanSearch } from "lucide-react";
 import Link from "next/link";
 import { client } from "@/lib/api-client";
 import { CompanyFavicon } from "@/components/company-favicon";
@@ -290,7 +290,7 @@ function OrganizationsPageContent() {
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
       <div className="max-w-6xl mx-auto px-4 py-8">
-        <div className="animate-in stagger-1 flex items-center justify-between mb-6">
+        <div className="animate-in stagger-1 flex items-center justify-between mb-6 gap-4">
           <div>
             <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100">Organizations</h1>
             {meta && (
@@ -299,6 +299,13 @@ function OrganizationsPageContent() {
               </p>
             )}
           </div>
+          <Link
+            href="/identity?tab=orgs"
+            className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm font-medium text-stone-600 dark:text-stone-300 border border-stone-200 dark:border-stone-700 hover:bg-stone-50 dark:hover:bg-stone-800 transition-colors shrink-0"
+          >
+            <ScanSearch className="w-4 h-4" />
+            Find duplicates
+          </Link>
         </div>
 
         <div className="mb-4">
