@@ -40,6 +40,10 @@ def sync_gmail_for_user(self, user_id: str) -> dict:
             try:
                 new_count = await _gmail_sync(user, db)
             except Exception as exc:
+                logger.exception(
+                    "sync_gmail_for_user failed",
+                    extra={"provider": "gmail", "user_id": str(uid)},
+                )
                 await record_sync_failure(sync_event, str(exc), db=db)
                 await db.commit()
                 raise

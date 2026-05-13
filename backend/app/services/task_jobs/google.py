@@ -153,8 +153,11 @@ def sync_google_contacts_for_user(self, user_id: str) -> dict:
                             db.add(contact)
                             created_count += 1
                     except Exception as exc:
+                        logger.exception(
+                            "sync_google_contacts: failed to upsert contact",
+                            extra={"provider": "google", "user_id": str(uid)},
+                        )
                         name_hint = fields.get("full_name") or ", ".join(fields.get("emails", [])[:1]) or "unknown"
-                        logger.warning("sync_google_contacts: failed to upsert contact %r for user %s", name_hint, uid, exc_info=True)
                         errors.append(f"{name_hint}: {exc}")
 
             # Archive contacts deleted from Google

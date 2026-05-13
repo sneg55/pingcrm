@@ -290,9 +290,9 @@ async def test_task_auth_failed_records_sync_failure(db: AsyncSession, test_user
     # Simulate the task's 401 handling: sync_twitter_dms raises 401, _refresh_and_retry returns None
     # Patch _refresh_and_retry on the module so both direct and module-level calls see the mock.
     with (
-        patch("app.integrations.twitter.fetch_dm_conversations", new=AsyncMock(side_effect=http_error)),
+        patch("app.integrations.twitter_dms.fetch_dm_conversations", new=AsyncMock(side_effect=http_error)),
         patch.object(twitter_auth_mod, "_refresh_and_retry", mock_refresh),
-        patch("app.integrations.twitter._refresh_and_retry", mock_refresh),
+        patch("app.integrations.twitter_dms._refresh_and_retry", mock_refresh),
     ):
         # Replicate the task's inner try/except logic (mirrors sync_twitter_dms_for_user)
         try:

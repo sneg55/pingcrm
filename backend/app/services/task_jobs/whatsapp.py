@@ -59,6 +59,10 @@ def sync_whatsapp_backfill(self, user_id: str) -> dict:
                 )
                 await db.commit()
             except Exception as exc:
+                logger.exception(
+                    "sync_whatsapp_backfill failed",
+                    extra={"provider": "whatsapp", "user_id": str(uid)},
+                )
                 await record_sync_failure(sync_event, str(exc), db=db)
                 await db.commit()
                 raise
