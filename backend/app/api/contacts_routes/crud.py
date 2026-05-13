@@ -249,13 +249,21 @@ async def update_contact(
         except Exception:
             logger.warning("Failed to clear bio_refresh cache for contact %s", contact_id, exc_info=True)
 
-    # Trigger background refresh when Twitter handle is added/changed
+    # Trigger background refresh when Twitter handle is added/changed.
+    # Scoped to THIS contact only — the old `poll_twitter_activity` dispatch
+    # scanned every contact's handle on every edit and caused bird 429 storms.
     if twitter_handle_changed:
         try:
-            from app.services.task_jobs.twitter import poll_twitter_activity
-            poll_twitter_activity.apply_async(args=[str(current_user.id)], countdown=3)
+            from app.services.task_jobs.twitter import refresh_contact_twitter_bio
+            refresh_contact_twitter_bio.apply_async(
+                args=[str(current_user.id), str(contact.id)],
+                countdown=3,
+            )
         except Exception:
-            logger.warning("Failed to dispatch poll_twitter_activity for user %s", current_user.id, exc_info=True)
+            logger.warning(
+                "Failed to dispatch refresh_contact_twitter_bio for contact %s",
+                contact.id, exc_info=True,
+            )
     return envelope(ContactResponse.model_validate(contact).model_dump())
 
 

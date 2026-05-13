@@ -206,3 +206,52 @@ def poll_twitter_all() -> dict:
 
     logger.info("poll_twitter_all: queued %d user(s) for activity + DMs.", len(user_ids))
     return {"queued": len(user_ids)}
+
+
+@shared_task(name="app.services.tasks.refresh_contact_twitter_bio", bind=True, max_retries=2, soft_time_limit=60, time_limit=90)
+def refresh_contact_twitter_bio(self, user_id: str, contact_id: str) -> dict:
+    """Fetch the Twitter bio for ONE contact via bird CLI.
+
+    Replaces the per-edit `poll_twitter_activity` dispatch that scanned
+    every contact's Twitter handle on every contact-update request — that
+    pattern caused bird 429 storms.
+
+    Args:
+        user_id: String UUID of the contact owner.
+        contact_id: String UUID of the specific contact to refresh.
+    """
+    async def _refresh(uid: uuid.UUID, cid: uuid.UUID) -> dict:
+        from app.services.bio_refresh import refresh_contact_bios
+
+        async with task_session() as db:
+            user_res = await db.execute(select(User).where(User.id == uid))
+            user = user_res.scalar_one_or_none()
+            if user is None:
+                return {"status": "user_not_found"}
+            contact_res = await db.execute(
+                select(Contact).where(
+                    Contact.id == cid,
+                    Contact.user_id == uid,
+                )
+            )
+            contact = contact_res.scalar_one_or_none()
+            if contact is None:
+                return {"status": "contact_not_found"}
+            changes = await refresh_contact_bios(contact, user, db)
+            await db.commit()
+            return {"status": "ok", "changes": changes}
+
+    try:
+        uid = uuid.UUID(user_id)
+        cid = uuid.UUID(contact_id)
+    except ValueError:
+        return {"status": "invalid_id"}
+
+    try:
+        return _run(_refresh(uid, cid))
+    except Exception as exc:
+        logger.exception(
+            "refresh_contact_twitter_bio failed",
+            extra={"provider": "twitter", "user_id": user_id, "contact_id": contact_id},
+        )
+        raise self.retry(exc=exc, countdown=120) from exc

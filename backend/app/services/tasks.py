@@ -32,6 +32,7 @@ from app.services.task_jobs.twitter import (
     poll_twitter_activity,
     sync_twitter_dms_for_user,
     poll_twitter_all,
+    refresh_contact_twitter_bio,
 )
 from app.services.task_jobs.google import (
     sync_google_contacts_for_user,
@@ -93,6 +94,7 @@ __all__ = [
     "poll_twitter_activity",
     "sync_twitter_dms_for_user",
     "poll_twitter_all",
+    "refresh_contact_twitter_bio",
     # google
     "sync_google_contacts_for_user",
     "sync_google_calendar_for_user",
