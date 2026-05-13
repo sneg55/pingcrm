@@ -671,11 +671,6 @@ export interface paths {
         /**
          * Extract Bio
          * @description Extract structured data from contact bios using AI.
-         *
-         *     Parses twitter_bio, telegram_bio, linkedin_bio/headline and the contact's
-         *     name fields through Haiku to extract title, company, website, and
-         *     normalize name fields (e.g. "Anders | LoopFi" -> first: Anders, company: LoopFi).
-         *     Also updates the linked Organization record with extracted company details.
          */
         post: operations["extract_bio_api_v1_contacts__contact_id__extract_bio_post"];
         delete?: never;
@@ -1492,6 +1487,86 @@ export interface paths {
         /** Mark Read */
         put: operations["mark_read_api_v1_notifications__notification_id__read_put"];
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/organizations/scan-duplicates": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Scan Duplicates
+         * @description Run a fresh duplicate scan over the current user's orgs.
+         */
+        post: operations["scan_duplicates_api_v1_organizations_scan_duplicates_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/organizations/duplicates": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Duplicates
+         * @description Return all pending_review match pairs for the current user.
+         */
+        get: operations["list_duplicates_api_v1_organizations_duplicates_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/organizations/duplicates/{match_id}/merge": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Merge Match
+         * @description User confirms a match: merge source -> target.
+         */
+        post: operations["merge_match_api_v1_organizations_duplicates__match_id__merge_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/organizations/duplicates/{match_id}/dismiss": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Dismiss Match
+         * @description User confirms 'not the same' — pair will not resurface.
+         */
+        post: operations["dismiss_match_api_v1_organizations_duplicates__match_id__dismiss_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -2556,6 +2631,11 @@ export interface components {
             /** Deleted */
             deleted: boolean;
         };
+        /** DismissOrgMatchResult */
+        DismissOrgMatchResult: {
+            /** Dismissed */
+            dismissed: boolean;
+        };
         /** DuplicateContactData */
         DuplicateContactData: {
             /** Id */
@@ -2688,6 +2768,16 @@ export interface components {
                 [key: string]: unknown;
             } | null;
         };
+        /** Envelope[DismissOrgMatchResult] */
+        Envelope_DismissOrgMatchResult_: {
+            data?: components["schemas"]["DismissOrgMatchResult"] | null;
+            /** Error */
+            error?: string | null;
+            /** Meta */
+            meta?: {
+                [key: string]: unknown;
+            } | null;
+        };
         /** Envelope[EnrichData] */
         Envelope_EnrichData_: {
             data?: components["schemas"]["EnrichData"] | null;
@@ -2808,6 +2898,16 @@ export interface components {
                 [key: string]: unknown;
             } | null;
         };
+        /** Envelope[MergeOrgMatchResult] */
+        Envelope_MergeOrgMatchResult_: {
+            data?: components["schemas"]["MergeOrgMatchResult"] | null;
+            /** Error */
+            error?: string | null;
+            /** Meta */
+            meta?: {
+                [key: string]: unknown;
+            } | null;
+        };
         /** Envelope[MergeOrganizationsResult] */
         Envelope_MergeOrganizationsResult_: {
             data?: components["schemas"]["MergeOrganizationsResult"] | null;
@@ -2901,6 +3001,16 @@ export interface components {
         /** Envelope[RegenerateResult] */
         Envelope_RegenerateResult_: {
             data?: components["schemas"]["RegenerateResult"] | null;
+            /** Error */
+            error?: string | null;
+            /** Meta */
+            meta?: {
+                [key: string]: unknown;
+            } | null;
+        };
+        /** Envelope[ScanOrgsResult] */
+        Envelope_ScanOrgsResult_: {
+            data?: components["schemas"]["ScanOrgsResult"] | null;
             /** Error */
             error?: string | null;
             /** Meta */
@@ -3201,6 +3311,17 @@ export interface components {
         Envelope_list_InteractionResponse__: {
             /** Data */
             data?: components["schemas"]["InteractionResponse"][] | null;
+            /** Error */
+            error?: string | null;
+            /** Meta */
+            meta?: {
+                [key: string]: unknown;
+            } | null;
+        };
+        /** Envelope[list[OrgIdentityMatchData]] */
+        Envelope_list_OrgIdentityMatchData__: {
+            /** Data */
+            data?: components["schemas"]["OrgIdentityMatchData"][] | null;
             /** Error */
             error?: string | null;
             /** Meta */
@@ -3518,6 +3639,20 @@ export interface components {
             /** Has Key */
             has_key: boolean;
         };
+        /** MergeOrgMatchRequest */
+        MergeOrgMatchRequest: {
+            /** Target Id */
+            target_id: string;
+        };
+        /** MergeOrgMatchResult */
+        MergeOrgMatchResult: {
+            /** Merged */
+            merged: boolean;
+            /** Target Id */
+            target_id: string;
+            /** Contacts Moved */
+            contacts_moved: number;
+        };
         /** MergeOrganizationsRequest */
         MergeOrganizationsRequest: {
             /**
@@ -3702,6 +3837,24 @@ export interface components {
             /** Last Interaction At */
             last_interaction_at?: string | null;
         };
+        /** OrgIdentityMatchData */
+        OrgIdentityMatchData: {
+            /** Id */
+            id: string;
+            /** Match Score */
+            match_score: number;
+            /** Match Method */
+            match_method: string;
+            /** Status */
+            status: string;
+            org_a: components["schemas"]["OrgSummary"];
+            org_b: components["schemas"]["OrgSummary"];
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+        };
         /** OrgStatsResponse */
         OrgStatsResponse: {
             /** Organization Id */
@@ -3723,6 +3876,31 @@ export interface components {
             total_interactions: number;
             /** Last Interaction At */
             last_interaction_at?: string | null;
+        };
+        /**
+         * OrgSummary
+         * @description Compact org representation for the duplicate-pair card.
+         */
+        OrgSummary: {
+            /** Id */
+            id: string;
+            /** Name */
+            name: string;
+            /** Domain */
+            domain?: string | null;
+            /** Logo Url */
+            logo_url?: string | null;
+            /** Linkedin Url */
+            linkedin_url?: string | null;
+            /** Website */
+            website?: string | null;
+            /** Twitter Handle */
+            twitter_handle?: string | null;
+            /**
+             * Contact Count
+             * @default 0
+             */
+            contact_count: number;
         };
         /** OrganizationCreate */
         OrganizationCreate: {
@@ -3877,6 +4055,15 @@ export interface components {
             suggested_message: string;
             /** Suggested Channel */
             suggested_channel: string;
+        };
+        /** ScanOrgsResult */
+        ScanOrgsResult: {
+            /** Matches Found */
+            matches_found: number;
+            /** Auto Merged */
+            auto_merged: number;
+            /** Pending Review */
+            pending_review: number;
         };
         /** ScanResultData */
         ScanResultData: {
@@ -6609,6 +6796,112 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["Envelope_NotificationReadData_"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    scan_duplicates_api_v1_organizations_scan_duplicates_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope_ScanOrgsResult_"];
+                };
+            };
+        };
+    };
+    list_duplicates_api_v1_organizations_duplicates_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope_list_OrgIdentityMatchData__"];
+                };
+            };
+        };
+    };
+    merge_match_api_v1_organizations_duplicates__match_id__merge_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                match_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["MergeOrgMatchRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope_MergeOrgMatchResult_"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    dismiss_match_api_v1_organizations_duplicates__match_id__dismiss_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                match_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope_DismissOrgMatchResult_"];
                 };
             };
             /** @description Validation Error */

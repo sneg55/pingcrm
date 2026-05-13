@@ -2043,7 +2043,7 @@
           "contacts"
         ],
         "summary": "Extract Bio",
-        "description": "Extract structured data from contact bios using AI.\n\nParses twitter_bio, telegram_bio, linkedin_bio/headline and the contact's\nname fields through Haiku to extract title, company, website, and\nnormalize name fields (e.g. \"Anders | LoopFi\" -> first: Anders, company: LoopFi).\nAlso updates the linked Organization record with extracted company details.",
+        "description": "Extract structured data from contact bios using AI.",
         "operationId": "extract_bio_api_v1_contacts__contact_id__extract_bio_post",
         "security": [
           {
@@ -3977,6 +3977,168 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/Envelope_NotificationReadData_"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/organizations/scan-duplicates": {
+      "post": {
+        "tags": [
+          "organizations"
+        ],
+        "summary": "Scan Duplicates",
+        "description": "Run a fresh duplicate scan over the current user's orgs.",
+        "operationId": "scan_duplicates_api_v1_organizations_scan_duplicates_post",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Envelope_ScanOrgsResult_"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ]
+      }
+    },
+    "/api/v1/organizations/duplicates": {
+      "get": {
+        "tags": [
+          "organizations"
+        ],
+        "summary": "List Duplicates",
+        "description": "Return all pending_review match pairs for the current user.",
+        "operationId": "list_duplicates_api_v1_organizations_duplicates_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Envelope_list_OrgIdentityMatchData__"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ]
+      }
+    },
+    "/api/v1/organizations/duplicates/{match_id}/merge": {
+      "post": {
+        "tags": [
+          "organizations"
+        ],
+        "summary": "Merge Match",
+        "description": "User confirms a match: merge source -> target.",
+        "operationId": "merge_match_api_v1_organizations_duplicates__match_id__merge_post",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "match_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Match Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MergeOrgMatchRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Envelope_MergeOrgMatchResult_"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/organizations/duplicates/{match_id}/dismiss": {
+      "post": {
+        "tags": [
+          "organizations"
+        ],
+        "summary": "Dismiss Match",
+        "description": "User confirms 'not the same' \u2014 pair will not resurface.",
+        "operationId": "dismiss_match_api_v1_organizations_duplicates__match_id__dismiss_post",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "match_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Match Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Envelope_DismissOrgMatchResult_"
                 }
               }
             }
@@ -7337,6 +7499,19 @@
         ],
         "title": "DeletedData"
       },
+      "DismissOrgMatchResult": {
+        "properties": {
+          "dismissed": {
+            "type": "boolean",
+            "title": "Dismissed"
+          }
+        },
+        "type": "object",
+        "required": [
+          "dismissed"
+        ],
+        "title": "DismissOrgMatchResult"
+      },
       "DuplicateContactData": {
         "properties": {
           "id": {
@@ -7819,6 +7994,45 @@
         "type": "object",
         "title": "Envelope[DeletedData]"
       },
+      "Envelope_DismissOrgMatchResult_": {
+        "properties": {
+          "data": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/DismissOrgMatchResult"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "error": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Error"
+          },
+          "meta": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Meta"
+          }
+        },
+        "type": "object",
+        "title": "Envelope[DismissOrgMatchResult]"
+      },
       "Envelope_EnrichData_": {
         "properties": {
           "data": {
@@ -8287,6 +8501,45 @@
         "type": "object",
         "title": "Envelope[McpKeyStatusData]"
       },
+      "Envelope_MergeOrgMatchResult_": {
+        "properties": {
+          "data": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/MergeOrgMatchResult"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "error": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Error"
+          },
+          "meta": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Meta"
+          }
+        },
+        "type": "object",
+        "title": "Envelope[MergeOrgMatchResult]"
+      },
       "Envelope_MergeOrganizationsResult_": {
         "properties": {
           "data": {
@@ -8676,6 +8929,45 @@
         },
         "type": "object",
         "title": "Envelope[RegenerateResult]"
+      },
+      "Envelope_ScanOrgsResult_": {
+        "properties": {
+          "data": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ScanOrgsResult"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "error": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Error"
+          },
+          "meta": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Meta"
+          }
+        },
+        "type": "object",
+        "title": "Envelope[ScanOrgsResult]"
       },
       "Envelope_ScanResultData_": {
         "properties": {
@@ -9836,6 +10128,49 @@
         "type": "object",
         "title": "Envelope[list[InteractionResponse]]"
       },
+      "Envelope_list_OrgIdentityMatchData__": {
+        "properties": {
+          "data": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/OrgIdentityMatchData"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Data"
+          },
+          "error": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Error"
+          },
+          "meta": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Meta"
+          }
+        },
+        "type": "object",
+        "title": "Envelope[list[OrgIdentityMatchData]]"
+      },
       "Envelope_list_OrganizationResponse__": {
         "properties": {
           "data": {
@@ -10773,6 +11108,42 @@
         ],
         "title": "McpKeyStatusData"
       },
+      "MergeOrgMatchRequest": {
+        "properties": {
+          "target_id": {
+            "type": "string",
+            "title": "Target Id"
+          }
+        },
+        "type": "object",
+        "required": [
+          "target_id"
+        ],
+        "title": "MergeOrgMatchRequest"
+      },
+      "MergeOrgMatchResult": {
+        "properties": {
+          "merged": {
+            "type": "boolean",
+            "title": "Merged"
+          },
+          "target_id": {
+            "type": "string",
+            "title": "Target Id"
+          },
+          "contacts_moved": {
+            "type": "integer",
+            "title": "Contacts Moved"
+          }
+        },
+        "type": "object",
+        "required": [
+          "merged",
+          "target_id",
+          "contacts_moved"
+        ],
+        "title": "MergeOrgMatchResult"
+      },
       "MergeOrganizationsRequest": {
         "properties": {
           "source_ids": {
@@ -11291,6 +11662,48 @@
         ],
         "title": "OrgContact"
       },
+      "OrgIdentityMatchData": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "match_score": {
+            "type": "number",
+            "title": "Match Score"
+          },
+          "match_method": {
+            "type": "string",
+            "title": "Match Method"
+          },
+          "status": {
+            "type": "string",
+            "title": "Status"
+          },
+          "org_a": {
+            "$ref": "#/components/schemas/OrgSummary"
+          },
+          "org_b": {
+            "$ref": "#/components/schemas/OrgSummary"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "match_score",
+          "match_method",
+          "status",
+          "org_a",
+          "org_b",
+          "created_at"
+        ],
+        "title": "OrgIdentityMatchData"
+      },
       "OrgStatsResponse": {
         "properties": {
           "organization_id": {
@@ -11330,6 +11743,85 @@
           "organization_id"
         ],
         "title": "OrgStatsResponse"
+      },
+      "OrgSummary": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "domain": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Domain"
+          },
+          "logo_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Logo Url"
+          },
+          "linkedin_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Linkedin Url"
+          },
+          "website": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Website"
+          },
+          "twitter_handle": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Twitter Handle"
+          },
+          "contact_count": {
+            "type": "integer",
+            "title": "Contact Count",
+            "default": 0
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "name"
+        ],
+        "title": "OrgSummary",
+        "description": "Compact org representation for the duplicate-pair card."
       },
       "OrganizationCreate": {
         "properties": {
@@ -11877,6 +12369,29 @@
           "suggested_channel"
         ],
         "title": "RegenerateResult"
+      },
+      "ScanOrgsResult": {
+        "properties": {
+          "matches_found": {
+            "type": "integer",
+            "title": "Matches Found"
+          },
+          "auto_merged": {
+            "type": "integer",
+            "title": "Auto Merged"
+          },
+          "pending_review": {
+            "type": "integer",
+            "title": "Pending Review"
+          }
+        },
+        "type": "object",
+        "required": [
+          "matches_found",
+          "auto_merged",
+          "pending_review"
+        ],
+        "title": "ScanOrgsResult"
       },
       "ScanResultData": {
         "properties": {
