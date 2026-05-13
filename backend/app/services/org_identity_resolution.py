@@ -13,6 +13,8 @@ from app.services.org_identity_scoring import (
     _normalize_website,
     _same_linkedin,
     _same_non_generic_domain,
+    _shares_anchor,
+    compute_org_adaptive_score,
 )
 
 logger = logging.getLogger(__name__)
@@ -121,5 +123,48 @@ async def find_deterministic_org_matches(
             if method is not None:
                 seen.add(key)
                 pairs.append((first, second, method))
+
+    return pairs
+
+
+# Below this, surface to review queue. Above 0.95, auto-merge (treated as Tier 1).
+PROBABILISTIC_REVIEW_THRESHOLD = 0.40
+PROBABILISTIC_AUTOMERGE_THRESHOLD = 0.95
+
+
+async def find_probabilistic_org_matches(
+    user_id: uuid.UUID,
+    db: AsyncSession,
+    *,
+    exclude_ids: set[uuid.UUID],
+) -> list[tuple[Organization, Organization, float]]:
+    """Score org pairs and return those above the review threshold.
+
+    Skips pairs where either org is in *exclude_ids* (used to skip orgs that
+    were already auto-merged in the deterministic pass).
+
+    Returns (org_a, org_b, score) with org_a.id < org_b.id.
+    Score >= PROBABILISTIC_AUTOMERGE_THRESHOLD → caller should auto-merge.
+    Score in [PROBABILISTIC_REVIEW_THRESHOLD, PROBABILISTIC_AUTOMERGE_THRESHOLD) → queue.
+    """
+    result = await db.execute(
+        select(Organization).where(Organization.user_id == user_id)
+    )
+    orgs: list[Organization] = [
+        o for o in result.scalars().all() if o.id not in exclude_ids
+    ]
+
+    pairs: list[tuple[Organization, Organization, float]] = []
+    for i, a in enumerate(orgs):
+        for b in orgs[i + 1:]:
+            if not _shares_anchor(a, b):
+                continue
+            score = compute_org_adaptive_score(a, b)
+            if score < PROBABILISTIC_REVIEW_THRESHOLD:
+                continue
+            if a.id < b.id:
+                pairs.append((a, b, score))
+            else:
+                pairs.append((b, a, score))
 
     return pairs

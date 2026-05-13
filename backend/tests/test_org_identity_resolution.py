@@ -138,3 +138,42 @@ async def test_deterministic_cross_user_isolation(
 
     pairs = await find_deterministic_org_matches(test_user.id, db)
     assert len(pairs) == 0  # cross-user pairs never match
+
+
+from app.services.org_identity_resolution import find_probabilistic_org_matches
+
+
+@pytest.mark.asyncio
+async def test_probabilistic_finds_name_variation(db: AsyncSession, test_user: User):
+    a = Organization(user_id=test_user.id, name="Anthropic", domain="anthropic.com")
+    b = Organization(user_id=test_user.id, name="Anthropic, Inc.", domain="anthropic.com")
+    db.add_all([a, b])
+    await db.flush()
+
+    pairs = await find_probabilistic_org_matches(test_user.id, db, exclude_ids=set())
+    assert len(pairs) == 1
+    assert pairs[0][2] >= 0.40
+
+
+@pytest.mark.asyncio
+async def test_probabilistic_skips_excluded(db: AsyncSession, test_user: User):
+    a = Organization(user_id=test_user.id, name="Anthropic", domain="anthropic.com")
+    b = Organization(user_id=test_user.id, name="Anthropic, Inc.", domain="anthropic.com")
+    db.add_all([a, b])
+    await db.flush()
+
+    pairs = await find_probabilistic_org_matches(
+        test_user.id, db, exclude_ids={a.id}
+    )
+    assert pairs == []
+
+
+@pytest.mark.asyncio
+async def test_probabilistic_filters_below_threshold(db: AsyncSession, test_user: User):
+    a = Organization(user_id=test_user.id, name="Anthropic")
+    b = Organization(user_id=test_user.id, name="Stripe")
+    db.add_all([a, b])
+    await db.flush()
+
+    pairs = await find_probabilistic_org_matches(test_user.id, db, exclude_ids=set())
+    assert pairs == []  # below 0.40 threshold
