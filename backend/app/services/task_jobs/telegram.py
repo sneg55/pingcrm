@@ -297,28 +297,6 @@ def sync_telegram_bios_for_user(self, user_id: str, exclude_2nd_tier: bool = Fal
         raise self.retry(exc=exc, countdown=60) from exc
 
 
-@shared_task(name="app.services.tasks.recheck_telegram_bios_all")
-def recheck_telegram_bios_all() -> dict:
-    """Periodic task (every 3 days): recheck Telegram bios for non-2nd-tier contacts
-    whose telegram_bio_checked_at is older than 3 days or NULL."""
-    async def _run_recheck() -> int:
-        async with task_session() as db:
-            result = await db.execute(
-                select(User.id).where(User.telegram_session.isnot(None))
-            )
-            user_ids = [str(uid) for uid in result.scalars().all()]
-
-        count = 0
-        for uid in user_ids:
-            sync_telegram_bios_for_user.delay(uid, exclude_2nd_tier=True, stale_days=3)
-            count += 1
-        return count
-
-    queued = _run(_run_recheck())
-    logger.info("recheck_telegram_bios_all: queued %d user(s).", queued)
-    return {"queued": queued}
-
-
 @shared_task(name="app.services.tasks.sync_telegram_notify", ignore_result=True)
 def sync_telegram_notify(user_id: str, lock_token: str = "") -> dict:
     """Send a summary notification and release the sync lock.
@@ -496,73 +474,3 @@ def sync_telegram_for_user(user_id: str) -> None:
         ).apply_async()
 
 
-@shared_task(name="app.services.tasks.cleanup_stale_telegram_locks")
-def cleanup_stale_telegram_locks() -> dict:
-    """Hourly watchdog: delete Telegram sync locks that have no matching progress key.
-
-    A lock is considered stale when:
-      - No ``tg_sync_progress:{user_id}`` key exists (the sync chain never started
-        or the progress key already expired), AND
-      - The lock TTL is below 2700 seconds (i.e. the lock has been held for at least
-        15 minutes of its 3600-second lifetime).
-
-    This cleans up locks left behind by tasks that crashed before releasing them.
-    """
-    from app.core.config import settings
-    import redis as _redis
-
-    deleted = 0
-    scanned = 0
-    try:
-        _r = _redis.from_url(settings.REDIS_URL)
-        for lock_key in _r.scan_iter("tg_sync_lock:*"):
-            scanned += 1
-            # lock_key may be bytes or str depending on decode_responses setting
-            key_str = lock_key.decode() if isinstance(lock_key, bytes) else lock_key
-            user_id = key_str.split(":", 1)[1]  # strip "tg_sync_lock:" prefix
-            progress_key = f"tg_sync_progress:{user_id}"
-
-            has_progress = _r.exists(progress_key)
-            if has_progress:
-                continue  # sync is active; leave the lock alone
-
-            ttl = _r.ttl(lock_key)
-            # TTL == -2 means the key disappeared between scan and ttl call — already gone
-            if ttl == -2:
-                continue
-            # Only delete if the lock has been held for at least 15 minutes
-            # (TTL < 2700 means more than 900 s have elapsed from the original 3600 s)
-            if ttl < 2700:
-                _r.delete(lock_key)
-                deleted += 1
-                logger.info(
-                    "cleanup_stale_telegram_locks: deleted stale lock %s (TTL=%d, no progress key)",
-                    key_str, ttl,
-                )
-    except Exception:
-        logger.exception("cleanup_stale_telegram_locks: unexpected error during scan")
-        return {"scanned": scanned, "deleted": deleted, "error": True}
-
-    logger.info(
-        "cleanup_stale_telegram_locks: scanned=%d deleted=%d",
-        scanned, deleted,
-    )
-    return {"scanned": scanned, "deleted": deleted}
-
-
-@shared_task(name="app.services.tasks.sync_telegram_all")
-def sync_telegram_all() -> dict:
-    """Beat-scheduled task: enqueue Telegram sync for every connected user."""
-    async def _get_user_ids() -> list[str]:
-        async with task_session() as db:
-            result = await db.execute(
-                select(User.id).where(User.telegram_session.isnot(None))
-            )
-            return [str(row) for row in result.scalars().all()]
-
-    user_ids = _run(_get_user_ids())
-    for uid in user_ids:
-        sync_telegram_for_user(uid)
-
-    logger.info("sync_telegram_all: queued %d user(s).", len(user_ids))
-    return {"queued": len(user_ids)}

@@ -20,10 +20,12 @@ from app.services.task_jobs.telegram import (
     sync_telegram_chats_batch_task,
     sync_telegram_groups_for_user,
     sync_telegram_bios_for_user,
-    recheck_telegram_bios_all,
     sync_telegram_notify,
     sync_telegram_for_user,
+)
+from app.services.task_jobs.telegram_maintenance import (
     cleanup_stale_telegram_locks,
+    recheck_telegram_bios_all,
     sync_telegram_all,
 )
 from app.services.task_jobs.twitter import (
