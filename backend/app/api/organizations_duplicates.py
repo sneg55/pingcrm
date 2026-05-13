@@ -100,3 +100,67 @@ async def list_duplicates(
         ))
 
     return {"data": data, "error": None}
+
+
+@router.post(
+    "/duplicates/{match_id}/merge",
+    response_model=Envelope[MergeOrgMatchResult],
+)
+async def merge_match(
+    match_id: uuid.UUID,
+    payload: MergeOrgMatchRequest,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> Envelope[MergeOrgMatchResult]:
+    """User confirms a match: merge source -> target."""
+    result = await db.execute(
+        select(OrgIdentityMatch).where(
+            OrgIdentityMatch.id == match_id,
+            OrgIdentityMatch.user_id == current_user.id,
+        )
+    )
+    match = result.scalar_one_or_none()
+    if match is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Match not found")
+
+    target_id = uuid.UUID(payload.target_id)
+    if target_id not in (match.org_a_id, match.org_b_id):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="target_id must be one of the orgs in this match",
+        )
+
+    source_id = match.org_b_id if target_id == match.org_a_id else match.org_a_id
+
+    target_res = await db.execute(
+        select(Organization).where(
+            Organization.id == target_id,
+            Organization.user_id == current_user.id,
+        )
+    )
+    target = target_res.scalar_one_or_none()
+    source_res = await db.execute(
+        select(Organization).where(
+            Organization.id == source_id,
+            Organization.user_id == current_user.id,
+        )
+    )
+    source = source_res.scalar_one_or_none()
+    if target is None or source is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Organization not found")
+
+    # Update match row BEFORE the merge — merge_org_pair deletes the source
+    # org which cascades to delete this match row via FK ON DELETE CASCADE.
+    match.status = "merged"
+    match.resolved_at = datetime.now(timezone.utc)
+    await db.flush()
+
+    moved = await merge_org_pair(target, source, db)
+    await db.flush()
+
+    return {
+        "data": MergeOrgMatchResult(
+            merged=True, target_id=str(target_id), contacts_moved=moved,
+        ),
+        "error": None,
+    }

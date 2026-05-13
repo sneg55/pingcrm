@@ -96,3 +96,93 @@ async def test_list_duplicates_excludes_resolved(
 
     resp = await client.get("/api/v1/organizations/duplicates", headers=auth_headers)
     assert resp.json()["data"] == []
+
+
+@pytest.mark.asyncio
+async def test_merge_match_moves_contacts(
+    client: AsyncClient, auth_headers: dict, db: AsyncSession, test_user: User
+):
+    target = Organization(user_id=test_user.id, name="Anthropic")
+    source = Organization(user_id=test_user.id, name="Anthropic, Inc.")
+    db.add_all([target, source])
+    await db.flush()
+    contact = Contact(
+        user_id=test_user.id, full_name="Alice",
+        emails=["a@anthropic.com"], company="Anthropic, Inc.",
+        organization_id=source.id,
+    )
+    db.add(contact)
+    await db.flush()
+    match = OrgIdentityMatch(
+        user_id=test_user.id, org_a_id=target.id, org_b_id=source.id,
+        match_score=0.72, match_method="probabilistic", status="pending_review",
+    )
+    db.add(match)
+    await db.commit()
+    match_id = match.id
+
+    resp = await client.post(
+        f"/api/v1/organizations/duplicates/{match_id}/merge",
+        json={"target_id": str(target.id)},
+        headers=auth_headers,
+    )
+    assert resp.status_code == 200
+    body = resp.json()["data"]
+    assert body["merged"] is True
+    assert body["target_id"] == str(target.id)
+    assert body["contacts_moved"] == 1
+
+    # Source org was deleted; match row was cascade-deleted via the FK.
+    src_after = await db.execute(
+        select(Organization).where(Organization.id == source.id)
+    )
+    assert src_after.scalar_one_or_none() is None
+
+
+@pytest.mark.asyncio
+async def test_merge_match_target_must_be_in_pair(
+    client: AsyncClient, auth_headers: dict, db: AsyncSession, test_user: User
+):
+    a = Organization(user_id=test_user.id, name="A")
+    b = Organization(user_id=test_user.id, name="B")
+    other = Organization(user_id=test_user.id, name="C")  # not in the pair
+    db.add_all([a, b, other])
+    await db.flush()
+    match = OrgIdentityMatch(
+        user_id=test_user.id, org_a_id=a.id, org_b_id=b.id,
+        match_score=0.65, match_method="probabilistic", status="pending_review",
+    )
+    db.add(match)
+    await db.commit()
+
+    resp = await client.post(
+        f"/api/v1/organizations/duplicates/{match.id}/merge",
+        json={"target_id": str(other.id)},
+        headers=auth_headers,
+    )
+    assert resp.status_code == 400
+
+
+@pytest.mark.asyncio
+async def test_merge_match_cross_user_404(
+    client: AsyncClient, auth_headers: dict, db: AsyncSession,
+    test_user: User, user_factory,
+):
+    other_user = await user_factory()
+    a = Organization(user_id=other_user.id, name="A")
+    b = Organization(user_id=other_user.id, name="B")
+    db.add_all([a, b])
+    await db.flush()
+    match = OrgIdentityMatch(
+        user_id=other_user.id, org_a_id=a.id, org_b_id=b.id,
+        match_score=0.65, match_method="probabilistic", status="pending_review",
+    )
+    db.add(match)
+    await db.commit()
+
+    resp = await client.post(
+        f"/api/v1/organizations/duplicates/{match.id}/merge",
+        json={"target_id": str(a.id)},
+        headers=auth_headers,
+    )
+    assert resp.status_code == 404
