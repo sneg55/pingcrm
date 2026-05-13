@@ -186,3 +186,31 @@ async def test_merge_match_cross_user_404(
         headers=auth_headers,
     )
     assert resp.status_code == 404
+
+
+@pytest.mark.asyncio
+async def test_dismiss_match(
+    client: AsyncClient, auth_headers: dict, db: AsyncSession, test_user: User
+):
+    a = Organization(user_id=test_user.id, name="A")
+    b = Organization(user_id=test_user.id, name="B")
+    db.add_all([a, b])
+    await db.flush()
+    match = OrgIdentityMatch(
+        user_id=test_user.id, org_a_id=a.id, org_b_id=b.id,
+        match_score=0.50, match_method="probabilistic", status="pending_review",
+    )
+    db.add(match)
+    await db.commit()
+    match_id = match.id
+
+    resp = await client.post(
+        f"/api/v1/organizations/duplicates/{match_id}/dismiss",
+        headers=auth_headers,
+    )
+    assert resp.status_code == 200
+    assert resp.json()["data"] == {"dismissed": True}
+
+    await db.refresh(match)
+    assert match.status == "dismissed"
+    assert match.resolved_at is not None

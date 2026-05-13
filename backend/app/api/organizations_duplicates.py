@@ -164,3 +164,29 @@ async def merge_match(
         ),
         "error": None,
     }
+
+
+@router.post(
+    "/duplicates/{match_id}/dismiss",
+    response_model=Envelope[DismissOrgMatchResult],
+)
+async def dismiss_match(
+    match_id: uuid.UUID,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> Envelope[DismissOrgMatchResult]:
+    """User confirms 'not the same' — pair will not resurface."""
+    result = await db.execute(
+        select(OrgIdentityMatch).where(
+            OrgIdentityMatch.id == match_id,
+            OrgIdentityMatch.user_id == current_user.id,
+        )
+    )
+    match = result.scalar_one_or_none()
+    if match is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Match not found")
+
+    match.status = "dismissed"
+    match.resolved_at = datetime.now(timezone.utc)
+    await db.flush()
+    return {"data": DismissOrgMatchResult(dismissed=True), "error": None}
