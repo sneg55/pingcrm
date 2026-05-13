@@ -1,7 +1,7 @@
 import uuid
 from datetime import datetime
 
-from sqlalchemy import DateTime, Float, ForeignKey, String, func
+from sqlalchemy import DateTime, Float, ForeignKey, Index, String, func, text
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -10,6 +10,15 @@ from app.core.database import Base
 
 class OrgIdentityMatch(Base):
     __tablename__ = "org_identity_matches"
+    __table_args__ = (
+        Index(
+            "ix_org_identity_matches_user_pair",
+            "user_id",
+            text("LEAST(org_a_id, org_b_id)"),
+            text("GREATEST(org_a_id, org_b_id)"),
+            unique=True,
+        ),
+    )
 
     id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True), primary_key=True, default=uuid.uuid4

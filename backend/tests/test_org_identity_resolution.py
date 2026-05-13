@@ -177,3 +177,66 @@ async def test_probabilistic_filters_below_threshold(db: AsyncSession, test_user
 
     pairs = await find_probabilistic_org_matches(test_user.id, db, exclude_ids=set())
     assert pairs == []  # below 0.40 threshold
+
+
+from app.models.org_identity_match import OrgIdentityMatch
+from app.services.org_identity_resolution import scan_org_duplicates
+
+
+@pytest.mark.asyncio
+async def test_scan_auto_merges_deterministic(db: AsyncSession, test_user: User):
+    a = Organization(user_id=test_user.id, name="Anthropic", domain="anthropic.com")
+    b = Organization(user_id=test_user.id, name="Anthropic Inc", domain="anthropic.com")
+    db.add_all([a, b])
+    await db.flush()
+
+    summary = await scan_org_duplicates(test_user.id, db)
+    await db.flush()
+
+    assert summary["auto_merged"] == 1
+    result = await db.execute(
+        select(Organization).where(Organization.user_id == test_user.id)
+    )
+    assert len(result.scalars().all()) == 1
+
+
+@pytest.mark.asyncio
+async def test_scan_queues_probabilistic_for_review(db: AsyncSession, test_user: User):
+    """Same first-3 chars but no domain/linkedin/website match — probabilistic territory."""
+    a = Organization(user_id=test_user.id, name="Stripe")
+    b = Organization(user_id=test_user.id, name="Stripe Payments")
+    db.add_all([a, b])
+    await db.flush()
+
+    summary = await scan_org_duplicates(test_user.id, db)
+    await db.flush()
+
+    assert summary["pending_review"] >= 1
+    result = await db.execute(
+        select(OrgIdentityMatch).where(
+            OrgIdentityMatch.user_id == test_user.id,
+            OrgIdentityMatch.status == "pending_review",
+        )
+    )
+    matches = result.scalars().all()
+    assert len(matches) == 1
+    assert matches[0].match_method == "probabilistic"
+
+
+@pytest.mark.asyncio
+async def test_scan_idempotent(db: AsyncSession, test_user: User):
+    """Running scan twice doesn't create duplicate match rows."""
+    a = Organization(user_id=test_user.id, name="Stripe")
+    b = Organization(user_id=test_user.id, name="Stripe Payments")
+    db.add_all([a, b])
+    await db.flush()
+
+    await scan_org_duplicates(test_user.id, db)
+    await db.flush()
+    await scan_org_duplicates(test_user.id, db)
+    await db.flush()
+
+    result = await db.execute(
+        select(OrgIdentityMatch).where(OrgIdentityMatch.user_id == test_user.id)
+    )
+    assert len(result.scalars().all()) == 1

@@ -4,10 +4,11 @@ from __future__ import annotations
 import logging
 import uuid
 
-from sqlalchemy import delete, select, update
+from sqlalchemy import delete, func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.contact import Contact
+from app.models.org_identity_match import OrgIdentityMatch
 from app.models.organization import Organization
 from app.services.org_identity_scoring import (
     _normalize_website,
@@ -168,3 +169,103 @@ async def find_probabilistic_org_matches(
                 pairs.append((b, a, score))
 
     return pairs
+
+
+async def _count_contacts(org_id: uuid.UUID, db: AsyncSession) -> int:
+    """Return the number of contacts assigned to an org."""
+    result = await db.execute(
+        select(func.count()).select_from(Contact).where(Contact.organization_id == org_id)
+    )
+    return result.scalar() or 0
+
+
+async def _pick_target(
+    a: Organization, b: Organization, db: AsyncSession
+) -> tuple[Organization, Organization]:
+    """Return (target, source) — target is the org with more contacts.
+
+    Ties broken by older created_at (the older org is more "canonical").
+    """
+    count_a = await _count_contacts(a.id, db)
+    count_b = await _count_contacts(b.id, db)
+    if count_a > count_b:
+        return a, b
+    if count_b > count_a:
+        return b, a
+    if (a.created_at or b.created_at) and a.created_at <= b.created_at:
+        return a, b
+    return b, a
+
+
+async def scan_org_duplicates(
+    user_id: uuid.UUID, db: AsyncSession,
+) -> dict:
+    """Full scan: auto-merge deterministic pairs, queue probabilistic ones.
+
+    Returns {"matches_found", "auto_merged", "pending_review"}.
+    """
+    auto_merged = 0
+    merged_org_ids: set[uuid.UUID] = set()
+
+    # Tier 1: deterministic auto-merge
+    deterministic = await find_deterministic_org_matches(user_id, db)
+    for a, b, _method in deterministic:
+        if a.id in merged_org_ids or b.id in merged_org_ids:
+            continue
+        target, source = await _pick_target(a, b, db)
+        await merge_org_pair(target, source, db)
+        merged_org_ids.add(source.id)
+        auto_merged += 1
+    if deterministic:
+        await db.flush()
+
+    # Tier 2: probabilistic
+    probabilistic = await find_probabilistic_org_matches(
+        user_id, db, exclude_ids=merged_org_ids,
+    )
+
+    # Pre-load existing matches for this user so we can dedup before inserting
+    # (the DB unique index is a backstop, but async session state is tricky
+    # after IntegrityError, so we pre-check in Python).
+    existing_result = await db.execute(
+        select(OrgIdentityMatch.org_a_id, OrgIdentityMatch.org_b_id).where(
+            OrgIdentityMatch.user_id == user_id
+        )
+    )
+    existing_pairs: set[frozenset[uuid.UUID]] = {
+        frozenset((row[0], row[1])) for row in existing_result.all()
+    }
+
+    pending_review = 0
+    for a, b, score in probabilistic:
+        if score >= PROBABILISTIC_AUTOMERGE_THRESHOLD:
+            target, source = await _pick_target(a, b, db)
+            await merge_org_pair(target, source, db)
+            merged_org_ids.add(source.id)
+            auto_merged += 1
+            continue
+
+        pair_key = frozenset((a.id, b.id))
+        if pair_key in existing_pairs:
+            continue
+
+        match = OrgIdentityMatch(
+            user_id=user_id,
+            org_a_id=a.id,
+            org_b_id=b.id,
+            match_score=score,
+            match_method="probabilistic",
+            status="pending_review",
+        )
+        db.add(match)
+        existing_pairs.add(pair_key)
+        pending_review += 1
+
+    if pending_review:
+        await db.flush()
+
+    return {
+        "matches_found": auto_merged + pending_review,
+        "auto_merged": auto_merged,
+        "pending_review": pending_review,
+    }
