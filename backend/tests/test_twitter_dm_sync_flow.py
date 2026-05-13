@@ -128,7 +128,7 @@ async def test_sync_twitter_dms_creates_interactions(db: AsyncSession, test_user
 
     id_map = {test_contact.twitter_user_id: test_contact}
 
-    with patch("app.integrations.twitter.fetch_dm_conversations", new=AsyncMock(return_value=events)):
+    with patch("app.integrations.twitter_dms.fetch_dm_conversations", new=AsyncMock(return_value=events)):
         from app.integrations.twitter import sync_twitter_dms
         result = await sync_twitter_dms(
             test_user, db,
@@ -179,7 +179,7 @@ async def test_sync_twitter_dms_dedup_skips_existing(db: AsyncSession, test_user
 
     id_map = {test_contact.twitter_user_id: test_contact}
 
-    with patch("app.integrations.twitter.fetch_dm_conversations", new=AsyncMock(return_value=events)):
+    with patch("app.integrations.twitter_dms.fetch_dm_conversations", new=AsyncMock(return_value=events)):
         from app.integrations.twitter import sync_twitter_dms
         result = await sync_twitter_dms(
             test_user, db,
@@ -213,7 +213,7 @@ async def test_sync_twitter_dms_updates_cursor(db: AsyncSession, test_user: User
 
     id_map = {test_contact.twitter_user_id: test_contact}
 
-    with patch("app.integrations.twitter.fetch_dm_conversations", new=AsyncMock(return_value=events)):
+    with patch("app.integrations.twitter_dms.fetch_dm_conversations", new=AsyncMock(return_value=events)):
         from app.integrations.twitter import sync_twitter_dms
         await sync_twitter_dms(
             test_user, db,
@@ -241,7 +241,7 @@ async def test_sync_twitter_dms_updates_last_interaction_at(db: AsyncSession, te
 
     id_map = {test_contact.twitter_user_id: test_contact}
 
-    with patch("app.integrations.twitter.fetch_dm_conversations", new=AsyncMock(return_value=events)):
+    with patch("app.integrations.twitter_dms.fetch_dm_conversations", new=AsyncMock(return_value=events)):
         from app.integrations.twitter import sync_twitter_dms
         await sync_twitter_dms(
             test_user, db,
@@ -270,8 +270,8 @@ async def test_sync_twitter_dms_autocreates_contact(db: AsyncSession, test_user:
 
     # Mock the user lookup to return profile data for the unknown participant
     with (
-        patch("app.integrations.twitter.fetch_dm_conversations", new=AsyncMock(return_value=events)),
-        patch("app.integrations.twitter._lookup_twitter_users_by_ids", new=AsyncMock(return_value={
+        patch("app.integrations.twitter_dms.fetch_dm_conversations", new=AsyncMock(return_value=events)),
+        patch("app.integrations.twitter_dms._lookup_twitter_users_by_ids", new=AsyncMock(return_value={
             "tw_unknown_999": {"username": "newuser", "name": "New User"},
         })),
     ):
