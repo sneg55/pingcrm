@@ -30,6 +30,20 @@ function _metaDelay(ms) {
   return new Promise(resolve => setTimeout(resolve, ms));
 }
 
+// ── Stable hash for sidebar snippets ─────────────────────────────────────────
+// Sidebar scrapes don't expose real message IDs, so derive a stable key from
+// the snippet itself. Re-syncs of the same snippet produce the same key,
+// letting the backend's raw_reference_id dedup catch them.
+
+async function _metaSnippetHash(text) {
+  const bytes = new TextEncoder().encode(String(text ?? ""));
+  const buf = await crypto.subtle.digest("SHA-1", bytes);
+  return Array.from(new Uint8Array(buf))
+    .map(b => b.toString(16).padStart(2, "0"))
+    .join("")
+    .slice(0, 16);
+}
+
 // ── Messenger parsers ────────────────────────────────────────────────────────
 
 function _parseMetaConversations(raw) {

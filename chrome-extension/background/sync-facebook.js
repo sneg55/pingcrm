@@ -204,19 +204,22 @@ async function _runFacebookSyncInner(apiUrl, token, force, result) {
       });
     }
 
-    // Build message from last conversation snippet
+    // Build message from last conversation snippet.
+    // The sidebar only exposes the last-message preview, not a real message ID.
+    // Derive message_id from sha1(snippet) so re-syncs of the same snippet
+    // produce the same key and dedupe on the backend.
     if (conv.snippet) {
       const now = Date.now();
-      const msgTimestamp = new Date().toISOString();
+      const snippetHash = await _metaSnippetHash(conv.snippet);
 
       messages.push({
-        message_id: `fb_sidebar_${conv.threadId}_${Math.floor(now / 60000)}`,
+        message_id: `fb_sidebar_${conv.threadId}_${snippetHash}`,
         conversation_id: conv.threadId,
         platform_id: conv.threadId,
         sender_name: conv.name,
         direction: "inbound", // sidebar shows their last message typically
         content_preview: conv.snippet.substring(0, 500),
-        timestamp: msgTimestamp,
+        timestamp: new Date().toISOString(),
         reactions: [],
         read_by: [],
       });

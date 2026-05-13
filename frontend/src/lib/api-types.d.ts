@@ -671,11 +671,6 @@ export interface paths {
         /**
          * Extract Bio
          * @description Extract structured data from contact bios using AI.
-         *
-         *     Parses twitter_bio, telegram_bio, linkedin_bio/headline and the contact's
-         *     name fields through Haiku to extract title, company, website, and
-         *     normalize name fields (e.g. "Anders | LoopFi" -> first: Anders, company: LoopFi).
-         *     Also updates the linked Organization record with extracted company details.
          */
         post: operations["extract_bio_api_v1_contacts__contact_id__extract_bio_post"];
         delete?: never;
@@ -2259,6 +2254,14 @@ export interface components {
             linkedin_headline?: string | null;
             /** Linkedin Bio */
             linkedin_bio?: string | null;
+            /** Facebook Id */
+            facebook_id?: string | null;
+            /** Facebook Name */
+            facebook_name?: string | null;
+            /** Instagram Id */
+            instagram_id?: string | null;
+            /** Instagram Username */
+            instagram_username?: string | null;
             /** Avatar Url */
             avatar_url?: string | null;
             /** Birthday */
@@ -2352,6 +2355,14 @@ export interface components {
             linkedin_headline?: string | null;
             /** Linkedin Bio */
             linkedin_bio?: string | null;
+            /** Facebook Id */
+            facebook_id?: string | null;
+            /** Facebook Name */
+            facebook_name?: string | null;
+            /** Instagram Id */
+            instagram_id?: string | null;
+            /** Instagram Username */
+            instagram_username?: string | null;
             /** Avatar Url */
             avatar_url?: string | null;
             /** Birthday */
@@ -2520,6 +2531,14 @@ export interface components {
             linkedin_headline?: string | null;
             /** Linkedin Bio */
             linkedin_bio?: string | null;
+            /** Facebook Id */
+            facebook_id?: string | null;
+            /** Facebook Name */
+            facebook_name?: string | null;
+            /** Instagram Id */
+            instagram_id?: string | null;
+            /** Instagram Username */
+            instagram_username?: string | null;
             /** Birthday */
             birthday?: string | null;
             /** Tags */

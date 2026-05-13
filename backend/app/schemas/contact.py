@@ -37,6 +37,10 @@ class ContactBase(BaseModel):
     linkedin_profile_id: str | None = None
     linkedin_headline: str | None = None
     linkedin_bio: str | None = None
+    facebook_id: str | None = None
+    facebook_name: str | None = None
+    instagram_id: str | None = None
+    instagram_username: str | None = None
     avatar_url: str | None = None
     birthday: str | None = None
     tags: list[str] = []
@@ -91,6 +95,10 @@ class ContactUpdate(BaseModel):
     linkedin_profile_id: str | None = None
     linkedin_headline: str | None = None
     linkedin_bio: str | None = None
+    facebook_id: str | None = None
+    facebook_name: str | None = None
+    instagram_id: str | None = None
+    instagram_username: str | None = None
     birthday: str | None = None
     tags: list[str] | None = None
     notes: str | None = None

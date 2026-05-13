@@ -24,6 +24,10 @@ export type Contact = {
   longitude?: number | null;
   birthday: string | null;
   linkedin_url: string | null;
+  facebook_id: string | null;
+  facebook_name: string | null;
+  instagram_id: string | null;
+  instagram_username: string | null;
   whatsapp_phone: string | null;
   avatar_url: string | null;
   tags: string[];

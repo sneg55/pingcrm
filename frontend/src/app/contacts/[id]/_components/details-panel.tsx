@@ -466,6 +466,24 @@ export function DetailsPanel({
           linkPrefix=""
           copyable
         />
+        <InlineField
+          label="Facebook"
+          value={contact.facebook_id}
+          displayValue={contact.facebook_name ?? contact.facebook_id ?? undefined}
+          onSave={(v) => onSaveField("facebook_id", v)}
+          isLink
+          linkPrefix="https://facebook.com/"
+          copyable
+        />
+        <InlineField
+          label="Instagram"
+          value={contact.instagram_username}
+          displayValue={contact.instagram_username ? `@${contact.instagram_username}` : undefined}
+          onSave={(v) => onSaveField("instagram_username", v)}
+          isLink
+          linkPrefix="https://instagram.com/"
+          copyable
+        />
         <InlineListField
           label="Phone"
           values={contact.phones ?? []}

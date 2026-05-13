@@ -202,12 +202,15 @@ async function _runInstagramSyncInner(apiUrl, token, force, result) {
       });
     }
 
-    // Build message from last DM snippet
+    // Build message from last DM snippet. Sidebar has no real message ID,
+    // so derive a stable key from sha1(snippet) — re-syncs of the same
+    // snippet produce the same key and dedupe on the backend.
     if (thread.snippet) {
       const now = Date.now();
+      const snippetHash = await _metaSnippetHash(thread.snippet);
 
       messages.push({
-        message_id: `ig_sidebar_${thread.threadId}_${Math.floor(now / 60000)}`,
+        message_id: `ig_sidebar_${thread.threadId}_${snippetHash}`,
         conversation_id: thread.threadId,
         platform_id: thread.threadId,
         sender_name: thread.name,

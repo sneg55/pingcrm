@@ -2043,7 +2043,7 @@
           "contacts"
         ],
         "summary": "Extract Bio",
-        "description": "Extract structured data from contact bios using AI.\n\nParses twitter_bio, telegram_bio, linkedin_bio/headline and the contact's\nname fields through Haiku to extract title, company, website, and\nnormalize name fields (e.g. \"Anders | LoopFi\" -> first: Anders, company: LoopFi).\nAlso updates the linked Organization record with extracted company details.",
+        "description": "Extract structured data from contact bios using AI.",
         "operationId": "extract_bio_api_v1_contacts__contact_id__extract_bio_post",
         "security": [
           {
@@ -6238,6 +6238,50 @@
             ],
             "title": "Linkedin Bio"
           },
+          "facebook_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Facebook Id"
+          },
+          "facebook_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Facebook Name"
+          },
+          "instagram_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Instagram Id"
+          },
+          "instagram_username": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Instagram Username"
+          },
           "avatar_url": {
             "anyOf": [
               {
@@ -6598,6 +6642,50 @@
               }
             ],
             "title": "Linkedin Bio"
+          },
+          "facebook_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Facebook Id"
+          },
+          "facebook_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Facebook Name"
+          },
+          "instagram_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Instagram Id"
+          },
+          "instagram_username": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Instagram Username"
           },
           "avatar_url": {
             "anyOf": [
@@ -7197,6 +7285,50 @@
               }
             ],
             "title": "Linkedin Bio"
+          },
+          "facebook_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Facebook Id"
+          },
+          "facebook_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Facebook Name"
+          },
+          "instagram_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Instagram Id"
+          },
+          "instagram_username": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Instagram Username"
           },
           "birthday": {
             "anyOf": [
