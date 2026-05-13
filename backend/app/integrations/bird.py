@@ -10,6 +10,7 @@ string to decide whether to surface a user-facing failure.
 from __future__ import annotations
 
 import asyncio
+import hashlib
 import json
 import logging
 import shutil
@@ -19,6 +20,43 @@ from typing import Any
 logger = logging.getLogger(__name__)
 
 _BIRD_TIMEOUT = 20  # seconds
+
+# Rate-gate: once bird returns 429 for a cookie set, skip further bird calls
+# for this many seconds. Mirrors the Telegram FloodWait pattern.
+_BIRD_RATE_GATE_TTL = 15 * 60  # 15 minutes
+
+
+def _gate_key(ct0: str) -> str:
+    """Per-cookie-set Redis key. Hash ct0 so the secret never appears in keys."""
+    digest = hashlib.sha1(ct0.encode("utf-8", errors="replace")).hexdigest()[:16]
+    return f"bird_rate_gate:{digest}"
+
+
+async def _is_rate_gated(ct0: str) -> bool:
+    """True iff this cookie set is currently rate-gated."""
+    if not ct0:
+        return False
+    try:
+        from app.core.redis import get_redis
+        return bool(await get_redis().get(_gate_key(ct0)))
+    except Exception:
+        logger.exception("bird _is_rate_gated: redis check failed")
+        return False
+
+
+async def _set_rate_gate(ct0: str, ttl_seconds: int = _BIRD_RATE_GATE_TTL) -> None:
+    """Mark this cookie set as rate-gated for *ttl_seconds*."""
+    if not ct0:
+        return
+    try:
+        from app.core.redis import get_redis
+        await get_redis().set(_gate_key(ct0), "1", ex=ttl_seconds)
+        logger.warning(
+            "bird rate-gate set for cookie %s (ttl=%ds) — bird calls will short-circuit",
+            _gate_key(ct0), ttl_seconds,
+        )
+    except Exception:
+        logger.exception("bird _set_rate_gate: redis write failed")
 
 
 @dataclass
@@ -65,9 +103,15 @@ async def _run_bird(*args: str, auth_token: str, ct0: str) -> BirdResult:
     injected as ``--auth-token`` / ``--ct0`` CLI flags before the subcommand
     so that concurrent per-user calls remain isolated.
 
+    Short-circuits without shelling out when this cookie set is currently
+    rate-gated (set by a previous 429 from bird).
+
     Returns a :class:`BirdResult` with ``data`` on success or ``error`` on
     failure.
     """
+    if await _is_rate_gated(ct0):
+        return BirdResult(data=None, error="bird rate-gated; skipping")
+
     bird_path = shutil.which("bird")
     if not bird_path:
         msg = "bird CLI not found on PATH — Twitter enrichment is unavailable"
@@ -109,6 +153,12 @@ async def _run_bird(*args: str, auth_token: str, ct0: str) -> BirdResult:
 
     if proc.returncode != 0:
         stderr_text = stderr.decode(errors="replace")[:200]
+        stdout_text = stdout.decode(errors="replace")[:200]
+        # bird prints "HTTP 429: Rate limit exceeded" to stdout/stderr when
+        # Twitter rate-limits the cookie set. Trip the gate so subsequent calls
+        # short-circuit until the window expires.
+        if "429" in stderr_text or "429" in stdout_text or "Rate limit" in stderr_text or "Rate limit" in stdout_text:
+            await _set_rate_gate(ct0)
         msg = f"bird {args[0]}: exit code {proc.returncode}: {stderr_text}"
         logger.warning(msg)
         return BirdResult(data=None, error=msg)
