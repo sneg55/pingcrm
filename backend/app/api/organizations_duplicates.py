@@ -39,3 +39,64 @@ async def scan_duplicates(
     """Run a fresh duplicate scan over the current user's orgs."""
     summary = await scan_org_duplicates(current_user.id, db)
     return {"data": summary, "error": None}
+
+
+async def _org_summary(org: Organization, db: AsyncSession) -> OrgSummary:
+    count_result = await db.execute(
+        select(func.count()).select_from(Contact).where(Contact.organization_id == org.id)
+    )
+    contact_count = count_result.scalar() or 0
+    return OrgSummary(
+        id=str(org.id),
+        name=org.name,
+        domain=org.domain,
+        logo_url=org.logo_url,
+        linkedin_url=org.linkedin_url,
+        website=org.website,
+        twitter_handle=org.twitter_handle,
+        contact_count=contact_count,
+    )
+
+
+@router.get("/duplicates", response_model=Envelope[list[OrgIdentityMatchData]])
+async def list_duplicates(
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> Envelope[list[OrgIdentityMatchData]]:
+    """Return all pending_review match pairs for the current user."""
+    result = await db.execute(
+        select(OrgIdentityMatch)
+        .where(
+            OrgIdentityMatch.user_id == current_user.id,
+            OrgIdentityMatch.status == "pending_review",
+        )
+        .order_by(OrgIdentityMatch.match_score.desc())
+    )
+    matches = list(result.scalars().all())
+
+    if not matches:
+        return {"data": [], "error": None}
+
+    org_ids = {m.org_a_id for m in matches} | {m.org_b_id for m in matches}
+    orgs_result = await db.execute(
+        select(Organization).where(Organization.id.in_(org_ids))
+    )
+    org_by_id = {o.id: o for o in orgs_result.scalars().all()}
+
+    data: list[OrgIdentityMatchData] = []
+    for m in matches:
+        org_a = org_by_id.get(m.org_a_id)
+        org_b = org_by_id.get(m.org_b_id)
+        if org_a is None or org_b is None:
+            continue
+        data.append(OrgIdentityMatchData(
+            id=str(m.id),
+            match_score=m.match_score,
+            match_method=m.match_method,
+            status=m.status,
+            org_a=await _org_summary(org_a, db),
+            org_b=await _org_summary(org_b, db),
+            created_at=m.created_at,
+        ))
+
+    return {"data": data, "error": None}
