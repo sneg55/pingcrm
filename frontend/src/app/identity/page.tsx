@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { Suspense, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import {
   X,
@@ -40,6 +40,17 @@ function Toast({ message, onDismiss }: { message: string; onDismiss: () => void 
 }
 
 export default function IdentityPage() {
+  // Wrap in Suspense because useSearchParams() in IdentityPageContent forces
+  // a CSR bailout during static prerender. Without this boundary, `next build`
+  // fails on the /identity route.
+  return (
+    <Suspense fallback={<div className="min-h-screen bg-stone-50 dark:bg-stone-950" />}>
+      <IdentityPageContent />
+    </Suspense>
+  );
+}
+
+function IdentityPageContent() {
   const searchParams = useSearchParams();
   const router = useRouter();
   const tab: "contacts" | "orgs" =
