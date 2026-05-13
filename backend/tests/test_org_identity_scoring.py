@@ -148,3 +148,36 @@ def test_score_completely_different_low():
     a = FakeOrg(name="Anthropic", domain="anthropic.com")
     b = FakeOrg(name="Stripe", domain="stripe.com")
     assert compute_org_adaptive_score(a, b) < 0.30
+
+
+from app.services.org_identity_scoring import _shares_anchor
+
+
+def test_shares_anchor_name_prefix():
+    a = FakeOrg(name="Anthropic")
+    b = FakeOrg(name="Anthropic, Inc.")
+    assert _shares_anchor(a, b) is True
+
+
+def test_shares_anchor_domain():
+    a = FakeOrg(name="Foo", domain="anthropic.com")
+    b = FakeOrg(name="Bar", domain="anthropic.com")
+    assert _shares_anchor(a, b) is True
+
+
+def test_shares_anchor_linkedin():
+    a = FakeOrg(name="Foo", linkedin_url="https://linkedin.com/company/anthropic")
+    b = FakeOrg(name="Bar", linkedin_url="https://www.linkedin.com/company/anthropic/")
+    assert _shares_anchor(a, b) is True
+
+
+def test_shares_anchor_website():
+    a = FakeOrg(name="Foo", website="https://anthropic.com/x")
+    b = FakeOrg(name="Bar", website="https://www.anthropic.com/y")
+    assert _shares_anchor(a, b) is True
+
+
+def test_shares_anchor_no_match():
+    a = FakeOrg(name="Anthropic", domain="anthropic.com")
+    b = FakeOrg(name="Stripe", domain="stripe.com")
+    assert _shares_anchor(a, b) is False
