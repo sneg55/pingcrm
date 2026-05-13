@@ -70,3 +70,83 @@ def _same_linkedin(a: str | None, b: str | None) -> bool:
     na = _normalize_linkedin_url(a)
     nb = _normalize_linkedin_url(b)
     return na is not None and na == nb
+
+
+def compute_org_adaptive_score(a: Organization, b: Organization) -> float:
+    """Adaptive-weight match score for two organizations.
+
+    Base weights: name=0.40, domain=0.20, linkedin=0.20, website=0.10, twitter=0.10.
+    Weights for unavailable signals are redistributed across active signals.
+    """
+    BASE_WEIGHTS = {
+        "name":     0.40,
+        "domain":   0.20,
+        "linkedin": 0.20,
+        "website":  0.10,
+        "twitter":  0.10,
+    }
+
+    name_a = (a.name or "").strip()
+    name_b = (b.name or "").strip()
+
+    name_score = _name_similarity(name_a, name_b)
+    domain_score = 1.0 if _same_non_generic_domain(a.domain, b.domain) else 0.0
+    linkedin_score = 1.0 if _same_linkedin(a.linkedin_url, b.linkedin_url) else 0.0
+
+    nwa = _normalize_website(a.website)
+    nwb = _normalize_website(b.website)
+    website_score = 1.0 if nwa and nwa == nwb else 0.0
+
+    twitter_score = _username_similarity(a.twitter_handle, b.twitter_handle)
+
+    scores = {
+        "name": name_score,
+        "domain": domain_score,
+        "linkedin": linkedin_score,
+        "website": website_score,
+        "twitter": twitter_score,
+    }
+
+    has_name = bool(name_a) and bool(name_b)
+    has_domain = bool(a.domain) and bool(b.domain) and a.domain.lower() not in GENERIC_DOMAINS
+    has_linkedin = bool(a.linkedin_url) and bool(b.linkedin_url)
+    has_website = bool(nwa) and bool(nwb)
+    has_twitter = bool(a.twitter_handle) and bool(b.twitter_handle)
+
+    available = {
+        "name": has_name,
+        "domain": has_domain,
+        "linkedin": has_linkedin,
+        "website": has_website,
+        "twitter": has_twitter,
+    }
+
+    active_weight_sum = sum(BASE_WEIGHTS[k] for k, v in available.items() if v)
+    if active_weight_sum == 0:
+        return 0.0
+
+    total = 0.0
+    for key in BASE_WEIGHTS:
+        if available[key]:
+            weight = BASE_WEIGHTS[key] / active_weight_sum
+            total += weight * scores[key]
+
+    # Guard: name_score very low even when domain+linkedin both fire — likely
+    # shared infrastructure (parent/subsidiary), not the same org.
+    if has_name and name_score < 0.5 and (domain_score == 1.0 or linkedin_score == 1.0):
+        total = min(total, 0.50)
+
+    # Guard: single-token name on either side AND no corroborating signal.
+    name_a_tokens = len(_normalize_name(name_a).split())
+    name_b_tokens = len(_normalize_name(name_b).split())
+    is_single_token = name_a_tokens <= 1 or name_b_tokens <= 1
+    if has_name and is_single_token:
+        if not has_domain and not has_linkedin and not has_website and not has_twitter:
+            total = min(total, 0.50)
+
+    # Cap: when name is the *only* signal, cap at 0.70 to force review.
+    active_count = sum(1 for v in available.values() if v)
+    if active_count == 1 and has_name:
+        total = min(total, 0.70)
+
+    return total
