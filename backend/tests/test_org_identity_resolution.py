@@ -77,3 +77,64 @@ async def test_merge_org_pair_does_not_overwrite_target_fields(
 
     assert target.domain == "anthropic.com"
     assert target.industry == "Research"
+
+
+from app.services.org_identity_resolution import find_deterministic_org_matches
+
+
+@pytest.mark.asyncio
+async def test_deterministic_same_domain(db: AsyncSession, test_user: User):
+    a = Organization(user_id=test_user.id, name="Anthropic", domain="anthropic.com")
+    b = Organization(user_id=test_user.id, name="Anthropic, Inc.", domain="anthropic.com")
+    c = Organization(user_id=test_user.id, name="Stripe", domain="stripe.com")
+    db.add_all([a, b, c])
+    await db.flush()
+
+    pairs = await find_deterministic_org_matches(test_user.id, db)
+    pair_ids = {tuple(sorted([str(p[0].id), str(p[1].id)])) for p in pairs}
+    assert tuple(sorted([str(a.id), str(b.id)])) in pair_ids
+    assert all(c.id not in (p[0].id, p[1].id) for p in pairs)
+
+
+@pytest.mark.asyncio
+async def test_deterministic_same_linkedin(db: AsyncSession, test_user: User):
+    a = Organization(
+        user_id=test_user.id, name="Foo",
+        linkedin_url="https://linkedin.com/company/anthropic",
+    )
+    b = Organization(
+        user_id=test_user.id, name="Bar",
+        linkedin_url="https://www.linkedin.com/company/anthropic/",
+    )
+    db.add_all([a, b])
+    await db.flush()
+
+    pairs = await find_deterministic_org_matches(test_user.id, db)
+    assert len(pairs) == 1
+    assert pairs[0][2] == "deterministic_linkedin"
+
+
+@pytest.mark.asyncio
+async def test_deterministic_generic_domain_ignored(db: AsyncSession, test_user: User):
+    """Two orgs with gmail.com as their 'domain' should NOT auto-merge."""
+    a = Organization(user_id=test_user.id, name="Acme", domain="gmail.com")
+    b = Organization(user_id=test_user.id, name="Widget", domain="gmail.com")
+    db.add_all([a, b])
+    await db.flush()
+
+    pairs = await find_deterministic_org_matches(test_user.id, db)
+    assert len(pairs) == 0
+
+
+@pytest.mark.asyncio
+async def test_deterministic_cross_user_isolation(
+    db: AsyncSession, test_user: User, user_factory
+):
+    other = await user_factory()
+    a = Organization(user_id=test_user.id, name="Anthropic", domain="anthropic.com")
+    b = Organization(user_id=other.id, name="Anthropic", domain="anthropic.com")
+    db.add_all([a, b])
+    await db.flush()
+
+    pairs = await find_deterministic_org_matches(test_user.id, db)
+    assert len(pairs) == 0  # cross-user pairs never match
