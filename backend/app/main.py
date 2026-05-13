@@ -33,6 +33,7 @@ from app.api.whatsapp import router as whatsapp_router
 from app.api.meta import router as meta_router
 from app.api.twitter_cookies import router as twitter_cookies_router
 from app.api.map import router as map_router
+from app.api.organizations_duplicates import router as org_duplicates_router
 from app.api.version import router as version_router
 
 setup_logging()
@@ -96,6 +97,7 @@ app.include_router(identity_router)
 app.include_router(twitter_router)
 app.include_router(notifications_router)
 app.include_router(organizations_router)
+app.include_router(org_duplicates_router)
 app.include_router(settings_router)
 app.include_router(linkedin_router)
 app.include_router(activity_router)
