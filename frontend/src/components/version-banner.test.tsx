@@ -2,11 +2,11 @@ import { describe, expect, it, beforeEach, vi } from "vitest";
 import { render, screen, fireEvent } from "@testing-library/react";
 
 import { VersionBanner } from "./version-banner";
+import { useVersion } from "@/hooks/use-version";
 
 vi.mock("@/hooks/use-version", () => ({
   useVersion: vi.fn(),
 }));
-import { useVersion } from "@/hooks/use-version";
 
 const baseStatus = {
   current: "v1.6.0",
