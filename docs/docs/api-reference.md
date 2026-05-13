@@ -183,6 +183,10 @@ All return immediately; a notification fires when the task completes.
 | POST | `/api/v1/organizations` | Create an organization |
 | POST | `/api/v1/organizations/merge` | Merge two or more organizations |
 | POST | `/api/v1/organizations/backfill-logos` | Backfill favicon-derived logos for orgs missing one |
+| POST | `/api/v1/organizations/scan-duplicates` | Run a dedup scan; auto-merges deterministic pairs, queues fuzzy ones |
+| GET | `/api/v1/organizations/duplicates` | List pending_review duplicate pairs |
+| POST | `/api/v1/organizations/duplicates/{match_id}/merge` | Merge a pending pair (`target_id` body) |
+| POST | `/api/v1/organizations/duplicates/{match_id}/dismiss` | Mark a pending pair as 'not the same' |
 | GET | `/api/v1/organizations/{org_id}` | Get organization detail |
 | PATCH | `/api/v1/organizations/{org_id}` | Update an organization |
 | DELETE | `/api/v1/organizations/{org_id}` | Delete an organization |

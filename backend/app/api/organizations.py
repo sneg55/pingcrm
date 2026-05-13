@@ -17,6 +17,7 @@ from app.models.contact import Contact
 from app.models.organization import Organization
 from app.models.user import User
 from app.schemas.responses import Envelope
+from app.services.org_identity_resolution import merge_org_pair
 from app.schemas.organization import (
     MergeOrganizationsRequest,
     MergeOrganizationsResult,
@@ -245,29 +246,27 @@ async def merge_organizations(
     if not target_org:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Target organization not found")
 
-    # Move contacts from sources to target
-    move_result = await db.execute(
-        update(Contact)
-        .where(
-            Contact.organization_id.in_(source_ids),
-            Contact.user_id == current_user.id,
+    total_moved = 0
+    sources_merged = 0
+    for source_id in source_ids:
+        source_result = await db.execute(
+            select(Organization).where(
+                Organization.id == source_id,
+                Organization.user_id == current_user.id,
+            )
         )
-        .values(organization_id=target_id, company=target_org.name)
-    )
-
-    # Delete source organizations
-    delete_result = await db.execute(
-        delete(Organization).where(
-            Organization.id.in_(source_ids),
-            Organization.user_id == current_user.id,
-        )
-    )
+        source_org = source_result.scalar_one_or_none()
+        if source_org is None:
+            continue
+        moved = await merge_org_pair(target_org, source_org, db)
+        total_moved += moved
+        sources_merged += 1
 
     return _envelope({
         "target_id": str(target_id),
         "target_name": target_org.name,
-        "contacts_updated": move_result.rowcount,
-        "source_organizations_merged": delete_result.rowcount,
+        "contacts_updated": total_moved,
+        "source_organizations_merged": sources_merged,
     })
 
 

@@ -6,6 +6,7 @@ from app.models.follow_up import FollowUpSuggestion
 from app.models.google_account import GoogleAccount
 from app.models.identity_match import IdentityMatch
 from app.models.interaction import Interaction
+from app.models.org_identity_match import OrgIdentityMatch
 from app.models.notification import Notification
 from app.models.organization import Organization
 from app.models.tag_taxonomy import TagTaxonomy
@@ -25,6 +26,7 @@ __all__ = [
     "GoogleAccount",
     "IdentityMatch",
     "Notification",
+    "OrgIdentityMatch",
     "Organization",
     "TagTaxonomy",
 ]
