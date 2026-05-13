@@ -139,10 +139,19 @@ def compute_org_adaptive_score(a: Organization, b: Organization) -> float:
     # Guard: single-token name on either side AND no corroborating signal.
     name_a_tokens = len(_normalize_name(name_a).split())
     name_b_tokens = len(_normalize_name(name_b).split())
-    is_single_token = name_a_tokens <= 1 or name_b_tokens <= 1
-    if has_name and is_single_token:
-        if not has_domain and not has_linkedin and not has_website and not has_twitter:
-            total = min(total, 0.50)
+    either_single_token = name_a_tokens <= 1 or name_b_tokens <= 1
+    both_single_token = name_a_tokens <= 1 and name_b_tokens <= 1
+    no_corroboration = (
+        not has_domain and not has_linkedin
+        and not has_website and not has_twitter
+    )
+    if has_name and either_single_token and no_corroboration:
+        # Both sides single-token + names not effectively identical = pure noise.
+        # The only signal is a shared char prefix (e.g., "Bit*"), which generates
+        # large false-positive sets for common morphemes.
+        if both_single_token and name_score < 0.95:
+            return 0.0
+        total = min(total, 0.50)
 
     # Cap: when name is the *only* signal, cap at 0.70 to force review.
     active_count = sum(1 for v in available.values() if v)

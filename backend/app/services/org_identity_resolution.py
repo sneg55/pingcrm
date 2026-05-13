@@ -171,6 +171,45 @@ async def find_probabilistic_org_matches(
     return pairs
 
 
+async def _prune_stale_pending_matches(
+    user_id: uuid.UUID, db: AsyncSession,
+) -> int:
+    """Delete pending_review matches whose pair would no longer score above
+    the review threshold under the current scorer. Returns count deleted.
+
+    Resolved matches (merged/dismissed) are preserved as audit trail.
+    """
+    pending_result = await db.execute(
+        select(OrgIdentityMatch).where(
+            OrgIdentityMatch.user_id == user_id,
+            OrgIdentityMatch.status == "pending_review",
+            OrgIdentityMatch.match_method == "probabilistic",
+        )
+    )
+    pending = list(pending_result.scalars().all())
+    if not pending:
+        return 0
+
+    org_ids = {m.org_a_id for m in pending} | {m.org_b_id for m in pending}
+    org_result = await db.execute(
+        select(Organization).where(Organization.id.in_(org_ids))
+    )
+    orgs_by_id = {o.id: o for o in org_result.scalars().all()}
+
+    deleted = 0
+    for m in pending:
+        org_a = orgs_by_id.get(m.org_a_id)
+        org_b = orgs_by_id.get(m.org_b_id)
+        if org_a is None or org_b is None:
+            await db.delete(m)
+            deleted += 1
+            continue
+        if compute_org_adaptive_score(org_a, org_b) < PROBABILISTIC_REVIEW_THRESHOLD:
+            await db.delete(m)
+            deleted += 1
+    return deleted
+
+
 async def _count_contacts(org_id: uuid.UUID, db: AsyncSession) -> int:
     """Return the number of contacts assigned to an org."""
     result = await db.execute(
@@ -217,6 +256,13 @@ async def scan_org_duplicates(
         merged_org_ids.add(source.id)
         auto_merged += 1
     if deterministic:
+        await db.flush()
+
+    # Prune stale pending_review matches that no longer score above threshold
+    # (e.g., scoring algorithm tightened, or one of the orgs was edited so the
+    # pair no longer looks similar). Keeps the review queue self-healing.
+    pruned = await _prune_stale_pending_matches(user_id, db)
+    if pruned:
         await db.flush()
 
     # Tier 2: probabilistic

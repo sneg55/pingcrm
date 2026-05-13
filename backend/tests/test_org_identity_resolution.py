@@ -224,6 +224,110 @@ async def test_scan_queues_probabilistic_for_review(db: AsyncSession, test_user:
 
 
 @pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "name_a,name_b",
+    [
+        ("BitTalent", "Bitscale"),
+        ("BitBasel", "Bitbond"),
+        ("Bitpanda", "Bitbond"),
+        ("Microsoft", "MicroStrategy"),
+        ("Apple", "Appian"),
+    ],
+)
+async def test_probabilistic_drops_single_token_shared_prefix(
+    db: AsyncSession, test_user: User, name_a: str, name_b: str
+):
+    """Two single-token names sharing only a short prefix, with no other signals,
+    should NOT surface for review — they're noise (the only signal is the prefix)."""
+    a = Organization(user_id=test_user.id, name=name_a)
+    b = Organization(user_id=test_user.id, name=name_b)
+    db.add_all([a, b])
+    await db.flush()
+
+    pairs = await find_probabilistic_org_matches(test_user.id, db, exclude_ids=set())
+    assert pairs == [], f"expected {name_a} vs {name_b} to be filtered, got {pairs}"
+
+
+@pytest.mark.asyncio
+async def test_probabilistic_keeps_single_token_exact_match(
+    db: AsyncSession, test_user: User
+):
+    """Two orgs with the same single-token name should still surface — the user
+    presumably wants to confirm whether these are the same Google."""
+    a = Organization(user_id=test_user.id, name="Google")
+    b = Organization(user_id=test_user.id, name="Google")
+    db.add_all([a, b])
+    await db.flush()
+
+    pairs = await find_probabilistic_org_matches(test_user.id, db, exclude_ids=set())
+    assert len(pairs) == 1
+
+
+@pytest.mark.asyncio
+async def test_scan_prunes_stale_pending_matches(
+    db: AsyncSession, test_user: User
+):
+    """A pending_review row whose pair no longer scores above threshold (e.g.,
+    inserted by an older, looser scorer) is dropped on next scan."""
+    a = Organization(user_id=test_user.id, name="BitTalent")
+    b = Organization(user_id=test_user.id, name="Bitscale")
+    db.add_all([a, b])
+    await db.flush()
+
+    stale = OrgIdentityMatch(
+        user_id=test_user.id,
+        org_a_id=a.id,
+        org_b_id=b.id,
+        match_score=0.50,
+        match_method="probabilistic",
+        status="pending_review",
+    )
+    db.add(stale)
+    await db.flush()
+
+    await scan_org_duplicates(test_user.id, db)
+    await db.flush()
+
+    result = await db.execute(
+        select(OrgIdentityMatch).where(OrgIdentityMatch.user_id == test_user.id)
+    )
+    assert result.scalars().all() == []
+
+
+@pytest.mark.asyncio
+async def test_scan_keeps_resolved_matches(
+    db: AsyncSession, test_user: User
+):
+    """Dismissed/merged matches are preserved as audit trail, even if the pair
+    would no longer score above threshold."""
+    a = Organization(user_id=test_user.id, name="BitTalent")
+    b = Organization(user_id=test_user.id, name="Bitscale")
+    db.add_all([a, b])
+    await db.flush()
+
+    dismissed = OrgIdentityMatch(
+        user_id=test_user.id,
+        org_a_id=a.id,
+        org_b_id=b.id,
+        match_score=0.50,
+        match_method="probabilistic",
+        status="dismissed",
+    )
+    db.add(dismissed)
+    await db.flush()
+
+    await scan_org_duplicates(test_user.id, db)
+    await db.flush()
+
+    result = await db.execute(
+        select(OrgIdentityMatch).where(OrgIdentityMatch.user_id == test_user.id)
+    )
+    rows = result.scalars().all()
+    assert len(rows) == 1
+    assert rows[0].status == "dismissed"
+
+
+@pytest.mark.asyncio
 async def test_scan_idempotent(db: AsyncSession, test_user: User):
     """Running scan twice doesn't create duplicate match rows."""
     a = Organization(user_id=test_user.id, name="Stripe")
