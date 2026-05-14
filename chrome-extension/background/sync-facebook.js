@@ -1,12 +1,13 @@
 /**
  * Facebook Messenger sync orchestrator.
  *
- * Opens a background tab to facebook.com/messages, scrapes conversations
- * from the DOM (required because Messenger uses E2EE — data is only
- * readable after client-side decryption), then pushes to backend.
+ * Opens a background tab to facebook.com/messages, scrapes the conversation
+ * sidebar from the DOM, and pushes the discovered profiles to the backend.
+ * Message rows are NOT created from sidebar scrapes — the sidebar has no
+ * real message IDs and no real timestamps, and for E2EE chats it shows a
+ * "secured with end-to-end encryption" banner instead of preview text.
  *
  * Storage keys (chrome.storage.local):
- *   fbWatermark        - ISO timestamp of newest conversation activity
  *   lastFacebookSync   - ISO timestamp of last sync completion
  *   metaNextRetryAt    - ISO timestamp; block syncs until (rate-limit backoff)
  *   metaCookiesValid   - boolean
@@ -184,16 +185,15 @@ async function _runFacebookSyncInner(apiUrl, token, force, result) {
     return result;
   }
 
-  // ── Build profiles and messages for backend ──
+  // ── Build profiles for backend ──
+  // The sidebar lacks real message IDs and timestamps, so we don't synthesize
+  // Interaction rows from it. Only contacts/profile linkage is pushed.
   const profiles = [];
-  const messages = [];
   const seenProfiles = new Set();
-  let newestTimestamp = 0;
 
   for (const conv of conversations) {
     if (!conv.name || conv.name === "Unknown") continue;
 
-    // Build profile
     if (!seenProfiles.has(conv.threadId)) {
       seenProfiles.add(conv.threadId);
       profiles.push({
@@ -203,33 +203,10 @@ async function _runFacebookSyncInner(apiUrl, token, force, result) {
         avatar_url: null,
       });
     }
-
-    // Build message from last conversation snippet.
-    // The sidebar only exposes the last-message preview, not a real message ID.
-    // Derive message_id from sha1(snippet) so re-syncs of the same snippet
-    // produce the same key and dedupe on the backend.
-    if (conv.snippet) {
-      const now = Date.now();
-      const snippetHash = await _metaSnippetHash(conv.snippet);
-
-      messages.push({
-        message_id: `fb_sidebar_${conv.threadId}_${snippetHash}`,
-        conversation_id: conv.threadId,
-        platform_id: conv.threadId,
-        sender_name: conv.name,
-        direction: "inbound", // sidebar shows their last message typically
-        content_preview: conv.snippet.substring(0, 500),
-        timestamp: new Date().toISOString(),
-        reactions: [],
-        read_by: [],
-      });
-
-      if (now > newestTimestamp) newestTimestamp = now;
-    }
   }
 
-  result.messages = messages.length;
-  console.log("[FBSync] Built", profiles.length, "profiles,", messages.length, "messages");
+  result.messages = 0;
+  console.log("[FBSync] Built", profiles.length, "profiles");
 
   // ── Push to backend ──
   try {
@@ -242,7 +219,7 @@ async function _runFacebookSyncInner(apiUrl, token, force, result) {
       body: JSON.stringify({
         platform: "facebook",
         profiles,
-        messages,
+        messages: [],
       }),
     });
 
@@ -264,12 +241,10 @@ async function _runFacebookSyncInner(apiUrl, token, force, result) {
     return result;
   }
 
-  // ── Persist watermark ──
-  const updates = { lastFacebookSync: new Date().toISOString(), metaNextRetryAt: null };
-  if (newestTimestamp > 0) {
-    updates.fbWatermark = new Date(newestTimestamp).toISOString();
-  }
-  await chrome.storage.local.set(updates);
+  await chrome.storage.local.set({
+    lastFacebookSync: new Date().toISOString(),
+    metaNextRetryAt: null,
+  });
 
   return result;
 }

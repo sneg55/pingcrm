@@ -2,10 +2,11 @@
  * Instagram DM sync orchestrator.
  *
  * Opens a background tab to instagram.com/direct/inbox, scrapes DM threads
- * from the DOM, then pushes to PingCRM backend.
+ * from the DOM, and pushes the discovered profiles to the backend. Message
+ * rows are NOT created from sidebar scrapes — the sidebar has no real
+ * message IDs and no real timestamps.
  *
  * Storage keys (chrome.storage.local):
- *   igWatermark        - ISO timestamp of newest conversation activity
  *   lastInstagramSync  - ISO timestamp of last sync completion
  *   metaNextRetryAt    - shared with Facebook sync
  *   metaCookiesValid   - shared with Facebook sync
@@ -182,16 +183,15 @@ async function _runInstagramSyncInner(apiUrl, token, force, result) {
     return result;
   }
 
-  // ── Build profiles and messages for backend ──
+  // ── Build profiles for backend ──
+  // The sidebar lacks real message IDs and timestamps, so we don't synthesize
+  // Interaction rows from it. Only contacts/profile linkage is pushed.
   const profiles = [];
-  const messages = [];
   const seenProfiles = new Set();
-  let newestTimestamp = 0;
 
   for (const thread of threads) {
     if (!thread.name) continue;
 
-    // Build profile
     if (!seenProfiles.has(thread.threadId)) {
       seenProfiles.add(thread.threadId);
       profiles.push({
@@ -201,32 +201,10 @@ async function _runInstagramSyncInner(apiUrl, token, force, result) {
         avatar_url: null,
       });
     }
-
-    // Build message from last DM snippet. Sidebar has no real message ID,
-    // so derive a stable key from sha1(snippet) — re-syncs of the same
-    // snippet produce the same key and dedupe on the backend.
-    if (thread.snippet) {
-      const now = Date.now();
-      const snippetHash = await _metaSnippetHash(thread.snippet);
-
-      messages.push({
-        message_id: `ig_sidebar_${thread.threadId}_${snippetHash}`,
-        conversation_id: thread.threadId,
-        platform_id: thread.threadId,
-        sender_name: thread.name,
-        direction: "inbound",
-        content_preview: thread.snippet.substring(0, 500),
-        timestamp: new Date().toISOString(),
-        reactions: [],
-        read_by: [],
-      });
-
-      if (now > newestTimestamp) newestTimestamp = now;
-    }
   }
 
-  result.messages = messages.length;
-  console.log("[IGSync] Built", profiles.length, "profiles,", messages.length, "messages");
+  result.messages = 0;
+  console.log("[IGSync] Built", profiles.length, "profiles");
 
   // ── Push to backend ──
   try {
@@ -239,7 +217,7 @@ async function _runInstagramSyncInner(apiUrl, token, force, result) {
       body: JSON.stringify({
         platform: "instagram",
         profiles,
-        messages,
+        messages: [],
       }),
     });
 
@@ -261,12 +239,10 @@ async function _runInstagramSyncInner(apiUrl, token, force, result) {
     return result;
   }
 
-  // ── Persist watermark ──
-  const updates = { lastInstagramSync: new Date().toISOString(), metaNextRetryAt: null };
-  if (newestTimestamp > 0) {
-    updates.igWatermark = new Date(newestTimestamp).toISOString();
-  }
-  await chrome.storage.local.set(updates);
+  await chrome.storage.local.set({
+    lastInstagramSync: new Date().toISOString(),
+    metaNextRetryAt: null,
+  });
 
   return result;
 }
