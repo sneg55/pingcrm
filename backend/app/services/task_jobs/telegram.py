@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 import uuid
-from datetime import datetime
+from datetime import UTC, datetime
 
 from celery import shared_task
 from sqlalchemy import select
@@ -116,7 +116,6 @@ def sync_telegram_chats_for_user(self, user_id: str, max_dialogs: int = 100, loc
                     logger.warning("telegram sync: auto-merge failed for user %s", uid, exc_info=True)
 
             # Mark sync timestamp
-            from datetime import UTC, datetime
             user.telegram_last_synced_at = datetime.now(UTC)
             await db.commit()
 
@@ -224,7 +223,7 @@ def sync_telegram_groups_for_user(self, user_id: str) -> dict:
     _run(set_progress(user_id, phase="groups"))
 
     async def _sync(uid: uuid.UUID) -> dict:
-        from app.integrations.telegram import sync_telegram_group_members
+        from app.integrations.telegram_groups import sync_telegram_group_members
         from app.services.scoring import calculate_score
 
         async with task_session() as db:

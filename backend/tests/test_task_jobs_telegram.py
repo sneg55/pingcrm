@@ -468,14 +468,10 @@ def test_sync_telegram_chats_non_dict_result_falls_back_to_scalar_count(fake_asy
     assert result == {"status": "ok", "new_interactions": 42, "new_contacts": 0}
 
 
-# Bug pin #2 — UnboundLocalError when affected_contact_max_occurred_at is non-empty.
-@pytest.mark.xfail(strict=True, reason=(
-    "Bug: telegram.py line 119 has `from datetime import UTC, datetime` inside _sync, "
-    "making `datetime` a local name. Line 94's `datetime.fromisoformat(ts)` therefore "
-    "raises UnboundLocalError whenever the integration returns a non-empty "
-    "affected_contact_max_occurred_at map. Fix: rename the inner import or use the "
-    "top-level datetime import everywhere."
-))
+# Regression test for prior bug: a local `from datetime import UTC, datetime` inside
+# _sync once shadowed the module-level `datetime`, making `datetime.fromisoformat(ts)`
+# raise UnboundLocalError whenever the dismiss path actually ran. UTC is now imported
+# at module level and the local re-import was removed.
 def test_sync_telegram_chats_dismisses_suggestions_for_affected_contacts(fake_async_redis):
     """When the integration reports affected_contact_max_occurred_at, suggestions
     for those contacts should be dismissed up to that timestamp."""
@@ -718,19 +714,13 @@ def test_sync_telegram_chats_batch_generic_error_retries_then_notifies(fake_redi
 # ---------------------------------------------------------------------------
 
 
-# Bug pin #1 — sync_telegram_group_members is not re-exported from
-# app.integrations.telegram (only lives in app.integrations.telegram_groups
-# after commit 208d89b dropped the re-export).
-@pytest.mark.xfail(strict=True, reason=(
-    "Bug: telegram.py line 227 imports sync_telegram_group_members from "
-    "app.integrations.telegram, but that re-export was removed in commit "
-    "208d89b. The function lives in app.integrations.telegram_groups now. "
-    "Importing it currently raises ImportError, so sync_telegram_groups_for_user "
-    "is dead in production. Fix: change the import or re-add the re-export."
-))
+# Regression test for prior bug: sync_telegram_group_members must remain importable
+# from wherever app/services/task_jobs/telegram.py expects to find it. Commit 208d89b
+# dropped a re-export from app.integrations.telegram and broke the daily group sync;
+# the production import was moved to app.integrations.telegram_groups.
 def test_sync_telegram_groups_import_is_resolvable():
-    """Confirm the import path used at telegram.py line 227 resolves."""
-    from app.integrations.telegram import sync_telegram_group_members  # noqa: F401
+    """Confirm the import path used by sync_telegram_groups_for_user resolves."""
+    from app.integrations.telegram_groups import sync_telegram_group_members  # noqa: F401
 
 
 def test_sync_telegram_groups_invalid_user_id(fake_async_redis):
