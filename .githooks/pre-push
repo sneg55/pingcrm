@@ -64,6 +64,16 @@ if $RUN_FRONTEND; then
   fi
 
   echo ""
+  echo "━━━ Frontend lint (next lint) ━━━"
+  # Mirror prod build: warnings become errors (matches `next build` behavior).
+  if npx next lint --max-warnings 0 2>&1; then
+    echo "✅ Lint passed"
+  else
+    echo "❌ Lint failed (next build will reject this)"
+    FAILED=true
+  fi
+
+  echo ""
   echo "━━━ Frontend tests (vitest) ━━━"
   if npx vitest run --reporter=dot 2>&1; then
     echo "✅ Frontend tests passed"

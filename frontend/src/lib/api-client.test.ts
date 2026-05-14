@@ -17,7 +17,7 @@ import { describe, it, expect, beforeAll, beforeEach, vi, type Mock } from "vite
 
 // --- in-memory Storage shim -----------------------------------------------
 class MemoryStorage implements Storage {
-  private store = new Map<string, string>();
+  private readonly store = new Map<string, string>();
   get length() {
     return this.store.size;
   }
@@ -86,7 +86,6 @@ function jsonResponse(status: number, body: unknown): Response {
 // Cast helper so we can call typed routes that don't strictly exist in
 // generated `paths`. The client is the runtime singleton — we just need it to
 // route through the interceptors.
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
 const c = () => client as unknown as any;
 
 describe("api-client auth interceptor (onRequest)", () => {
@@ -134,7 +133,6 @@ describe("api-client HTTP verbs", () => {
       fetchMock.mockResolvedValueOnce(jsonResponse(200, { ok: true }));
 
       const opts = hasBody ? { body: {} } : {};
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       await (c() as any)[verb]("http://localhost/api/v1/x", opts);
 
       const req = (fetchMock as Mock).mock.calls[0][0] as Request;
