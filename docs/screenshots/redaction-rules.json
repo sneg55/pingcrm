@@ -29,7 +29,10 @@
         "p.text-\\[13px\\]",
         ".bg-teal-600.text-white.rounded-2xl",
         "img.w-8.h-8.rounded-full",
-        "p.text-xs.text-stone-600"
+        "p.text-xs.text-stone-600",
+        ".space-y-2 a[target='_blank'][rel*='noopener']",
+        ".space-y-2 span.text-stone-700",
+        ".space-y-2 span.text-stone-300"
       ]
     },
     "/dashboard": {

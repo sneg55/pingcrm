@@ -7,6 +7,8 @@ title: Telegram Integration
 
 PingCRM connects to Telegram using the MTProto protocol via the Telethon library, providing access to DMs, group memberships, and user bios.
 
+![Telegram section in Settings](/img/screenshots/telegram/settings-section.png)
+
 ## Authentication
 
 The Telegram auth flow has three steps:
@@ -40,6 +42,8 @@ Chat sync imports direct messages as interactions.
 1. Fetches your Telegram dialogs (conversations).
 2. Skips dialogs that have not changed since the last sync, reducing API calls by approximately 80%.
 3. For each dialog with new messages, imports messages as interactions linked to the matching contact.
+
+![Telegram messages with read-receipt indicators in the timeline](/img/screenshots/telegram/timeline-readreceipts.png)
 
 ### First sync vs incremental
 - **First sync:** Processes all dialogs, chunked into batches of 50 to stay within rate limits. Groups and bios are also synced as part of the first-sync chain.
@@ -119,6 +123,8 @@ For each contact, PingCRM identifies Telegram groups you both belong to.
 - Data is cached for 24 hours per contact.
 - Displayed in the contact detail sidebar as shared context.
 - Can be force-refreshed from the contact detail page.
+
+![Common Telegram groups sidebar on the contact detail page](/img/screenshots/telegram/common-groups.png)
 
 ## Sync Chain Architecture
 
