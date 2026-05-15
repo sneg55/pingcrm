@@ -11,6 +11,8 @@ Contacts are the core entity in PingCRM. The contact list and detail pages let y
 
 The `/contacts` page displays all contacts in a searchable, sortable, paginated table.
 
+![Contact list view](/img/screenshots/contacts/list.png)
+
 ### Search and Filtering
 
 - **Full-text search** across contact names, emails, companies, notes, and social handles. Results are ranked by relevance: exact name prefix matches rank highest, followed by partial name matches, company/title matches, social handle matches, then other fields.
@@ -48,9 +50,13 @@ Select multiple contacts from the list to apply actions in one operation:
 - `GET /api/v1/contacts/2nd-tier/count` -- returns `{ count: N }`, used by the confirmation dialog.
 - `DELETE /api/v1/contacts/2nd-tier` -- deletes all 2nd tier contacts and their related data, returns `{ deleted_count: N }`.
 
+![Bulk actions toolbar with three contacts selected](/img/screenshots/contacts/list-bulk-actions.png)
+
 ## Contact Detail
 
 The `/contacts/[id]` page shows the full profile for a single contact.
+
+![Contact detail page](/img/screenshots/contacts/detail.png)
 
 ### Inline Editing
 
@@ -84,6 +90,8 @@ Send messages directly from the contact detail page. Supported channels:
 
 The composer uses AI to draft context-aware messages based on the contact's profile and interaction history.
 
+![Message composer drafting an AI-suggested message](/img/screenshots/contacts/detail-composer.png)
+
 ### BCC Email Logging
 
 Each contact has a unique BCC address (e.g., `you+c7f3a2b@gmail.com`). BCC this address when sending emails from any client to automatically log the email to this contact's timeline. See [Gmail Integration — BCC Email Logging](./gmail.md#bcc-email-logging) for details.
@@ -98,6 +106,8 @@ A chronological timeline of all interactions with the contact, including:
 - Logged meetings.
 - Bio change events (detected from Twitter and Telegram).
 - Read receipts for Telegram messages (single check = delivered, double check = read).
+
+![Interaction timeline showing messages across platforms](/img/screenshots/contacts/detail-timeline.png)
 
 Messages longer than 400 characters are truncated with a "Show more" button to keep the timeline compact. Click to expand the full message.
 
@@ -171,5 +181,7 @@ Four methods are available for adding contacts:
 - **LinkedIn CSV Import** -- upload `Connections.csv` from LinkedIn's data export.
 - **Google Contacts Sync** -- import contacts from your connected Google account.
 - **Manual Entry** -- add contacts one at a time through the UI.
+
+![CSV import modal](/img/screenshots/contacts/import.png)
 
 Additionally, the LinkedIn Chrome extension automatically creates contacts from your LinkedIn conversations during message sync.

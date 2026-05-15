@@ -7,6 +7,8 @@ title: Identity Resolution
 
 The **Identity Resolution** page (`/identity`) detects and merges duplicate contacts that represent the same person across different platforms. PingCRM uses a multi-tier matching system to surface candidates, from deterministic exact matches to probabilistic scoring.
 
+![Identity resolution queue](/img/screenshots/identity/queue.png)
+
 ## Tier 1: Deterministic Matching
 
 Tier 1 matches are high-confidence duplicates identified by exact data overlap. These are auto-merged without manual review.
@@ -57,6 +59,8 @@ For each pair, you can:
 
 - **Merge** -- combines both records into a single contact, preserving all interactions and platform links.
 - **Reject** -- dismisses the match so it will not be suggested again.
+
+![Side-by-side comparison card with merge and reject actions](/img/screenshots/identity/comparison-card.png)
 
 ## On-Demand Scan
 

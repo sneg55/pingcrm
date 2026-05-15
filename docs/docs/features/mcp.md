@@ -20,11 +20,15 @@ PingCRM includes an MCP server that lets AI clients query your CRM data directly
 
 All tools return Markdown-formatted text optimized for LLM consumption.
 
+![MCP Access section in Settings](/img/screenshots/mcp/settings-section.png)
+
 ## Setup
 
 ### 1. Generate an API Key
 
 Go to **Settings > Account > MCP Access** and click **Generate key**. The key is shown only once — copy it and store it securely. The key format is `pingcrm_` followed by a random string.
+
+![Generated API key modal — shown once, copy immediately](/img/screenshots/mcp/generated-key-modal.png)
 
 ### 2. Configure Your AI Client
 

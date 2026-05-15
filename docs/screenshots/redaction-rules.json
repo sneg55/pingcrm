@@ -1,0 +1,98 @@
+{
+  "version": 1,
+  "global": {
+    "blur": [
+      "[data-pii]",
+      ".contact-name",
+      ".contact-email",
+      "img.avatar",
+      ".avatar img",
+      "img[alt*='avatar' i]"
+    ]
+  },
+  "routes": {
+    "/contacts": {
+      "blur": [
+        "a[href*='/contacts/']:not([href*='/contacts/new'])",
+        "p.text-xs.text-stone-400",
+        "img.w-8.h-8.rounded-full"
+      ]
+    },
+    "/contacts/:id": {
+      "blur": [
+        "h1.text-xl.font-bold",
+        "img.w-20.h-20.rounded-full",
+        "span.text-xs.font-medium.text-stone-900",
+        "a.text-xs.font-medium.text-teal-600",
+        "span[class*='text-stone-500'][class*='truncate']",
+        "span[class*='text-stone-400'][class*='truncate']",
+        "p.text-\\[13px\\]",
+        ".bg-teal-600.text-white.rounded-2xl",
+        "img.w-8.h-8.rounded-full",
+        "p.text-xs.text-stone-600",
+        ".space-y-2 a[target='_blank'][rel*='noopener']",
+        ".space-y-2 span.text-stone-700",
+        ".space-y-2 span.text-stone-300",
+        "span.text-\\[11px\\].text-violet-600",
+        "span.text-\\[11px\\].text-stone-500.dark\\:text-stone-400"
+      ]
+    },
+    "/dashboard": {
+      "blur": [
+        "a.text-sm.font-medium.text-stone-900",
+        "p.text-xs.text-stone-500.mt-1.line-clamp-2",
+        "p.text-sm.font-medium.text-stone-900.truncate",
+        "p.text-xs.text-stone-500.truncate",
+        "div.w-8.h-8.text-xs.rounded-full.flex.items-center.justify-center.font-semibold",
+        "img.w-8.h-8.rounded-full.object-cover",
+        "textarea.w-full.text-sm"
+      ]
+    },
+    "/identity": {
+      "blur": [
+        ".card-hover a.text-sm.font-semibold",
+        ".card-hover div.w-8.h-8.rounded-full",
+        ".card-hover .bg-stone-50 span.font-mono",
+        ".card-hover .bg-stone-50 .space-y-1\\.5 span:not([class*='font-mono'])",
+        ".card-hover .bg-stone-50 p.text-xs"
+      ]
+    },
+    "/map": {
+      "blur": [
+        "a[href*='/contacts/'] img.w-8.h-8.rounded-full",
+        "a[href*='/contacts/'] div.truncate.font-medium"
+      ]
+    },
+    "/notifications": {
+      "blur": [
+        ".notif-row p.text-sm.font-semibold.text-stone-900",
+        ".notif-row p.text-sm.text-stone-500"
+      ]
+    },
+    "/organizations": { "blur": [] },
+    "/organizations/:id": {
+      "blur": [
+        "a[href*='/contacts/'] span.truncate",
+        "a[href*='/contacts/'] img.w-8.h-8.rounded-full",
+        "a[href*='/contacts/'] div.w-8.h-8.rounded-full",
+        "p.text-sm.text-zinc-600.dark\\:text-zinc-400.flex-1"
+      ]
+    },
+    "/settings": {
+      "blur": [
+        "span.text-teal-600.font-medium.flex.items-center.gap-1",
+        "p.text-xs.text-teal-600"
+      ]
+    },
+    "/suggestions": {
+      "blur": [
+        "a.text-sm.font-medium.text-stone-900",
+        "img.w-8.h-8.text-xs.rounded-full.object-cover.flex-shrink-0",
+        "div.w-8.h-8.text-xs.rounded-full.flex.items-center.justify-center.font-semibold.flex-shrink-0",
+        "p.text-xs.text-stone-500.dark\\:text-stone-400.mt-1\\.5.line-clamp-2",
+        "textarea.w-full.text-sm.bg-transparent",
+        "p.text-xs.text-stone-500.dark\\:text-stone-400.mt-1\\.5"
+      ]
+    }
+  }
+}

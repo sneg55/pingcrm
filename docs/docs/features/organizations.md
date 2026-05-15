@@ -11,6 +11,8 @@ Organizations group contacts by company or institution. The organization pages l
 
 The `/organizations` page displays all organizations in a sortable, searchable table.
 
+![Organizations list](/img/screenshots/organizations/list.png)
+
 ### Table Columns
 
 Each row shows:
@@ -39,9 +41,13 @@ Organizations with zero active contacts are automatically hidden from the list t
 - **Per-Row Delete** -- delete an individual organization directly from the list.
 - **Bulk Actions** -- perform operations on multiple selected organizations at once.
 
+![Selecting multiple organizations for merge](/img/screenshots/organizations/merge-selection.png)
+
 ## Organization Detail
 
 The `/organizations/[id]` page provides the full profile for a single organization.
+
+![Organization detail page](/img/screenshots/organizations/detail.png)
 
 ### Inline Editing
 

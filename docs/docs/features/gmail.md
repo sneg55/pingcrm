@@ -11,6 +11,8 @@ PingCRM connects to Gmail via OAuth 2.0 with Google, syncing email threads, cont
 
 The Gmail integration uses standard Google OAuth 2.0. After granting access on the Google consent screen, PingCRM stores a refresh token to maintain access without repeated sign-in. Multi-account support allows connecting more than one Gmail address.
 
+![Gmail section in Settings](/img/screenshots/gmail/settings-section.png)
+
 ## Email Sync
 
 Individual email messages are imported as interactions. Each message captures:
@@ -25,6 +27,8 @@ Messages are deduplicated by Gmail message ID. Multi-message threads create sepa
 
 **Schedule:** Email sync runs automatically every 6 hours.
 
+![Gmail thread messages in a contact's interaction timeline](/img/screenshots/gmail/timeline-thread.png)
+
 ## BCC Email Logging
 
 Each contact has a unique BCC address. When you BCC that address on any email from any client (Gmail, Outlook, Apple Mail), PingCRM automatically logs the email to that contact's timeline.
@@ -38,6 +42,8 @@ Each contact has a unique BCC address. When you BCC that address on any email fr
 4. On next sync, PingCRM detects the `+hash` in the headers and links the interaction to the correct contact.
 
 **No custom domain or email infrastructure required** -- it uses Gmail's native `+` addressing.
+
+![BCC address with copy button on the contact detail page](/img/screenshots/gmail/bcc-address.png)
 
 ## Google Contacts Sync
 

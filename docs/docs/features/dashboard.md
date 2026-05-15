@@ -7,6 +7,8 @@ title: Dashboard
 
 The `/dashboard` page is the daily-driver view: stat cards at the top, follow-ups and activity in the centre, and an "is anything slipping" panel on the right. All data is fetched through React Query hooks and refreshes on focus.
 
+![Dashboard overview](/img/screenshots/dashboard/overview.png)
+
 ## Stat Cards
 
 Three counters at the top of the page, each with a week-over-week trend arrow when prior data is available:
@@ -27,6 +29,8 @@ Up to five pending suggestions from the follow-up engine, each rendered as an ex
 
 A trigger badge on each card shows why the suggestion fired: `90+ days`, `New event`, `Scheduled`, or `Birthday`. The "View all →" link jumps to the full `/suggestions` page.
 
+![Follow-up card expanded with AI-drafted message](/img/screenshots/dashboard/followup-expanded.png)
+
 ## Recent Activity
 
 A chronological feed of the most recent interactions across every platform — sent and received emails, Telegram messages, Twitter DMs, LinkedIn messages, manual notes, and meeting records. Each row links to the relevant contact.
@@ -36,3 +40,5 @@ A chronological feed of the most recent interactions across every platform — s
 A side panel listing high-priority contacts where outreach is overdue (no interaction past their priority threshold). Each row links to the contact detail page; an inline pill in the header shows the count when any are present. When everyone is on schedule, the panel reads "All caught up!".
 
 The list is capped to a small number on the dashboard; click "View all →" to open the contacts page sorted by overdue.
+
+![Needs Attention panel](/img/screenshots/dashboard/needs-attention.png)

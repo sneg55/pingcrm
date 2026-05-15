@@ -7,6 +7,8 @@ title: Map
 
 The `/map` page plots your contacts on an interactive world map. Use it to find nearby contacts when traveling, spot geographic clusters in your network, and navigate from a contact's location back to the map.
 
+![Map view with contacts plotted globally](/img/screenshots/map/overview.png)
+
 ## How it works
 
 Every contact with a non-empty `location` string is geocoded to latitude/longitude via the Mapbox Geocoding API. The map view queries contacts within the current viewport and renders them as pins, with clustering for dense metros.
@@ -17,6 +19,8 @@ Two entry points:
 
 1. **Sidebar nav** -- the "Map" entry opens `/map` at a world view. Pan and zoom to fill the sidebar with contacts in the current viewport.
 2. **From a contact page** -- when a contact has been successfully geocoded, the location text under their profile renders as a link. Clicking it opens `/map?focus=<contact_id>` centered on that contact at city-level zoom.
+
+![Map focused on a single contact](/img/screenshots/map/focus.png)
 
 If a contact's location couldn't be geocoded (free-form text like a URL, emoji, or unparseable entry), the location field renders as plain text on the contact page -- no link.
 
@@ -31,6 +35,8 @@ When a metro has more than 500 contacts in view, the sidebar shows a "Showing 50
 ## Clustering
 
 Zoomed-out views collapse nearby pins into numbered cluster bubbles. Clicking a cluster zooms in and breaks it apart. Cluster radius is 50 pixels, and clusters disappear at zoom level 14+.
+
+![Cluster bubbles at zoomed-out view](/img/screenshots/map/cluster.png)
 
 ## Geocoding
 

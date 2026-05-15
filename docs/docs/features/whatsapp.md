@@ -7,6 +7,8 @@ title: WhatsApp Integration
 
 PingCRM connects to WhatsApp using the WhatsApp Web protocol via a Node.js sidecar service running whatsapp-web.js. This provides access to personal chat history and contact profile information.
 
+![WhatsApp section in Settings](/img/screenshots/whatsapp/settings-section.png)
+
 ## Architecture
 
 Unlike other integrations that run inside the Python backend, WhatsApp uses a separate Node.js service (the "sidecar") that manages WhatsApp Web sessions. The backend communicates with the sidecar over HTTP and receives real-time events via HMAC-signed webhooks.
@@ -23,6 +25,8 @@ WhatsApp authenticates by linking a new device via QR code:
 1. Click **Connect WhatsApp** in Settings > Integrations.
 2. A QR code appears inline — scan it with your phone (WhatsApp > Settings > Linked Devices > Link a Device).
 3. Once scanned, the session is established and persists across restarts.
+
+![WhatsApp QR code generation in the Connect dialog](/img/screenshots/whatsapp/qr-code.png)
 
 Sessions can expire if you remove the linked device from your phone or if WhatsApp revokes the session. PingCRM runs a daily health check and notifies you if your session has disconnected.
 

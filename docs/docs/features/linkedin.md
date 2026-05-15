@@ -19,6 +19,8 @@ The PingCRM Chrome extension is **not published on the Chrome Web Store**. It sh
 
 To update later, `git pull` in the cloned repo (or re-download the ZIP) and click the **reload** icon on the extension's card in `chrome://extensions`.
 
+![LinkedIn section in Settings](/img/screenshots/linkedin/settings-section.png)
+
 ## Extension Pairing
 
 Connecting the extension uses a one-time pairing code instead of a password:
