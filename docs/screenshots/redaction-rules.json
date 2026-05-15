@@ -52,7 +52,12 @@
         ".card-hover .bg-stone-50 p.text-xs"
       ]
     },
-    "/map": { "blur": [] },
+    "/map": {
+      "blur": [
+        "a[href*='/contacts/'] img.w-8.h-8.rounded-full",
+        "a[href*='/contacts/'] div.truncate.font-medium"
+      ]
+    },
     "/notifications": { "blur": [] },
     "/organizations": { "blur": [] },
     "/organizations/:id": { "blur": [] },
