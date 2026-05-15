@@ -7,6 +7,10 @@ title: Settings
 
 The **Settings** page (`/settings`) manages platform connections, data imports, and sync controls. Each integration displays a connection status badge (connected, disconnected, or error).
 
+![Settings page overview](/img/screenshots/settings/overview.png)
+
+![Connected accounts at a glance](/img/screenshots/settings/connected-accounts.png)
+
 ## Gmail
 
 - **Connect / Disconnect** -- initiates or revokes the Google OAuth flow.
@@ -46,13 +50,19 @@ See [LinkedIn Integration](./linkedin.md) for full details on the extension, Voy
 - **LinkedIn CSV import** -- supports the export format from LinkedIn's "Download your data" feature. Columns are mapped automatically to PingCRM contact fields.
 - Imported contacts appear in the contacts list immediately and are eligible for identity resolution matching.
 
+![CSV import dropzone](/img/screenshots/settings/csv-import.png)
+
 ## Follow-up Rules
 
 Configure the follow-up intervals per priority level. These control how often the suggestion engine recommends reaching out to contacts at each priority tier (default: high=30 days, medium=60 days, low=180 days). Values can range from 7 to 365 days.
 
+![Follow-up interval settings per priority level](/img/screenshots/settings/followup-rules.png)
+
 ## Tags
 
 Manage the tag taxonomy used for organizing contacts. Tags can be generated automatically via LLM or applied manually. The taxonomy supports hierarchical categories.
+
+![Tag taxonomy management](/img/screenshots/settings/tags.png)
 
 ## MCP Access
 
