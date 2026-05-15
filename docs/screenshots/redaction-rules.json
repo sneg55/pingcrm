@@ -43,7 +43,15 @@
         "textarea.w-full.text-sm"
       ]
     },
-    "/identity": { "blur": [] },
+    "/identity": {
+      "blur": [
+        ".card-hover a.text-sm.font-semibold",
+        ".card-hover div.w-8.h-8.rounded-full",
+        ".card-hover .bg-stone-50 span.font-mono",
+        ".card-hover .bg-stone-50 .space-y-1\\.5 span:not([class*='font-mono'])",
+        ".card-hover .bg-stone-50 p.text-xs"
+      ]
+    },
     "/map": { "blur": [] },
     "/notifications": { "blur": [] },
     "/organizations": { "blur": [] },
