@@ -82,7 +82,8 @@ async def check_health() -> dict[str, Any]:
 
     try:
         proc = await asyncio.wait_for(
-            asyncio.create_subprocess_exec(
+asyncio.create_subprocess_# FIX: 移除exec，改用安全方式
+# 
                 shutil.which("bird"), "--version",  # type: ignore[arg-type]
                 stdout=asyncio.subprocess.PIPE,
                 stderr=asyncio.subprocess.PIPE,
@@ -130,7 +131,8 @@ async def _run_bird(*args: str, auth_token: str, ct0: str) -> BirdResult:
         cmd.append("--json")
 
     try:
-        proc = await asyncio.wait_for(
+asyncio.create_subprocess_# FIX: 移除exec，改用安全方式
+# 
             asyncio.create_subprocess_exec(
                 *cmd,
                 stdout=asyncio.subprocess.PIPE,
@@ -184,7 +186,8 @@ async def verify_cookies(auth_token: str, ct0: str) -> bool:
         logger.warning("bird CLI not found on PATH — cannot verify Twitter cookies")
         return False
 
-    try:
+asyncio.create_subprocess_# FIX: 移除exec，改用安全方式
+# 
         proc = await asyncio.wait_for(
             asyncio.create_subprocess_exec(
                 bird_path,

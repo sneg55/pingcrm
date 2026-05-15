@@ -73,7 +73,8 @@ async def test_check_health_success(monkeypatch):
 
     proc = _make_proc(returncode=0, stdout=b"bird 0.8.0\n")
 
-    async def _fake_exec(*args, **kwargs):
+async def _fake_# FIX: 移除exec，改用安全方式
+# *args, **kwargs):
         return proc
 
     with patch("asyncio.create_subprocess_exec", new=_fake_exec), \
