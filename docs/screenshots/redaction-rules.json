@@ -11,8 +11,27 @@
     ]
   },
   "routes": {
-    "/contacts": { "blur": [] },
-    "/contacts/:id": { "blur": [] },
+    "/contacts": {
+      "blur": [
+        "a[href*='/contacts/']:not([href*='/contacts/new'])",
+        "p.text-xs.text-stone-400",
+        "img.w-8.h-8.rounded-full"
+      ]
+    },
+    "/contacts/:id": {
+      "blur": [
+        "h1.text-xl.font-bold",
+        "img.w-20.h-20.rounded-full",
+        "span.text-xs.font-medium.text-stone-900",
+        "a.text-xs.font-medium.text-teal-600",
+        "span[class*='text-stone-500'][class*='truncate']",
+        "span[class*='text-stone-400'][class*='truncate']",
+        "p.text-\\[13px\\]",
+        ".bg-teal-600.text-white.rounded-2xl",
+        "img.w-8.h-8.rounded-full",
+        "p.text-xs.text-stone-600"
+      ]
+    },
     "/dashboard": { "blur": [] },
     "/identity": { "blur": [] },
     "/map": { "blur": [] },
