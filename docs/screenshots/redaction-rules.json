@@ -32,7 +32,17 @@
         "p.text-xs.text-stone-600"
       ]
     },
-    "/dashboard": { "blur": [] },
+    "/dashboard": {
+      "blur": [
+        "a.text-sm.font-medium.text-stone-900",
+        "p.text-xs.text-stone-500.mt-1.line-clamp-2",
+        "p.text-sm.font-medium.text-stone-900.truncate",
+        "p.text-xs.text-stone-500.truncate",
+        "div.w-8.h-8.text-xs.rounded-full.flex.items-center.justify-center.font-semibold",
+        "img.w-8.h-8.rounded-full.object-cover",
+        "textarea.w-full.text-sm"
+      ]
+    },
     "/identity": { "blur": [] },
     "/map": { "blur": [] },
     "/notifications": { "blur": [] },
