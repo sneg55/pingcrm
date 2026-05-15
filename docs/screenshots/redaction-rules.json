@@ -48,7 +48,12 @@
     "/notifications": { "blur": [] },
     "/organizations": { "blur": [] },
     "/organizations/:id": { "blur": [] },
-    "/settings": { "blur": [] },
+    "/settings": {
+      "blur": [
+        "span.text-teal-600.font-medium.flex.items-center.gap-1",
+        "p.text-xs.text-teal-600"
+      ]
+    },
     "/suggestions": { "blur": [] }
   }
 }
