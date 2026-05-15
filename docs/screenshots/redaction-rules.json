@@ -32,7 +32,8 @@
         "p.text-xs.text-stone-600",
         ".space-y-2 a[target='_blank'][rel*='noopener']",
         ".space-y-2 span.text-stone-700",
-        ".space-y-2 span.text-stone-300"
+        ".space-y-2 span.text-stone-300",
+        "span.text-\\[11px\\].text-violet-600"
       ]
     },
     "/dashboard": {
