@@ -65,7 +65,14 @@
       ]
     },
     "/organizations": { "blur": [] },
-    "/organizations/:id": { "blur": [] },
+    "/organizations/:id": {
+      "blur": [
+        "a[href*='/contacts/'] span.truncate",
+        "a[href*='/contacts/'] img.w-8.h-8.rounded-full",
+        "a[href*='/contacts/'] div.w-8.h-8.rounded-full",
+        "p.text-sm.text-zinc-600.dark\\:text-zinc-400.flex-1"
+      ]
+    },
     "/settings": {
       "blur": [
         "span.text-teal-600.font-medium.flex.items-center.gap-1",
