@@ -7,6 +7,8 @@ title: Notifications
 
 The **Notifications** page (`/notifications`) is the central feed for system events, alerts, and actionable updates. An unread badge in the navbar indicates how many unread notifications are pending.
 
+![Notifications feed](/img/screenshots/notifications/feed.png)
+
 ## Notification Types
 
 PingCRM generates notifications for the following events:
@@ -20,6 +22,8 @@ PingCRM generates notifications for the following events:
 - **Connection expired** -- alerts when a platform OAuth token has expired and needs re-authorization.
 - **Meeting prep re-auth** -- prompts re-authorization when the `gmail.send` scope is needed for pre-meeting prep emails.
 
+![Unread filter tab](/img/screenshots/notifications/filter-unread.png)
+
 ## Actions
 
 - **Mark as read** -- dismiss a single notification.
@@ -31,6 +35,8 @@ PingCRM generates notifications for the following events:
   - Google Contacts/Calendar sync → contacts sorted by recent
   - Connection expired / sync failed → settings (reconnect)
   - Auto-tagging → settings tags tab
+
+![Unread badge in the navbar](/img/screenshots/notifications/navbar-badge.png)
 
 ## Filter Tabs
 

@@ -58,7 +58,12 @@
         "a[href*='/contacts/'] div.truncate.font-medium"
       ]
     },
-    "/notifications": { "blur": [] },
+    "/notifications": {
+      "blur": [
+        ".notif-row p.text-sm.font-semibold.text-stone-900",
+        ".notif-row p.text-sm.text-stone-500"
+      ]
+    },
     "/organizations": { "blur": [] },
     "/organizations/:id": { "blur": [] },
     "/settings": {
