@@ -19,6 +19,8 @@ After installing the extension, open **Settings → Connected accounts** and cli
 
 Cookies refresh automatically whenever X rotates them, as long as you're signed in to x.com in the same browser — the extension listens for cookie changes and re-pushes silently. If you sign out of X or clear cookies, the row shows **X cookies expired** with a **Refresh** button. Click it, sign back in to x.com if prompted, and the connection self-repairs.
 
+![Twitter section in Settings](/img/screenshots/twitter/settings-section.png)
+
 ## DM Sync
 
 Direct message conversations are imported as interactions. Each conversation captures participants, message content, and timestamps. Conversations are deduplicated by Twitter conversation ID. Per-contact sync uses the targeted `/dm_conversations/with/:participant_id` endpoint for efficiency.
@@ -43,6 +45,8 @@ PingCRM periodically checks the Twitter bios of your contacts for changes. When 
 2. A **timeline event** is added to the contact's interaction history, recording the old and new bio text.
 
 Bio changes are a valuable signal for identifying career moves, fundraising activity, and other networking-relevant events.
+
+![Bio change event in the contact timeline](/img/screenshots/twitter/bio-change-timeline.png)
 
 ## Event Classification (On-Demand)
 
