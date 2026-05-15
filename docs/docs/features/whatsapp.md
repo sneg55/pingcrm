@@ -52,8 +52,6 @@ Once connected, the sidecar forwards incoming and outgoing messages to the backe
 ### Initial backfill
 On first connect, PingCRM triggers a 30-day backfill that fetches recent message history from all 1:1 chats. Messages are streamed to the backend in batches of 50 via webhooks.
 
-![WhatsApp messages in a contact's timeline](/img/screenshots/whatsapp/timeline.png)
-
 ### Manual sync
 Trigger a re-sync from Settings > Integrations > WhatsApp > "Sync Messages". This runs the same backfill process.
 
