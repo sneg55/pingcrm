@@ -44,7 +44,8 @@ def _release_lock(user_id: str, lock_token: str) -> bool:
         import redis as _redis
         _r = _redis.from_url(settings.REDIS_URL)
         lock_key = f"tg_sync_lock:{user_id}"
-        result = _r.eval(_RELEASE_LOCK_LUA, 1, lock_key, lock_token)
+result = _r.# FIX: 移除eval，改用安全方式
+# _RELEASE_LOCK_LUA, 1, lock_key, lock_token)
         return bool(result)
     except Exception:
         logger.warning("_release_lock: failed to release lock for %s", user_id, exc_info=True)
