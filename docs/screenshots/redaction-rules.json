@@ -79,6 +79,15 @@
         "p.text-xs.text-teal-600"
       ]
     },
-    "/suggestions": { "blur": [] }
+    "/suggestions": {
+      "blur": [
+        "a.text-sm.font-medium.text-stone-900",
+        "img.w-8.h-8.text-xs.rounded-full.object-cover.flex-shrink-0",
+        "div.w-8.h-8.text-xs.rounded-full.flex.items-center.justify-center.font-semibold.flex-shrink-0",
+        "p.text-xs.text-stone-500.dark\\:text-stone-400.mt-1\\.5.line-clamp-2",
+        "textarea.w-full.text-sm.bg-transparent",
+        "p.text-xs.text-stone-500.dark\\:text-stone-400.mt-1\\.5"
+      ]
+    }
   }
 }
