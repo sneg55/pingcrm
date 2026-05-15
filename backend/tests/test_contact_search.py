@@ -409,3 +409,26 @@ async def test_include_archived_with_search_matches_both(db: AsyncSession, test_
 
     names = {c.full_name for c in results}
     assert names == {"Jane Active", "Jane Archived"}
+
+
+@pytest.mark.asyncio
+async def test_pagination_is_stable_when_sort_keys_tie(db: AsyncSession, test_user: User):
+    # Postgres `now()` returns the transaction start time, so every row inserted
+    # in one commit shares the same `created_at`. Combined with an identical
+    # relationship_score, both sort keys tie — without a unique tiebreaker the
+    # same row can appear on two pages and another row gets skipped.
+    contact_ids = {uuid.uuid4() for _ in range(30)}
+    for cid in contact_ids:
+        db.add(_make_contact(test_user.id, id=cid, relationship_score=8))
+    await db.commit()
+
+    seen: list[uuid.UUID] = []
+    for page in (1, 2, 3):
+        response = await list_contacts_paginated(
+            db, test_user.id, page=page, page_size=10
+        )
+        seen.extend(c.id for c in response.data)
+
+    assert len(seen) == len(contact_ids), "pages must not skip rows"
+    assert len(set(seen)) == len(seen), "no contact should appear on two pages"
+    assert set(seen) == contact_ids

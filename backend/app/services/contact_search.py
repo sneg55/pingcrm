@@ -294,6 +294,9 @@ async def list_contacts_paginated(
     else:
         order_clause = [Contact.relationship_score.desc(), Contact.created_at.desc()]
 
+    # Final tiebreaker on the UUID PK guarantees a total ordering so paginated
+    # queries can't return the same row on two pages when the primary sort ties.
+    order_clause.append(Contact.id.asc())
     order_clause = relevance_prefix + order_clause
 
     offset = (page - 1) * page_size
