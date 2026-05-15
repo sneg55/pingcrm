@@ -1,0 +1,25 @@
+{
+  "version": 1,
+  "global": {
+    "blur": [
+      "[data-pii]",
+      ".contact-name",
+      ".contact-email",
+      "img.avatar",
+      ".avatar img",
+      "img[alt*='avatar' i]"
+    ]
+  },
+  "routes": {
+    "/contacts": { "blur": [] },
+    "/contacts/:id": { "blur": [] },
+    "/dashboard": { "blur": [] },
+    "/identity": { "blur": [] },
+    "/map": { "blur": [] },
+    "/notifications": { "blur": [] },
+    "/organizations": { "blur": [] },
+    "/organizations/:id": { "blur": [] },
+    "/settings": { "blur": [] },
+    "/suggestions": { "blur": [] }
+  }
+}
