@@ -26,7 +26,7 @@ WhatsApp authenticates by linking a new device via QR code:
 2. A QR code appears inline — scan it with your phone (WhatsApp > Settings > Linked Devices > Link a Device).
 3. Once scanned, the session is established and persists across restarts.
 
-![QR code for linking a new WhatsApp device](/img/screenshots/whatsapp/qr-code.png)
+![WhatsApp QR code generation in the Connect dialog](/img/screenshots/whatsapp/qr-code.png)
 
 Sessions can expire if you remove the linked device from your phone or if WhatsApp revokes the session. PingCRM runs a daily health check and notifies you if your session has disconnected.
 
