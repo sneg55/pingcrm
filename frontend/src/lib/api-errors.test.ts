@@ -145,4 +145,11 @@ describe("extractApiError", () => {
     const result = extractApiError(new Error("Boom"));
     expect(result).toEqual({ kind: "plain", message: "Boom" });
   });
+
+  it("falls back to plain when conflicting_contact is null (malformed payload)", () => {
+    const result = extractApiError({ detail: { conflicting_contact: null } });
+    // Should not return kind: 'conflict' with a null conflictingContact (type unsafe).
+    // Fall through to fallback.
+    expect(result?.kind).toBe("plain");
+  });
 });

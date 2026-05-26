@@ -27,6 +27,22 @@ export type ApiError =
   | { kind: "plain"; message: string }
   | { kind: "conflict"; message: string; conflictingContact: ConflictingContact };
 
+/**
+ * Returns a conflict ApiError if `detail` is a well-formed conflict object
+ * (non-null object with a non-null object `conflicting_contact`), otherwise null.
+ */
+function tryExtractConflict(detail: unknown): ApiError | null {
+  if (detail == null || typeof detail !== "object" || Array.isArray(detail)) return null;
+  if (!("conflicting_contact" in detail)) return null;
+  const d = detail as { message?: unknown; conflicting_contact: unknown };
+  if (d.conflicting_contact == null || typeof d.conflicting_contact !== "object") return null;
+  return {
+    kind: "conflict",
+    message: typeof d.message === "string" ? d.message : "Conflict",
+    conflictingContact: d.conflicting_contact as ConflictingContact,
+  };
+}
+
 export function extractApiError(err: unknown): ApiError | null {
   if (err == null) return null;
 
@@ -35,22 +51,8 @@ export function extractApiError(err: unknown): ApiError | null {
     const detail = (err as { detail: unknown }).detail;
 
     // Structured conflict: { detail: { message, conflicting_contact } }
-    if (
-      detail != null &&
-      typeof detail === "object" &&
-      !Array.isArray(detail) &&
-      "conflicting_contact" in detail
-    ) {
-      const d = detail as {
-        message?: unknown;
-        conflicting_contact: ConflictingContact;
-      };
-      return {
-        kind: "conflict",
-        message: typeof d.message === "string" ? d.message : "Conflict",
-        conflictingContact: d.conflicting_contact,
-      };
-    }
+    const conflict = tryExtractConflict(detail);
+    if (conflict) return conflict;
 
     // String detail
     if (typeof detail === "string") {
