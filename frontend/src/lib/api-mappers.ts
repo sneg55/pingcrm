@@ -15,3 +15,9 @@ export function toContactCreateBody(
     priority_level: input.priority_level ?? "medium",
   };
 }
+
+export function toContactUpdateBody(
+  input: Partial<ContactCreateInput>
+): Schemas["ContactUpdate"] {
+  return { ...input };
+}

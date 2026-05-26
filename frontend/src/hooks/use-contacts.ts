@@ -1,7 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { client } from "@/lib/api-client";
 import { extractErrorMessage } from "@/lib/api-errors";
-import { toContactCreateBody } from "@/lib/api-mappers";
+import { toContactCreateBody, toContactUpdateBody } from "@/lib/api-mappers";
 
 export type Contact = {
   id: string;
@@ -191,9 +191,7 @@ export function useUpdateContact() {
     }) => {
       const { data, error, response } = await client.PUT("/api/v1/contacts/{contact_id}", {
         params: { path: { contact_id: id } },
-         
-        // biome-ignore lint/suspicious/noExplicitAny: local ContactCreateInput shape does not match generated ContactUpdate schema exactly
-        body: input as any,
+        body: toContactUpdateBody(input),
       });
       if (error) {
         const err = new Error("Update failed") as Error & { status?: number; detail?: unknown };

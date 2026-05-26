@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { ContactCreateInput } from "@/hooks/use-contacts";
-import { toContactCreateBody } from "@/lib/api-mappers";
+import { toContactCreateBody, toContactUpdateBody } from "@/lib/api-mappers";
 
 describe("toContactCreateBody", () => {
   it("defaults missing emails and phones to empty arrays", () => {
@@ -55,5 +55,33 @@ describe("toContactCreateBody", () => {
     const body = toContactCreateBody(input);
     expect(body.tags).toEqual(["friend", "work"]);
     expect(body.priority_level).toBe("high");
+  });
+});
+
+describe("toContactUpdateBody", () => {
+  it("passes through a partial input unchanged", () => {
+    const input: Partial<ContactCreateInput> = { full_name: "Ada Lovelace" };
+    const body = toContactUpdateBody(input);
+    expect(body).toEqual({ full_name: "Ada Lovelace" });
+  });
+
+  it("preserves empty array fields when explicitly provided", () => {
+    const input: Partial<ContactCreateInput> = { emails: [], phones: [] };
+    const body = toContactUpdateBody(input);
+    expect(body.emails).toEqual([]);
+    expect(body.phones).toEqual([]);
+  });
+
+  it("does not invent fields that were not provided", () => {
+    const input: Partial<ContactCreateInput> = { priority_level: "high" };
+    const body = toContactUpdateBody(input);
+    expect("emails" in body).toBe(false);
+    expect("phones" in body).toBe(false);
+  });
+
+  it("includes organization_id when provided (unlike create body)", () => {
+    const input: Partial<ContactCreateInput> = { organization_id: "org-123" };
+    const body = toContactUpdateBody(input);
+    expect(body.organization_id).toBe("org-123");
   });
 });
