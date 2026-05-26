@@ -68,7 +68,6 @@ export default function ContactDetailPage() {
 
   /* ── Page-level helpers ── */
 
-  // eslint-disable-next-line sonarjs/cognitive-complexity -- saveField branches by field type (name/social/generic) with conflict-merge fallback; refactor tracked separately
   const saveField = async (field: string, value: string | string[]) => {
     const input: Record<string, string | string[]> = { [field]: value };
     if (field === "given_name" || field === "family_name") {
