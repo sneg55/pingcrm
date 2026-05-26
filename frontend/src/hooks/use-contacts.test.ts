@@ -574,7 +574,7 @@ describe("useUpdateContact", () => {
     });
   });
 
-  it("throws structured error with status + detail when API returns error envelope", async () => {
+  it("throws structured error with status + apiError when API returns error envelope", async () => {
     mockClient.PUT.mockResolvedValueOnce({
       data: null,
       error: { detail: { conflicting_contact: { id: "other" } } },
