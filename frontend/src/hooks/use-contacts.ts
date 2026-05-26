@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { client } from "@/lib/api-client";
-import { extractErrorMessage } from "@/lib/api-errors";
+import { extractApiError, type ApiError, extractErrorMessage } from "@/lib/api-errors";
 import { toContactCreateBody, toContactUpdateBody } from "@/lib/api-mappers";
 
 export type Contact = {
@@ -194,10 +194,13 @@ export function useUpdateContact() {
         body: toContactUpdateBody(input),
       });
       if (error) {
-        const err = new Error("Update failed") as Error & { status?: number; detail?: unknown };
+        const apiError = extractApiError(error) ?? { kind: "plain" as const, message: "Update failed" };
+        const err = new Error(apiError.message) as Error & {
+          status?: number;
+          apiError: ApiError;
+        };
         err.status = response.status;
-        // Preserve full structured detail (may include `conflicting_contact` for merge flows).
-        err.detail = (error as { detail?: unknown }).detail;
+        err.apiError = apiError;
         throw err;
       }
       return data;

@@ -6,6 +6,7 @@ import Link from "next/link";
 import { ChevronDown, Sparkles, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useMergeContacts } from "@/hooks/use-contacts";
+import type { ApiError } from "@/lib/api-errors";
 import { useContactDetailController } from "./_hooks/use-contact-detail-controller";
 import { HeaderCard } from "./_components/header-card";
 import { MessageComposerCard } from "./_components/message-composer-card";
@@ -81,12 +82,9 @@ export default function ContactDetailPage() {
       try {
         await ctrl.updateContact.mutateAsync({ id, input });
       } catch (err: unknown) {
-        const detail = (err as { detail?: unknown }).detail;
-        const conflicting =
-          detail && typeof detail === "object" && "conflicting_contact" in detail
-            ? (detail as { conflicting_contact?: { id?: string; full_name?: string | null } }).conflicting_contact
-            : undefined;
-        if (conflicting?.id) {
+        const apiError = (err as Error & { apiError?: ApiError }).apiError;
+        if (apiError?.kind === "conflict") {
+          const conflicting = apiError.conflictingContact;
           const conflictingId = conflicting.id;
           const platformLabel = field === "telegram_username" ? "Telegram username" : "Twitter handle";
           ctrl.setToast({

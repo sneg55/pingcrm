@@ -598,9 +598,13 @@ describe("useUpdateContact", () => {
     });
 
     expect(caught).toBeInstanceOf(Error);
-    const err = caught as Error & { status?: number; detail?: unknown };
-    expect(err.message).toBe("Update failed");
+    const err = caught as Error & { status?: number; apiError?: unknown };
+    expect(err.message).toBe("Conflict");
     expect(err.status).toBe(409);
-    expect(err.detail).toEqual({ conflicting_contact: { id: "other" } });
+    expect(err.apiError).toEqual({
+      kind: "conflict",
+      message: "Conflict",
+      conflictingContact: { id: "other" },
+    });
   });
 });
