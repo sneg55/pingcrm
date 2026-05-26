@@ -1,18 +1,11 @@
 "use client";
 
 import { useState, useRef, useEffect } from "react";
-import { createPortal } from "react-dom";
 import {
   Archive,
   ArchiveRestore,
-  ArrowUpCircle,
   MessageCircle,
-  MoreVertical,
-  RefreshCw,
-  Sparkles,
-  Trash2,
   Twitter,
-  Wand2,
   X,
 } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
@@ -20,6 +13,8 @@ import { cn } from "@/lib/utils";
 import { client } from "@/lib/api-client";
 import type { Contact } from "@/hooks/use-contacts";
 import { scorePillClasses, avatarColor, getInitials } from "../_lib/formatters";
+import { HeaderActionsMenu } from "./header-actions-menu";
+import { AvatarModal } from "./avatar-modal";
 
 /* ── Tags pills ── */
 
@@ -127,6 +122,35 @@ function TagsPills({
   );
 }
 
+/* ── Bio lines ── */
+
+function ContactBios({ contact }: { contact: Contact }) {
+  if (contact.twitter_bio) {
+    return (
+      <div className="flex items-start gap-2">
+        <Twitter className="w-3.5 h-3.5 text-stone-400 dark:text-stone-500 mt-0.5 shrink-0" />
+        <p className="text-xs text-stone-600 dark:text-stone-300 leading-relaxed">{contact.twitter_bio}</p>
+      </div>
+    );
+  }
+  if (contact.telegram_bio) {
+    return (
+      <div className="flex items-start gap-2">
+        <MessageCircle className="w-3.5 h-3.5 text-sky-400 mt-0.5 shrink-0" />
+        <p className="text-xs text-stone-600 dark:text-stone-300 leading-relaxed">{contact.telegram_bio}</p>
+      </div>
+    );
+  }
+  if (contact.title || contact.company) {
+    return (
+      <p className="text-xs text-stone-500 dark:text-stone-400">
+        {[contact.title, contact.company].filter(Boolean).join(" at ")}
+      </p>
+    );
+  }
+  return null;
+}
+
 /* ── Header Card ── */
 
 export function HeaderCard({
@@ -160,20 +184,6 @@ export function HeaderCard({
   onPromote?: () => void;
   isPromoting?: boolean;
 }) {
-  const [menuOpen, setMenuOpen] = useState(false);
-  const [showAvatarModal, setShowAvatarModal] = useState(false);
-  const menuRef = useRef<HTMLDivElement>(null);
-
-  // Close avatar modal on Escape
-  useEffect(() => {
-    if (!showAvatarModal) return;
-    const handler = (e: KeyboardEvent) => {
-      if (e.key === "Escape") setShowAvatarModal(false);
-    };
-    document.addEventListener("keydown", handler);
-    return () => document.removeEventListener("keydown", handler);
-  }, [showAvatarModal]);
-
   // Fetch follow-up intervals from settings for tooltip display
   const { data: priorityData } = useQuery({
     queryKey: ["settings", "priority"],
@@ -184,14 +194,6 @@ export function HeaderCard({
     staleTime: 5 * 60 * 1000,
   });
   const intervals = { high: priorityData?.high ?? 30, medium: priorityData?.medium ?? 60, low: priorityData?.low ?? 180 };
-
-  useEffect(() => {
-    function handleClick(e: MouseEvent) {
-      if (menuRef.current && !menuRef.current.contains(e.target as Node)) setMenuOpen(false);
-    }
-    if (menuOpen) document.addEventListener("mousedown", handleClick);
-    return () => document.removeEventListener("mousedown", handleClick);
-  }, [menuOpen]);
 
   const displayName =
     contact.full_name ??
@@ -204,23 +206,12 @@ export function HeaderCard({
   );
 
   return (
-    <>
     <div className="bg-white dark:bg-stone-900 rounded-xl border border-stone-200 dark:border-stone-700 p-6 mb-6">
       <div className="flex items-start gap-6">
         {/* Avatar */}
         <div className="shrink-0">
           {contact.avatar_url ? (
-            <button
-              onClick={() => setShowAvatarModal(true)}
-              className="cursor-zoom-in"
-              title="View full photo"
-            >
-              <img
-                src={contact.avatar_url}
-                alt={displayName}
-                className="w-20 h-20 rounded-full object-cover hover:ring-2 hover:ring-teal-400 transition-all"
-              />
-            </button>
+            <AvatarModal avatarUrl={contact.avatar_url} displayName={displayName} />
           ) : (
             <div
               className={cn(
@@ -257,25 +248,7 @@ export function HeaderCard({
 
           {/* Bios */}
           <div className="space-y-1.5 mb-4">
-            {contact.twitter_bio && (
-              <div className="flex items-start gap-2">
-                <Twitter className="w-3.5 h-3.5 text-stone-400 dark:text-stone-500 mt-0.5 shrink-0" />
-                <p className="text-xs text-stone-600 dark:text-stone-300 leading-relaxed">{contact.twitter_bio}</p>
-              </div>
-            )}
-            {contact.telegram_bio && (
-              <div className="flex items-start gap-2">
-                <MessageCircle className="w-3.5 h-3.5 text-sky-400 mt-0.5 shrink-0" />
-                <p className="text-xs text-stone-600 dark:text-stone-300 leading-relaxed">{contact.telegram_bio}</p>
-              </div>
-            )}
-            {!contact.twitter_bio &&
-              !contact.telegram_bio &&
-              (contact.title || contact.company) && (
-                <p className="text-xs text-stone-500 dark:text-stone-400">
-                  {[contact.title, contact.company].filter(Boolean).join(" at ")}
-                </p>
-              )}
+            <ContactBios contact={contact} />
           </div>
 
           {/* Tags */}
@@ -292,7 +265,7 @@ export function HeaderCard({
           <div className="flex items-center rounded-lg border border-stone-200 dark:border-stone-700 overflow-hidden">
             {[
               { level: "high", emoji: "\u{1F525}", colors: "bg-red-50 dark:bg-red-950 text-red-600", tooltip: `High priority — follow up every ${intervals.high} days` },
-              { level: "medium", emoji: "\u26A1", colors: "bg-amber-50 dark:bg-amber-950 text-amber-600", tooltip: `Medium priority — follow up every ${intervals.medium} days` },
+              { level: "medium", emoji: "⚡", colors: "bg-amber-50 dark:bg-amber-950 text-amber-600", tooltip: `Medium priority — follow up every ${intervals.medium} days` },
               { level: "low", emoji: "\u{1F4A4}", colors: "bg-sky-50 dark:bg-sky-950 text-sky-600", tooltip: `Low priority — follow up every ${intervals.low} days` },
             ].map(({ level, emoji, colors, tooltip }, i) => (
               <button
@@ -330,112 +303,21 @@ export function HeaderCard({
           )}
 
           {/* Kebab menu */}
-          <div className="relative" ref={menuRef}>
-            <button
-              onClick={() => setMenuOpen((v) => !v)}
-              className="btn-press p-2 rounded-lg text-stone-400 dark:text-stone-500 hover:bg-stone-100 dark:hover:bg-stone-800 transition-colors"
-              title="More actions"
-            >
-              <MoreVertical className="w-4 h-4" />
-            </button>
-            {menuOpen && (
-              <div className="menu-enter absolute right-0 top-full mt-1 w-52 bg-white dark:bg-stone-900 rounded-lg border border-stone-200 dark:border-stone-700 shadow-lg py-1 z-50">
-                <button
-                  onClick={() => {
-                    setMenuOpen(false);
-                    onRefreshDetails();
-                  }}
-                  disabled={isRefreshing}
-                  className="w-full flex items-center gap-2.5 px-3 py-2 text-sm text-stone-700 dark:text-stone-300 hover:bg-stone-50 dark:hover:bg-stone-800 disabled:opacity-50"
-                >
-                  <RefreshCw
-                    className={cn("w-4 h-4 text-stone-400 dark:text-stone-500", isRefreshing && "animate-spin")}
-                  />
-                  {isRefreshing ? "Refreshing..." : "Refresh details"}
-                </button>
-                <button
-                  onClick={() => {
-                    setMenuOpen(false);
-                    onEnrich();
-                  }}
-                  disabled={isEnriching || (!contact.emails?.length && !contact.linkedin_url)}
-                  className="w-full flex items-center gap-2.5 px-3 py-2 text-sm text-stone-700 dark:text-stone-300 hover:bg-stone-50 dark:hover:bg-stone-800 disabled:opacity-50"
-                >
-                  <Sparkles
-                    className={cn("w-4 h-4 text-amber-500", isEnriching && "animate-spin")}
-                  />
-                  {isEnriching ? "Enriching..." : "Enrich with Apollo"}
-                </button>
-                <button
-                  onClick={() => {
-                    setMenuOpen(false);
-                    onAutoTag();
-                  }}
-                  disabled={isAutoTagging}
-                  className="w-full flex items-center gap-2.5 px-3 py-2 text-sm text-stone-700 dark:text-stone-300 hover:bg-stone-50 dark:hover:bg-stone-800 disabled:opacity-50"
-                >
-                  <Wand2
-                    className={cn("w-4 h-4 text-violet-500", isAutoTagging && "animate-spin")}
-                  />
-                  {isAutoTagging ? "Tagging..." : "Auto-tag with AI"}
-                </button>
-                {is2ndTier && onPromote && (
-                  <button
-                    onClick={() => {
-                      setMenuOpen(false);
-                      onPromote();
-                    }}
-                    disabled={isPromoting}
-                    className="w-full flex items-center gap-2.5 px-3 py-2 text-sm text-teal-600 dark:text-teal-400 hover:bg-teal-50 dark:hover:bg-teal-950 disabled:opacity-50"
-                  >
-                    <ArrowUpCircle className="w-4 h-4" />
-                    {isPromoting ? "Promoting..." : "Promote to 1st Tier"}
-                  </button>
-                )}
-                <div className="my-1 h-px bg-stone-100 dark:bg-stone-800" />
-                <button
-                  onClick={() => {
-                    setMenuOpen(false);
-                    onShowDeleteConfirm();
-                  }}
-                  className="w-full flex items-center gap-2.5 px-3 py-2 text-sm text-red-600 hover:bg-red-50 dark:hover:bg-red-950"
-                >
-                  <Trash2 className="w-4 h-4" /> Delete contact
-                </button>
-              </div>
-            )}
-          </div>
+          <HeaderActionsMenu
+            contact={contact}
+            isRefreshing={isRefreshing}
+            isEnriching={isEnriching}
+            isAutoTagging={isAutoTagging}
+            is2ndTier={is2ndTier}
+            isPromoting={isPromoting}
+            onRefreshDetails={onRefreshDetails}
+            onEnrich={onEnrich}
+            onAutoTag={onAutoTag}
+            onShowDeleteConfirm={onShowDeleteConfirm}
+            onPromote={onPromote}
+          />
         </div>
       </div>
     </div>
-
-    {/* Full-size avatar modal — portal to body so it's above the sticky navbar */}
-    {showAvatarModal && contact.avatar_url && createPortal(
-      <div
-        className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60"
-        onClick={() => setShowAvatarModal(false)}
-      >
-        <div
-          className="relative bg-white dark:bg-stone-900 rounded-2xl shadow-2xl p-6 max-w-lg w-full mx-4"
-          onClick={(e) => e.stopPropagation()}
-        >
-          <button
-            onClick={() => setShowAvatarModal(false)}
-            className="absolute top-3 right-3 p-1.5 rounded-full text-stone-400 hover:text-stone-600 hover:bg-stone-100 dark:text-stone-500 dark:hover:text-stone-300 dark:hover:bg-stone-800 transition-colors"
-          >
-            <X className="w-5 h-5" />
-          </button>
-          <img
-            src={contact.avatar_url}
-            alt={displayName}
-            className="w-full rounded-xl object-contain"
-          />
-          <p className="text-center text-sm font-medium text-stone-700 dark:text-stone-300 mt-3">{displayName}</p>
-        </div>
-      </div>,
-      document.body
-
-    )}
-    </>
   );
 }
