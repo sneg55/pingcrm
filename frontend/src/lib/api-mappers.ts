@@ -32,3 +32,20 @@ export function toSuggestionUpdateBody(
 ): Schemas["SuggestionUpdateBody"] {
   return { ...input };
 }
+
+export type OrganizationUpdateInput = {
+  name?: string | null;
+  domain?: string | null;
+  industry?: string | null;
+  location?: string | null;
+  website?: string | null;
+  linkedin_url?: string | null;
+  twitter_handle?: string | null;
+  notes?: string | null;
+};
+
+export function toOrgUpdateBody(
+  input: OrganizationUpdateInput
+): Schemas["OrganizationUpdate"] {
+  return { ...input };
+}

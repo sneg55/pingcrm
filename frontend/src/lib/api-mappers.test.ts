@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { ContactCreateInput } from "@/hooks/use-contacts";
-import { toContactCreateBody, toContactUpdateBody, toSuggestionUpdateBody } from "@/lib/api-mappers";
+import { toContactCreateBody, toContactUpdateBody, toSuggestionUpdateBody, toOrgUpdateBody, type OrganizationUpdateInput } from "@/lib/api-mappers";
 
 describe("toContactCreateBody", () => {
   it("defaults missing emails and phones to empty arrays", () => {
@@ -109,5 +109,30 @@ describe("toSuggestionUpdateBody", () => {
     expect("snooze_until" in body).toBe(false);
     expect("suggested_message" in body).toBe(false);
     expect("suggested_channel" in body).toBe(false);
+  });
+});
+
+describe("toOrgUpdateBody", () => {
+  it("passes through whitelisted fields", () => {
+    const input: OrganizationUpdateInput = {
+      name: "Acme",
+      domain: "acme.com",
+      notes: "Big customer",
+    };
+    const body = toOrgUpdateBody(input);
+    expect(body).toEqual({ name: "Acme", domain: "acme.com", notes: "Big customer" });
+  });
+
+  it("preserves null values (clearing a field)", () => {
+    const input: OrganizationUpdateInput = { website: null };
+    const body = toOrgUpdateBody(input);
+    expect(body.website).toBeNull();
+  });
+
+  it("omits unset optional fields", () => {
+    const input: OrganizationUpdateInput = { name: "Acme" };
+    const body = toOrgUpdateBody(input);
+    expect("domain" in body).toBe(false);
+    expect("notes" in body).toBe(false);
   });
 });
