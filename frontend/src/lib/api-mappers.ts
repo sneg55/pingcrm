@@ -1,5 +1,6 @@
 import type { components } from "./api-types";
 import type { ContactCreateInput } from "@/hooks/use-contacts";
+import type { UpdateSuggestionInput } from "@/hooks/use-suggestions";
 
 type Schemas = components["schemas"];
 
@@ -19,5 +20,15 @@ export function toContactCreateBody(
 export function toContactUpdateBody(
   input: Partial<ContactCreateInput>
 ): Schemas["ContactUpdate"] {
+  return { ...input };
+}
+
+export type SuggestionUpdateInput = UpdateSuggestionInput & {
+  status: NonNullable<UpdateSuggestionInput["status"]>;
+};
+
+export function toSuggestionUpdateBody(
+  input: SuggestionUpdateInput
+): Schemas["SuggestionUpdateBody"] {
   return { ...input };
 }

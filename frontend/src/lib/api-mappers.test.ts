@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { ContactCreateInput } from "@/hooks/use-contacts";
-import { toContactCreateBody, toContactUpdateBody } from "@/lib/api-mappers";
+import { toContactCreateBody, toContactUpdateBody, toSuggestionUpdateBody } from "@/lib/api-mappers";
 
 describe("toContactCreateBody", () => {
   it("defaults missing emails and phones to empty arrays", () => {
@@ -83,5 +83,31 @@ describe("toContactUpdateBody", () => {
     const input: Partial<ContactCreateInput> = { organization_id: "org-123" };
     const body = toContactUpdateBody(input);
     expect(body.organization_id).toBe("org-123");
+  });
+});
+
+describe("toSuggestionUpdateBody", () => {
+  it("requires status (compile-time) and passes it through", () => {
+    const body = toSuggestionUpdateBody({ status: "sent" });
+    expect(body.status).toBe("sent");
+  });
+
+  it("preserves optional fields when provided", () => {
+    const body = toSuggestionUpdateBody({
+      status: "snoozed",
+      snooze_until: "2026-06-01T00:00:00Z",
+      suggested_message: "Catch up soon?",
+      suggested_channel: "email",
+    });
+    expect(body.snooze_until).toBe("2026-06-01T00:00:00Z");
+    expect(body.suggested_message).toBe("Catch up soon?");
+    expect(body.suggested_channel).toBe("email");
+  });
+
+  it("omits unset optional fields", () => {
+    const body = toSuggestionUpdateBody({ status: "dismissed" });
+    expect("snooze_until" in body).toBe(false);
+    expect("suggested_message" in body).toBe(false);
+    expect("suggested_channel" in body).toBe(false);
   });
 });
