@@ -125,30 +125,27 @@ function TagsPills({
 /* ── Bio lines ── */
 
 function ContactBios({ contact }: { contact: Contact }) {
-  if (contact.twitter_bio) {
-    return (
-      <div className="flex items-start gap-2">
-        <Twitter className="w-3.5 h-3.5 text-stone-400 dark:text-stone-500 mt-0.5 shrink-0" />
-        <p className="text-xs text-stone-600 dark:text-stone-300 leading-relaxed">{contact.twitter_bio}</p>
-      </div>
-    );
-  }
-  if (contact.telegram_bio) {
-    return (
-      <div className="flex items-start gap-2">
-        <MessageCircle className="w-3.5 h-3.5 text-sky-400 mt-0.5 shrink-0" />
-        <p className="text-xs text-stone-600 dark:text-stone-300 leading-relaxed">{contact.telegram_bio}</p>
-      </div>
-    );
-  }
-  if (contact.title || contact.company) {
-    return (
-      <p className="text-xs text-stone-500 dark:text-stone-400">
-        {[contact.title, contact.company].filter(Boolean).join(" at ")}
-      </p>
-    );
-  }
-  return null;
+  return (
+    <>
+      {contact.twitter_bio && (
+        <div className="flex items-start gap-2">
+          <Twitter className="w-3.5 h-3.5 text-stone-400 dark:text-stone-500 mt-0.5 shrink-0" />
+          <p className="text-xs text-stone-600 dark:text-stone-300 leading-relaxed">{contact.twitter_bio}</p>
+        </div>
+      )}
+      {contact.telegram_bio && (
+        <div className="flex items-start gap-2">
+          <MessageCircle className="w-3.5 h-3.5 text-sky-400 mt-0.5 shrink-0" />
+          <p className="text-xs text-stone-600 dark:text-stone-300 leading-relaxed">{contact.telegram_bio}</p>
+        </div>
+      )}
+      {!contact.twitter_bio && !contact.telegram_bio && (contact.title || contact.company) && (
+        <p className="text-xs text-stone-500 dark:text-stone-400">
+          {[contact.title, contact.company].filter(Boolean).join(" at ")}
+        </p>
+      )}
+    </>
+  );
 }
 
 /* ── Header Card ── */
