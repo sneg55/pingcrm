@@ -314,7 +314,13 @@ describe("useCreateContact", () => {
     });
 
     expect(mockClient.POST).toHaveBeenCalledWith("/api/v1/contacts", {
-      body: { full_name: "Bob" },
+      body: {
+        full_name: "Bob",
+        emails: [],
+        phones: [],
+        tags: [],
+        priority_level: "medium",
+      },
     });
     expect(returned).toEqual(created);
   });
