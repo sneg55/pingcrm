@@ -9,28 +9,22 @@ import {
   MessageCircle,
   MessageSquare,
   Pencil,
-  Phone,
-  Sparkles,
   StickyNote,
   Trash2,
   Twitter,
-  Video,
 } from "lucide-react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { cn } from "@/lib/utils";
 import { client } from "@/lib/api-client";
 import { extractErrorMessage } from "@/lib/api-errors";
-import {
-  dateSeparatorLabel,
-  needsSeparator,
-  platformLabel,
- avatarColor, getInitials } from "../_lib/formatters";
+import { avatarColor, getInitials } from "../_lib/formatters";
 import { Linkify } from "./linkify";
 import type { InteractionResponse } from "../_hooks/use-contact-detail-controller";
+import { TimelineItem } from "./timeline-item";
 
 const MSG_TRUNCATE_LEN = 400;
 
-function CollapsibleText({
+export function CollapsibleText({
   text,
   linkClassName,
 }: {
@@ -59,7 +53,7 @@ function CollapsibleText({
 
 const TIMELINE_PAGE_SIZE = 50;
 
-const platformIconMap: Record<string, React.ReactNode> = {
+export const platformIconMap: Record<string, React.ReactNode> = {
   email: <Mail className="w-3 h-3 text-red-400" />,
   telegram: <MessageCircle className="w-3 h-3 text-sky-400" />,
   twitter: <Twitter className="w-3 h-3 text-stone-400" />,
@@ -68,7 +62,7 @@ const platformIconMap: Record<string, React.ReactNode> = {
   whatsapp: <MessageSquare className="w-3 h-3 text-green-500" />,
 };
 
-function NoteItem({
+export function NoteItem({
   item,
   contactId,
 }: {
@@ -223,163 +217,16 @@ export function ChatTimeline({
 
   return (
     <div className="bg-white dark:bg-stone-900 rounded-xl border border-stone-200 dark:border-stone-700 p-4 space-y-1">
-      {visible.map((item, idx) => {
-        const prevItem = idx > 0 ? visible[idx - 1] : null;
-        const showSeparator = needsSeparator(item.occurred_at, prevItem?.occurred_at ?? null);
-        const isManual = item.platform === "manual";
-        const isMeeting = item.platform === "meeting";
-        const isCall =
-          item.content_preview?.startsWith("Phone call") === true ||
-          item.content_preview?.startsWith("Video call") === true;
-        const isVideoCall = item.content_preview?.startsWith("Video call") === true;
-        const isEvent = item.direction === "event";
-        const isOutbound = item.direction === "outbound";
-        const time = format(new Date(item.occurred_at), "h:mm a");
-
-        return (
-          <div key={item.id}>
-            {/* Date separator */}
-            {showSeparator && (
-              <div className="flex items-center gap-3 py-2 mt-1">
-                <div className="flex-1 h-px bg-stone-100 dark:bg-stone-800" />
-                <span className="text-[10px] font-medium text-stone-400 dark:text-stone-500 uppercase tracking-wider">
-                  {dateSeparatorLabel(item.occurred_at)}
-                </span>
-                <div className="flex-1 h-px bg-stone-100 dark:bg-stone-800" />
-              </div>
-            )}
-
-            {/* Note */}
-            {isManual && <NoteItem item={item} contactId={contactId} />}
-
-            {/* Meeting event */}
-            {isMeeting && (
-              <div className="flex justify-center py-1">
-                <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-stone-50 dark:bg-stone-800 border border-stone-100 dark:border-stone-700">
-                  <Calendar className="w-3.5 h-3.5 text-teal-500" />
-                  <span className="text-[11px] text-stone-500 dark:text-stone-400">
-                    Meeting{item.content_preview ? ` · ${item.content_preview}` : ""}
-                  </span>
-                </div>
-              </div>
-            )}
-
-            {/* Call event */}
-            {isCall && !isMeeting && !isEvent && (
-              <div className="flex justify-center py-1">
-                <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-stone-50 dark:bg-stone-800 border border-stone-100 dark:border-stone-700">
-                  {isVideoCall ? (
-                    <Video className="w-3.5 h-3.5 text-teal-500" />
-                  ) : (
-                    <Phone className="w-3.5 h-3.5 text-teal-500" />
-                  )}
-                  <span className="text-[11px] text-stone-500 dark:text-stone-400">
-                    {(() => {
-                      const preview = item.content_preview ?? "";
-                      const label = isVideoCall ? "Video Call" : "Call";
-                      // Extract duration if present, e.g. "Phone call · 12 min"
-                      const afterPrefix = isVideoCall
-                        ? preview.slice("Video call".length)
-                        : preview.slice("Phone call".length);
-                      const duration = afterPrefix.replace(/^[\s·\-:]+/, "").trim();
-                      return duration ? `${label} · ${duration}` : label;
-                    })()}
-                  </span>
-                </div>
-              </div>
-            )}
-
-            {/* Event (bio change, etc.) */}
-            {isEvent && (
-              <div className="flex justify-center py-1">
-                <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-violet-50 border border-violet-100">
-                  {platformIconMap[item.platform] ?? (
-                    <Sparkles className="w-3.5 h-3.5 text-violet-500" />
-                  )}
-                  <span className="text-[11px] text-violet-600">
-                    {item.content_preview || "Profile updated"}
-                  </span>
-                  <span className="text-[10px] text-stone-400 dark:text-stone-500">
-                    &middot; {format(new Date(item.occurred_at), "MMM d")}
-                  </span>
-                </div>
-              </div>
-            )}
-
-            {/* Regular message */}
-            {!isManual && !isMeeting && !isCall && !isEvent &&
-              (isOutbound ? (
-                <div className="flex items-end gap-2 max-w-[85%] ml-auto flex-row-reverse">
-                  <div className="w-6 h-6 rounded-full bg-teal-100 dark:bg-teal-900 text-teal-700 dark:text-teal-300 flex items-center justify-center text-[10px] font-semibold shrink-0">
-                    You
-                  </div>
-                  <div>
-                    <div className="bg-teal-600 text-white rounded-2xl rounded-br-md px-3.5 py-2.5">
-                      {item.content_preview && (
-                        <p className="text-[13px] leading-relaxed">
-                          <CollapsibleText
-                            text={item.content_preview}
-                            linkClassName="text-teal-100 hover:text-white"
-                          />
-                        </p>
-                      )}
-                    </div>
-                    <div className="flex items-center gap-1.5 mt-1 mr-1 justify-end">
-                      {/* Read receipt indicator — only for outbound telegram messages */}
-                      {isOutbound && item.platform === "telegram" && item.is_read_by_recipient != null && (
-                        <span
-                          className={cn(
-                            "text-[10px]",
-                            item.is_read_by_recipient
-                              ? "text-teal-400 dark:text-teal-500"
-                              : "text-stone-300 dark:text-stone-600"
-                          )}
-                          aria-label={item.is_read_by_recipient ? "Read by recipient" : "Delivered, not yet read"}
-                          title={item.is_read_by_recipient ? "Read" : "Delivered"}
-                        >
-                          {item.is_read_by_recipient ? "✓✓" : "✓"}
-                        </span>
-                      )}
-                      <span className="text-[10px] text-stone-400 dark:text-stone-500">
-                        {time} &middot; {platformLabel(item.platform)}
-                      </span>
-                      {platformIconMap[item.platform]}
-                    </div>
-                  </div>
-                </div>
-              ) : (
-                <div className="flex items-end gap-2 max-w-[85%]">
-                  <div
-                    className={cn(
-                      "w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-semibold shrink-0",
-                      contactAvatarCls
-                    )}
-                  >
-                    {initials}
-                  </div>
-                  <div>
-                    <div className="bg-stone-100 dark:bg-stone-800 rounded-2xl rounded-bl-md px-3.5 py-2.5">
-                      {item.content_preview && (
-                        <p className="text-[13px] text-stone-800 dark:text-stone-200 leading-relaxed">
-                          <CollapsibleText
-                            text={item.content_preview}
-                            linkClassName="text-teal-600 dark:text-teal-400 hover:text-teal-800 dark:hover:text-teal-300"
-                          />
-                        </p>
-                      )}
-                    </div>
-                    <div className="flex items-center gap-1.5 mt-1 ml-1">
-                      {platformIconMap[item.platform]}
-                      <span className="text-[10px] text-stone-400 dark:text-stone-500">
-                        {platformLabel(item.platform)} &middot; {time}
-                      </span>
-                    </div>
-                  </div>
-                </div>
-              ))}
-          </div>
-        );
-      })}
+      {visible.map((item, idx) => (
+        <TimelineItem
+          key={item.id}
+          item={item}
+          prevOccurredAt={idx > 0 ? (visible[idx - 1]?.occurred_at ?? null) : null}
+          contactId={contactId}
+          contactAvatarCls={contactAvatarCls}
+          initials={initials}
+        />
+      ))}
 
       {hasMore && (
         <button
