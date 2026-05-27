@@ -6,120 +6,22 @@ import {
   Users,
   HeartPulse,
   MessageCircle,
-  Mail,
   Twitter,
-  Sparkles,
   Plug,
 } from "lucide-react";
-import { formatDistanceToNow } from "date-fns";
-import { ContactAvatar } from "@/components/contact-avatar";
 import { AnimatedNumber } from "@/components/animated-number";
-import { ScoreBadge } from "@/components/score-badge";
 import {
   useDashboardStats,
-  type OverdueContact,
-  type ActivityEvent,
 } from "@/hooks/use-dashboard";
 
-import { DashboardSuggestionCard } from "./_components/suggestion-card";
+import { PendingFollowUpsWidget } from "./_components/pending-followups-widget";
+import { RecentActivityWidget } from "./_components/recent-activity-widget";
+import { NeedsAttentionWidget } from "./_components/needs-attention-widget";
 
-
-// ---------------------------------------------------------------------------
-// Activity timeline icons
-// ---------------------------------------------------------------------------
-const platformStyles: Record<string, { bg: string; icon: ReactNode }> = {
-  telegram: {
-    bg: "bg-sky-100 dark:bg-sky-900",
-    icon: <MessageCircle className="w-3.5 h-3.5 text-sky-600 dark:text-sky-400" />,
-  },
-  email: {
-    bg: "bg-red-100 dark:bg-red-900",
-    icon: <Mail className="w-3.5 h-3.5 text-red-500 dark:text-red-400" />,
-  },
-  twitter: {
-    bg: "bg-stone-100 dark:bg-stone-800",
-    icon: <Twitter className="w-3.5 h-3.5 text-stone-500 dark:text-stone-400" />,
-  },
-};
-
-function ActivityItem({ event }: { event: ActivityEvent }) {
-  const style = platformStyles[event.platform] ?? platformStyles.email;
-  const dirLabel = event.direction === "inbound" ? "from" : "to";
-  return (
-    <Link
-      href={`/contacts/${event.contact_id}`}
-      className="card-hover flex items-center gap-3 bg-white dark:bg-stone-900 rounded-xl border border-stone-200 dark:border-stone-700 p-3.5 hover:border-stone-300 dark:hover:border-stone-600 transition-colors overflow-hidden"
-    >
-      <ContactAvatar
-        avatarUrl={event.contact_avatar_url}
-        name={event.contact_name || "?"}
-        size="sm"
-      />
-      <div className="flex-1 min-w-0">
-        <p className="text-sm font-medium text-stone-900 dark:text-stone-100 truncate">
-          {event.contact_name}
-        </p>
-        <p className="text-xs text-stone-500 dark:text-stone-400 truncate">
-          {event.content_preview || `${event.platform} ${dirLabel === "from" ? "message received" : "message sent"}`}
-        </p>
-      </div>
-      <div className="flex flex-col items-end shrink-0 gap-1">
-        <div className={`w-6 h-6 rounded-full ${style.bg} flex items-center justify-center`}>
-          {style.icon}
-        </div>
-        <span className="text-[10px] text-stone-400 dark:text-stone-500">
-          {formatDistanceToNow(new Date(event.timestamp), { addSuffix: true })}
-        </span>
-      </div>
-    </Link>
-  );
-}
-
-// ---------------------------------------------------------------------------
-// Overdue contact row
-// ---------------------------------------------------------------------------
-function OverdueRow({ contact }: { contact: OverdueContact }) {
-  const name =
-    contact.full_name ??
-    ([contact.given_name, contact.family_name].filter(Boolean).join(" ") || "Unnamed");
-  const daysLabel =
-    contact.days_overdue <= 0
-      ? "due today"
-      : `${contact.days_overdue}d overdue`;
-  const isUrgent = contact.days_overdue > 5;
-
-  return (
-    <Link
-      href={`/contacts/${contact.id}`}
-      className="card-hover flex items-center gap-3 hover:bg-stone-50 dark:hover:bg-stone-800 rounded-md p-1 -mx-1 transition-colors"
-    >
-      <ContactAvatar
-        avatarUrl={contact.avatar_url}
-        name={name}
-        size="xs"
-      />
-      <div className="flex-1 min-w-0">
-        <p className="text-sm font-medium text-stone-900 dark:text-stone-100 truncate">{name}</p>
-        <p className="text-xs text-stone-400 dark:text-stone-500">
-          {contact.last_interaction_at
-            ? `${formatDistanceToNow(new Date(contact.last_interaction_at))} since last contact`
-            : "No interactions"}
-        </p>
-      </div>
-      <div className="flex items-center gap-1 shrink-0">
-        <span className={`w-1.5 h-1.5 rounded-full ${isUrgent ? "bg-red-400" : "bg-amber-400"}`} />
-        <span className={`text-[11px] font-mono ${isUrgent ? "text-red-600 dark:text-red-400" : "text-amber-600 dark:text-amber-400"}`}>
-          {daysLabel}
-        </span>
-      </div>
-    </Link>
-  );
-}
 
 // ---------------------------------------------------------------------------
 // Dashboard Page
 // ---------------------------------------------------------------------------
-// eslint-disable-next-line sonarjs/cognitive-complexity -- top-level page composes many widgets with conditional loading/empty states; refactor tracked separately
 export default function DashboardPage() {
   const { suggestions, stats, statsReady, overdueContacts, recentActivity, isLoading } =
     useDashboardStats();
@@ -251,114 +153,21 @@ export default function DashboardPage() {
           <div className="grid grid-cols-1 lg:grid-cols-5 gap-4 lg:gap-6">
             {/* LEFT 3/5: Pending Follow-ups + Recent Activity */}
             <div className="lg:col-span-3 space-y-6">
-              {/* Pending Follow-ups */}
-              <div className="animate-in stagger-2">
-                <div className="flex items-center justify-between mb-3">
-                  <h2 className="text-sm font-display font-semibold text-stone-900 dark:text-stone-100">
-                    Pending Follow-ups
-                  </h2>
-                  <Link href="/suggestions" className="text-xs font-medium text-teal-600 dark:text-teal-400 hover:text-teal-700 dark:hover:text-teal-300">
-                    View all &rarr;
-                  </Link>
-                </div>
-
-                {isLoading ? (
-                  <div className="space-y-3">
-                    {[1, 2, 3].map((n) => (
-                      <div key={n} className="h-20 rounded-xl bg-white dark:bg-stone-900 border border-stone-200 dark:border-stone-700 shimmer" />
-                    ))}
-                  </div>
-                ) : pendingSuggestions.length === 0 ? (
-                  <div className="bg-white dark:bg-stone-900 rounded-xl border border-stone-200 dark:border-stone-700 p-8 text-center">
-                    <Sparkles className="w-8 h-8 text-stone-200 dark:text-stone-700 mx-auto mb-2" />
-                    <p className="text-sm text-stone-400 dark:text-stone-500">
-                      No pending suggestions.{" "}
-                      <Link href="/suggestions" className="text-teal-600 dark:text-teal-400 hover:underline">
-                        Generate suggestions
-                      </Link>
-                    </p>
-                  </div>
-                ) : (
-                  <div className="space-y-3">
-                    {pendingSuggestions.map((s) => (
-                      <DashboardSuggestionCard key={s.id} suggestion={s} />
-                    ))}
-                  </div>
-                )}
-              </div>
-
-              {/* Recent Activity */}
-              <div className="animate-in stagger-3">
-                <div className="flex items-center justify-between mb-3">
-                  <h2 className="text-sm font-display font-semibold text-stone-900 dark:text-stone-100">
-                    Recent Activity
-                  </h2>
-                  <Link href="/contacts?sort=interaction" className="text-xs font-medium text-teal-600 dark:text-teal-400 hover:text-teal-700 dark:hover:text-teal-300">
-                    View all &rarr;
-                  </Link>
-                </div>
-                {isLoading ? (
-                  <div className="space-y-3">
-                    {[1, 2, 3].map((n) => (
-                      <div key={n} className="h-16 rounded-xl bg-white dark:bg-stone-900 border border-stone-200 dark:border-stone-700 shimmer" />
-                    ))}
-                  </div>
-                ) : recentActivity.length === 0 ? (
-                  <div className="bg-white dark:bg-stone-900 rounded-xl border border-stone-200 dark:border-stone-700 p-8 text-center">
-                    <MessageCircle className="w-8 h-8 text-stone-200 dark:text-stone-700 mx-auto mb-2" />
-                    <p className="text-sm text-stone-400 dark:text-stone-500">No recent activity</p>
-                  </div>
-                ) : (
-                  <div className="space-y-2">
-                    {recentActivity.map((event) => (
-                      <ActivityItem key={`${event.contact_id}-${event.timestamp}`} event={event} />
-                    ))}
-                  </div>
-                )}
-              </div>
+              <PendingFollowUpsWidget
+                isLoading={isLoading}
+                pendingSuggestions={pendingSuggestions}
+              />
+              <RecentActivityWidget
+                isLoading={isLoading}
+                recentActivity={recentActivity}
+              />
             </div>
 
             {/* RIGHT 2/5: Needs Attention */}
-            <div className="lg:col-span-2 space-y-6 animate-in stagger-2">
-              <div className="bg-white dark:bg-stone-900 rounded-xl border border-stone-200 dark:border-stone-700 p-5">
-                <div className="flex items-center justify-between mb-4">
-                  <h2 className="text-sm font-display font-semibold text-stone-900 dark:text-stone-100">
-                    Needs Attention
-                  </h2>
-                  {overdueContacts.length > 0 && (
-                    <span className="text-[11px] font-medium text-red-500 dark:text-red-400 bg-red-50 dark:bg-red-950 px-2 py-0.5 rounded-full">
-                      {overdueContacts.length} contact{overdueContacts.length !== 1 ? "s" : ""}
-                    </span>
-                  )}
-                </div>
-                <p className="text-xs text-stone-400 dark:text-stone-500 mb-4">High-priority contacts going silent</p>
-                {isLoading ? (
-                  <div className="space-y-3">
-                    {[1, 2, 3].map((n) => (
-                      <div key={n} className="h-10 rounded-md bg-stone-100 dark:bg-stone-800 shimmer" />
-                    ))}
-                  </div>
-                ) : overdueContacts.length === 0 ? (
-                  <p className="text-sm text-stone-400 dark:text-stone-500 text-center py-4">
-                    All caught up!
-                  </p>
-                ) : (
-                  <div className="space-y-3">
-                    {overdueContacts.map((contact) => (
-                      <OverdueRow key={contact.id} contact={contact} />
-                    ))}
-                  </div>
-                )}
-                {overdueContacts.length > 0 && (
-                  <Link
-                    href="/contacts?sort=overdue"
-                    className="block text-center text-xs font-medium text-teal-600 dark:text-teal-400 hover:text-teal-700 dark:hover:text-teal-300 mt-4 pt-3 border-t border-stone-100 dark:border-stone-800"
-                  >
-                    View all &rarr;
-                  </Link>
-                )}
-              </div>
-            </div>
+            <NeedsAttentionWidget
+              isLoading={isLoading}
+              overdueContacts={overdueContacts}
+            />
           </div>
         )}
       </div>
