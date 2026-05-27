@@ -1,7 +1,7 @@
 import uuid
 from datetime import datetime
 
-from sqlalchemy import Boolean, DateTime, ForeignKey, String, Text, func
+from sqlalchemy import Boolean, DateTime, ForeignKey, Integer, String, Text, func
 from sqlalchemy.dialects.postgresql import JSON, UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -26,6 +26,8 @@ class Interaction(Base):
     content_preview: Mapped[str | None] = mapped_column(Text, nullable=True)
     raw_reference_id: Mapped[str | None] = mapped_column(String, nullable=True)
     is_read_by_recipient: Mapped[bool | None] = mapped_column(Boolean, nullable=True, default=None)
+    call_type: Mapped[str | None] = mapped_column(String(16), nullable=True)
+    duration_seconds: Mapped[int | None] = mapped_column(Integer, nullable=True)
     extra_data: Mapped[dict | None] = mapped_column(JSON, nullable=True)
 
     occurred_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)

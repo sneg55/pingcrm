@@ -125,6 +125,8 @@ async def _upsert_interaction(
     occurred_at: datetime,
     db: AsyncSession,
     is_read_by_recipient: bool | None = None,
+    call_type: str | None = None,
+    duration_seconds: int | None = None,
 ) -> tuple[Interaction, bool]:
     """
     Create an Interaction for *message_id* if it doesn't exist yet.
@@ -152,6 +154,8 @@ async def _upsert_interaction(
         raw_reference_id=message_id,
         occurred_at=occurred_at,
         is_read_by_recipient=is_read_by_recipient,
+        call_type=call_type,
+        duration_seconds=duration_seconds,
     )
     db.add(interaction)
     return interaction, True

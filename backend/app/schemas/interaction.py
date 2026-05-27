@@ -23,5 +23,7 @@ class InteractionResponse(BaseModel):
     occurred_at: datetime
     created_at: datetime
     is_read_by_recipient: bool | None = None
+    call_type: str | None = None
+    duration_seconds: int | None = None
 
     model_config = {"from_attributes": True}

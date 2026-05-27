@@ -19,6 +19,8 @@ export type InteractionResponse = {
   content_preview: string | null;
   occurred_at: string;
   is_read_by_recipient?: boolean | null;
+  call_type?: "phone" | "video" | null;
+  duration_seconds?: number | null;
 }
 
 export function useContactDetailController(id: string) {

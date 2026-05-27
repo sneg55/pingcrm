@@ -3545,6 +3545,10 @@ export interface components {
             created_at: string;
             /** Is Read By Recipient */
             is_read_by_recipient?: boolean | null;
+            /** Call Type */
+            call_type?: string | null;
+            /** Duration Seconds */
+            duration_seconds?: number | null;
         };
         /** InteractionUpdate */
         InteractionUpdate: {

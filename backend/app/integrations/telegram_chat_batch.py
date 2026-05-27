@@ -157,9 +157,8 @@ async def sync_telegram_chats_batch(
                         if hasattr(message, 'action') and isinstance(message.action, MessageActionPhoneCall):
                             direction = "outbound" if message.out else "inbound"
                             is_video = getattr(message.action, 'video', False)
-                            call_type = "Video call" if is_video else "Phone call"
-                            duration = getattr(message.action, 'duration', None)
-                            preview = f"{call_type}" + (f" ({duration}s)" if duration else "")
+                            call_type = "video" if is_video else "phone"
+                            duration_seconds = getattr(message.action, 'duration', None)
                             message_id = f"{eid}:{message.id}"
                             if message_id not in existing_refs:
                                 occurred_at = message.date.replace(tzinfo=UTC) if message.date.tzinfo is None else message.date
@@ -168,9 +167,11 @@ async def sync_telegram_chats_batch(
                                     user_id=user.id,
                                     message_id=message_id,
                                     direction=direction,
-                                    content_preview=preview,
+                                    content_preview=None,
                                     occurred_at=occurred_at,
                                     db=db,
+                                    call_type=call_type,
+                                    duration_seconds=duration_seconds,
                                 )
                                 if is_new:
                                     new_count += 1

@@ -34,14 +34,9 @@ function MeetingBadge({ item }: { item: InteractionResponse }) {
 }
 
 function CallBadge({ item }: { item: InteractionResponse }) {
-  const isVideoCall = item.content_preview?.startsWith("Video call") === true;
-  const preview = item.content_preview ?? "";
+  const isVideoCall = item.call_type === "video";
   const label = isVideoCall ? "Video Call" : "Call";
-  // Extract duration if present, e.g. "Phone call · 12 min"
-  const afterPrefix = isVideoCall
-    ? preview.slice("Video call".length)
-    : preview.slice("Phone call".length);
-  const duration = afterPrefix.replace(/^[\s·\-:]+/, "").trim();
+  const duration = item.duration_seconds != null ? `${item.duration_seconds}s` : "";
   const displayLabel = duration ? `${label} · ${duration}` : label;
 
   return (
@@ -186,9 +181,7 @@ export function TimelineItem({
   const showSeparator = needsSeparator(item.occurred_at, prevOccurredAt);
   const isManual = item.platform === "manual";
   const isMeeting = item.platform === "meeting";
-  const isCall =
-    item.content_preview?.startsWith("Phone call") === true ||
-    item.content_preview?.startsWith("Video call") === true;
+  const isCall = item.call_type != null;
   const isEvent = item.direction === "event";
   const isOutbound = item.direction === "outbound";
 
