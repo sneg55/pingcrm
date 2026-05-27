@@ -3,11 +3,11 @@
 import { Suspense, useState, useCallback, useRef, useMemo } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import { useQuery, useQueryClient, useMutation } from "@tanstack/react-query";
-import { Search, CheckSquare, GitMerge, Trash2, BarChart3, MessageSquare, Users, ArrowDown, ArrowUpDown, ScanSearch } from "lucide-react";
+import { Search, CheckSquare, GitMerge, Trash2, ScanSearch } from "lucide-react";
 import Link from "next/link";
 import { client } from "@/lib/api-client";
-import { CompanyFavicon } from "@/components/company-favicon";
-import { formatDistanceToNow } from "date-fns";
+import { OrgListContent } from "./_components/OrgListContent";
+import { OrgPagination } from "./_components/OrgPagination";
 
 export const dynamic = "force-dynamic";
 
@@ -286,6 +286,8 @@ function OrganizationsPageContent() {
   };
 
   const selectedMergeOrgs = organizations.filter((o) => selectedOrgIds.has(o.id));
+  const allSelected = selectedOrgIds.size === organizations.length && organizations.length > 0;
+  const indeterminate = selectedOrgIds.size > 0 && selectedOrgIds.size < organizations.length;
 
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
@@ -351,147 +353,28 @@ function OrganizationsPageContent() {
           />
         )}
 
-        {isLoading && (
-          <div className="text-center py-12 text-gray-400 dark:text-gray-500">Loading organizations...</div>
-        )}
+        <OrgListContent
+          isLoading={isLoading}
+          isError={isError}
+          organizations={organizations}
+          sortedOrganizations={sortedOrganizations}
+          sortKey={sortKey}
+          onSortChange={setSortKey}
+          selectedOrgIds={selectedOrgIds}
+          allSelected={allSelected}
+          indeterminate={indeterminate}
+          onToggleAll={toggleSelectAll}
+          onToggleOrg={toggleSelectOrg}
+          onDeleteOrg={handleDeleteSingle}
+        />
 
-        {isError && (
-          <div className="text-center py-12 text-red-500">
-            Failed to load organizations.
-          </div>
-        )}
-
-        {!isLoading && !isError && organizations.length === 0 && (
-          <div className="text-center py-12 text-gray-400 dark:text-gray-500">
-            No organizations found.
-          </div>
-        )}
-
-        {organizations.length > 0 && (
-          <div className="animate-in stagger-2 bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 overflow-hidden">
-            <table className="w-full">
-              <thead>
-                <tr className="border-b border-gray-100 dark:border-gray-700 text-left text-xs text-gray-500 dark:text-gray-400">
-                  <th className="w-10 px-4 py-3">
-                    <input
-                      type="checkbox"
-                      checked={selectedOrgIds.size === organizations.length && organizations.length > 0}
-                      ref={(el) => {
-                        if (el) el.indeterminate = selectedOrgIds.size > 0 && selectedOrgIds.size < organizations.length;
-                      }}
-                      onChange={toggleSelectAll}
-                      className="w-4 h-4 rounded border-gray-300 dark:border-gray-600 text-blue-600 focus:ring-blue-500"
-                      aria-label="Select all organizations"
-                    />
-                  </th>
-                  {([
-                    { key: "name" as SortKey, label: "Organization", align: "text-left", icon: null },
-                    { key: "contacts" as SortKey, label: "Contacts", align: "text-center", icon: Users },
-                    { key: "score" as SortKey, label: "Avg Score", align: "text-center", icon: BarChart3 },
-                    { key: "interactions" as SortKey, label: "Interactions", align: "text-center", icon: MessageSquare },
-                    { key: "activity" as SortKey, label: "Last Activity", align: "text-right", icon: null },
-                  ]).map((col) => (
-                    <th
-                      key={col.key}
-                      className={`px-4 py-3 font-medium ${col.align} cursor-pointer select-none hover:text-blue-600 transition-colors group`}
-                      onClick={() => setSortKey(col.key)}
-                    >
-                      <span className="inline-flex items-center gap-1">
-                        {col.icon ? <col.icon className="w-3.5 h-3.5" /> : col.label}
-                        {sortKey === col.key ? (
-                          <ArrowDown className="w-3 h-3" />
-                        ) : (
-                          <ArrowUpDown className="w-3 h-3 opacity-0 group-hover:opacity-100 transition-opacity" />
-                        )}
-                      </span>
-                    </th>
-                  ))}
-                  <th className="w-10 px-4 py-3" />
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-50 dark:divide-gray-700">
-                {sortedOrganizations.map((org) => {
-                  const isSelected = selectedOrgIds.has(org.id);
-                  return (
-                    <tr key={org.id} className={`card-hover hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors ${isSelected ? "bg-blue-50/50 dark:bg-blue-950/30" : ""}`}>
-                      <td className="px-4 py-3">
-                        <input
-                          type="checkbox"
-                          checked={isSelected}
-                          onChange={() => toggleSelectOrg(org.id)}
-                          className="w-4 h-4 rounded border-gray-300 dark:border-gray-600 text-blue-600 focus:ring-blue-500"
-                          aria-label={`Select ${org.name}`}
-                        />
-                      </td>
-                      <td className="px-4 py-3">
-                        <Link
-                          href={`/organizations/${org.id}`}
-                          className="flex items-center gap-3 group"
-                        >
-                          <div className="w-8 h-8 rounded-lg bg-blue-50 dark:bg-blue-950 flex items-center justify-center flex-shrink-0 overflow-hidden">
-                            <CompanyFavicon logoUrl={org.logo_url} domain={org.domain} size="w-5 h-5" />
-                          </div>
-                          <div className="min-w-0">
-                            <span className="text-sm font-semibold text-gray-900 dark:text-gray-100 group-hover:text-blue-600 transition-colors">
-                              {org.name}
-                            </span>
-                            {org.domain && (
-                              <span className="ml-2 text-xs text-gray-400 dark:text-gray-500">{org.domain}</span>
-                            )}
-                          </div>
-                        </Link>
-                      </td>
-                      <td className="px-4 py-3 text-center text-sm text-gray-600 dark:text-gray-400">
-                        {org.contact_count}
-                      </td>
-                      <td className="px-4 py-3 text-center text-sm text-gray-600 dark:text-gray-400">
-                        {org.avg_relationship_score || "-"}
-                      </td>
-                      <td className="px-4 py-3 text-center text-sm text-gray-600 dark:text-gray-400">
-                        {org.total_interactions || "-"}
-                      </td>
-                      <td className="px-4 py-3 text-right text-xs text-gray-400 dark:text-gray-500">
-                        {org.last_interaction_at
-                          ? formatDistanceToNow(new Date(org.last_interaction_at), { addSuffix: true })
-                          : "Never"}
-                      </td>
-                      <td className="px-4 py-3">
-                        <button
-                          onClick={() => handleDeleteSingle(org)}
-                          className="p-1 rounded text-gray-300 dark:text-gray-600 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-950 transition-colors"
-                          title={`Delete ${org.name}`}
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </button>
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
-        )}
-
-        {meta && meta.total_pages > 1 && (
-          <div className="flex items-center justify-between mt-4">
-            <button
-              disabled={page <= 1}
-              onClick={() => setParams({ page: String(page - 1) })}
-              className="px-3 py-1.5 text-sm rounded-md border border-gray-300 dark:border-gray-700 text-gray-700 dark:text-gray-300 disabled:opacity-40 hover:bg-gray-100 dark:hover:bg-gray-800"
-            >
-              Previous
-            </button>
-            <span className="text-sm text-gray-500 dark:text-gray-400">
-              Page {page} of {meta.total_pages}
-            </span>
-            <button
-              disabled={page >= meta.total_pages}
-              onClick={() => setParams({ page: String(page + 1) })}
-              className="px-3 py-1.5 text-sm rounded-md border border-gray-300 dark:border-gray-700 text-gray-700 dark:text-gray-300 disabled:opacity-40 hover:bg-gray-100 dark:hover:bg-gray-800"
-            >
-              Next
-            </button>
-          </div>
+        {meta && (
+          <OrgPagination
+            page={page}
+            totalPages={meta.total_pages}
+            onPrev={() => setParams({ page: String(page - 1) })}
+            onNext={() => setParams({ page: String(page + 1) })}
+          />
         )}
       </div>
     </div>
