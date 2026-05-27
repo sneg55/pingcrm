@@ -131,8 +131,7 @@ export default tseslint.config(
       'sonarjs/no-identical-functions': 'error',
       'sonarjs/no-collapsible-if': 'error',
       'sonarjs/prefer-immediate-return': 'error',
-      // Disabled: overlaps with sonarjs/cognitive-complexity. See GH #79.
-      complexity: 'off',
+      complexity: ['error', 20],
       'max-depth': ['warn', 4],
       'max-nested-callbacks': ['warn', 3],
       'max-params': ['warn', 4],
