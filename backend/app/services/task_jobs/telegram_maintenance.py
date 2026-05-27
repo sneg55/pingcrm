@@ -1,12 +1,33 @@
-"""Telegram maintenance Celery tasks: lock cleanup, periodic bio recheck, batch dispatch."""
+"""Telegram maintenance Celery tasks: lock cleanup, periodic bio recheck, batch dispatch.
+
+The Celery entrypoints are thin wrappers around module-level coroutines so the
+sync orchestration logic is directly unit-testable against a real
+``AsyncSession`` without spinning up a Celery broker or the ``task_session``
+machinery.
+"""
 from __future__ import annotations
 
+import redis as _redis
 from celery import shared_task
 from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.config import settings
 from app.core.database import task_session
 from app.models.user import User
 from app.services.task_jobs.common import _run, logger
+from app.services.task_jobs.telegram import (
+    sync_telegram_bios_for_user,
+    sync_telegram_for_user,
+)
+
+
+async def _collect_telegram_user_ids(db: AsyncSession) -> list[str]:
+    """Return string user IDs for every user with a Telegram session set."""
+    result = await db.execute(
+        select(User.id).where(User.telegram_session.isnot(None))
+    )
+    return [str(uid) for uid in result.scalars().all()]
 
 
 @shared_task(name="app.services.tasks.cleanup_stale_telegram_locks")
@@ -21,9 +42,6 @@ def cleanup_stale_telegram_locks() -> dict:
 
     This cleans up locks left behind by tasks that crashed before releasing them.
     """
-    from app.core.config import settings
-    import redis as _redis
-
     deleted = 0
     scanned = 0
     try:
@@ -63,39 +81,28 @@ def cleanup_stale_telegram_locks() -> dict:
 def recheck_telegram_bios_all() -> dict:
     """Periodic task (every 3 days): recheck Telegram bios for non-2nd-tier contacts
     whose telegram_bio_checked_at is older than 3 days or NULL."""
-    from app.services.task_jobs.telegram import sync_telegram_bios_for_user
-
-    async def _run_recheck() -> int:
+    async def _runner() -> list[str]:
         async with task_session() as db:
-            result = await db.execute(
-                select(User.id).where(User.telegram_session.isnot(None))
-            )
-            user_ids = [str(uid) for uid in result.scalars().all()]
+            return await _collect_telegram_user_ids(db)
 
-        count = 0
-        for uid in user_ids:
-            sync_telegram_bios_for_user.delay(uid, exclude_2nd_tier=True, stale_days=3)
-            count += 1
-        return count
+    user_ids = _run(_runner())
+    count = 0
+    for uid in user_ids:
+        sync_telegram_bios_for_user.delay(uid, exclude_2nd_tier=True, stale_days=3)
+        count += 1
 
-    queued = _run(_run_recheck())
-    logger.info("recheck_telegram_bios_all: queued %d user(s).", queued)
-    return {"queued": queued}
+    logger.info("recheck_telegram_bios_all: queued %d user(s).", count)
+    return {"queued": count}
 
 
 @shared_task(name="app.services.tasks.sync_telegram_all")
 def sync_telegram_all() -> dict:
     """Beat-scheduled task: enqueue Telegram sync for every connected user."""
-    from app.services.task_jobs.telegram import sync_telegram_for_user
-
-    async def _get_user_ids() -> list[str]:
+    async def _runner() -> list[str]:
         async with task_session() as db:
-            result = await db.execute(
-                select(User.id).where(User.telegram_session.isnot(None))
-            )
-            return [str(row) for row in result.scalars().all()]
+            return await _collect_telegram_user_ids(db)
 
-    user_ids = _run(_get_user_ids())
+    user_ids = _run(_runner())
     for uid in user_ids:
         sync_telegram_for_user(uid)
 

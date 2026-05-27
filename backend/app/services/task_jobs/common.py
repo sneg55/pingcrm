@@ -64,39 +64,53 @@ async def dismiss_suggestions_for_contacts(
     return total
 
 
+from app.models.notification import Notification
+from sqlalchemy.ext.asyncio import AsyncSession
+
+
+async def _write_sync_failure_notification(
+    db: AsyncSession, uid: uuid.UUID, platform: str, error: str
+) -> None:
+    db.add(Notification(
+        user_id=uid,
+        notification_type="sync",
+        title=f"{platform} sync failed",
+        body=f"Sync failed after multiple retries: {error[:200]}",
+        link="/settings",
+    ))
+    await db.commit()
+
+
+async def _write_tagging_failure_notification(
+    db: AsyncSession, uid: uuid.UUID, error: str
+) -> None:
+    db.add(Notification(
+        user_id=uid,
+        notification_type="tagging",
+        title="Auto-tagging failed",
+        body=error[:500],
+        link="/settings?tab=tags",
+    ))
+    await db.commit()
+
+
 @shared_task(name="app.services.tasks.notify_sync_failure")
 def notify_sync_failure(user_id: str, platform: str, error: str) -> None:
     """Create a notification when a background sync exhausts retries."""
-    from app.models.notification import Notification
-
-    async def _create(uid: uuid.UUID) -> None:
+    async def _runner() -> None:
         async with task_session() as db:
-            db.add(Notification(
-                user_id=uid,
-                notification_type="sync",
-                title=f"{platform} sync failed",
-                body=f"Sync failed after multiple retries: {error[:200]}",
-                link="/settings",
-            ))
-            await db.commit()
-
-    _run(_create(uuid.UUID(user_id)))
+            await _write_sync_failure_notification(
+                db, uuid.UUID(user_id), platform, error,
+            )
+    _run(_runner())
 
 
 @shared_task(name="app.services.tasks.notify_tagging_failure")
 def notify_tagging_failure(user_id: str, error: str) -> None:
     """Create a notification when auto-tagging fails outside the main loop."""
-    from app.models.notification import Notification
-
-    async def _create(uid: uuid.UUID) -> None:
+    async def _runner() -> None:
         async with task_session() as db:
-            db.add(Notification(
-                user_id=uid,
-                notification_type="tagging",
-                title="Auto-tagging failed",
-                body=error[:500],
-                link="/settings?tab=tags",
-            ))
-            await db.commit()
-
-    _run(_create(uuid.UUID(user_id)))
+            await _write_tagging_failure_notification(
+                db, uuid.UUID(user_id), error,
+            )
+    _run(_runner())

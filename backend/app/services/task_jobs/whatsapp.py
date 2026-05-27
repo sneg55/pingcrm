@@ -1,16 +1,117 @@
-"""WhatsApp Celery tasks — backfill sync and session health checks."""
+"""WhatsApp Celery tasks — backfill sync and session health checks.
+
+The Celery entrypoints (``sync_whatsapp_backfill`` / ``check_whatsapp_sessions``)
+are thin wrappers around the ``_sync_whatsapp_backfill`` / ``_check_whatsapp_sessions``
+coroutines so that the sync logic is directly unit-testable against a real
+``AsyncSession`` without spinning up a Celery broker or the ``task_session`` machinery.
+"""
 from __future__ import annotations
 
 import uuid
 
 from celery import shared_task
 from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.constants import Provider
 from app.core.database import task_session
-from app.models.user import User
+from app.integrations.whatsapp import get_status, trigger_backfill
 from app.models.notification import Notification
+from app.models.user import User
+from app.services.sync_history import (
+    record_sync_complete,
+    record_sync_failure,
+    record_sync_start,
+)
 from app.services.task_jobs.common import _run, logger, notify_sync_failure
+
+
+async def _sync_whatsapp_backfill(db: AsyncSession, uid: uuid.UUID) -> dict:
+    """Trigger a WhatsApp backfill for ``uid`` against the sidecar.
+
+    Records a sync event and returns a status dict; re-raises on sidecar failure
+    so the Celery wrapper can retry (after recording the failure event).
+    """
+    result = await db.execute(select(User).where(User.id == uid))
+    user = result.scalar_one_or_none()
+    if user is None:
+        logger.warning("sync_whatsapp_backfill: user %s not found.", uid)
+        return {"status": "user_not_found", "records_created": 0}
+
+    if not user.whatsapp_connected:
+        logger.info("sync_whatsapp_backfill: user %s has no WhatsApp session.", uid)
+        return {"status": "not_connected", "records_created": 0}
+
+    sync_event = await record_sync_start(uid, Provider.WHATSAPP, "manual", db)
+
+    try:
+        result_data = await trigger_backfill(str(uid))
+        total = result_data.get("messages_imported", result_data.get("total", 0))
+        await record_sync_complete(
+            sync_event,
+            records_created=total,
+            details=result_data,
+            db=db,
+        )
+        await db.commit()
+    except Exception as exc:
+        logger.exception(
+            "sync_whatsapp_backfill failed",
+            extra={"provider": Provider.WHATSAPP, "user_id": str(uid)},
+        )
+        await record_sync_failure(sync_event, str(exc), db=db)
+        await db.commit()
+        raise
+
+    return {"status": "ok", "records_created": total}
+
+
+async def _check_whatsapp_sessions(db: AsyncSession) -> dict:
+    """Health-check every WhatsApp session and disconnect dead ones.
+
+    Returns a dict with ``checked`` and ``dead_sessions`` counts. A sidecar
+    unreachable for one user is treated as a dead session (logged at WARN) and
+    does not abort the loop.
+    """
+    checked = 0
+    dead_sessions = 0
+
+    result = await db.execute(
+        select(User).where(User.whatsapp_connected.is_(True))
+    )
+    users = result.scalars().all()
+
+    for user in users:
+        checked += 1
+        try:
+            status = await get_status(str(user.id))
+        except Exception:
+            logger.warning(
+                "check_whatsapp_sessions: sidecar unreachable for user %s",
+                user.id,
+                exc_info=True,
+            )
+            status = "error"
+
+        if status != "connected":
+            dead_sessions += 1
+            user.whatsapp_connected = False
+            db.add(Notification(
+                user_id=user.id,
+                notification_type="sync",
+                title="WhatsApp session disconnected",
+                body="Your WhatsApp session expired. Reconnect in Settings to resume syncing.",
+                link="/settings",
+            ))
+            logger.info(
+                "check_whatsapp_sessions: marked user %s disconnected (status=%r)",
+                user.id,
+                status,
+            )
+
+    await db.commit()
+
+    return {"checked": checked, "dead_sessions": dead_sessions}
 
 
 @shared_task(
@@ -28,56 +129,18 @@ def sync_whatsapp_backfill(self, user_id: str) -> dict:
     Returns:
         A dict with sync status and records_created count.
     """
-    async def _backfill(uid: uuid.UUID) -> dict:
-        from app.integrations.whatsapp import trigger_backfill
-        from app.services.sync_history import (
-            record_sync_start,
-            record_sync_complete,
-            record_sync_failure,
-        )
-
-        async with task_session() as db:
-            result = await db.execute(select(User).where(User.id == uid))
-            user = result.scalar_one_or_none()
-            if user is None:
-                logger.warning("sync_whatsapp_backfill: user %s not found.", uid)
-                return {"status": "user_not_found", "records_created": 0}
-
-            if not user.whatsapp_connected:
-                logger.info("sync_whatsapp_backfill: user %s has no WhatsApp session.", uid)
-                return {"status": "not_connected", "records_created": 0}
-
-            sync_event = await record_sync_start(uid, Provider.WHATSAPP, "manual", db)
-
-            try:
-                result_data = await trigger_backfill(str(uid))
-                total = result_data.get("messages_imported", result_data.get("total", 0))
-                await record_sync_complete(
-                    sync_event,
-                    records_created=total,
-                    details=result_data,
-                    db=db,
-                )
-                await db.commit()
-            except Exception as exc:
-                logger.exception(
-                    "sync_whatsapp_backfill failed",
-                    extra={"provider": Provider.WHATSAPP, "user_id": str(uid)},
-                )
-                await record_sync_failure(sync_event, str(exc), db=db)
-                await db.commit()
-                raise
-
-        return {"status": "ok", "records_created": total}
-
     try:
         uid = uuid.UUID(user_id)
     except ValueError:
         logger.error("sync_whatsapp_backfill: invalid user_id %r", user_id)
         return {"status": "invalid_user_id", "records_created": 0}
 
+    async def _runner() -> dict:
+        async with task_session() as db:
+            return await _sync_whatsapp_backfill(db, uid)
+
     try:
-        return _run(_backfill(uid))
+        return _run(_runner())
     except Exception as exc:
         logger.exception("sync_whatsapp_backfill failed for %s, retrying.", user_id)
         if self.request.retries >= self.max_retries:
@@ -98,48 +161,8 @@ def check_whatsapp_sessions() -> dict:
     Returns:
         A dict with ``checked`` and ``dead_sessions`` counts.
     """
-    async def _check() -> dict:
-        from app.integrations.whatsapp import get_status
-
-        checked = 0
-        dead_sessions = 0
-
+    async def _runner() -> dict:
         async with task_session() as db:
-            result = await db.execute(
-                select(User).where(User.whatsapp_connected.is_(True))
-            )
-            users = result.scalars().all()
+            return await _check_whatsapp_sessions(db)
 
-            for user in users:
-                checked += 1
-                try:
-                    status = await get_status(str(user.id))
-                except Exception:
-                    logger.warning(
-                        "check_whatsapp_sessions: sidecar unreachable for user %s",
-                        user.id,
-                        exc_info=True,
-                    )
-                    status = "error"
-
-                if status != "connected":
-                    dead_sessions += 1
-                    user.whatsapp_connected = False
-                    db.add(Notification(
-                        user_id=user.id,
-                        notification_type="sync",
-                        title="WhatsApp session disconnected",
-                        body="Your WhatsApp session expired. Reconnect in Settings to resume syncing.",
-                        link="/settings",
-                    ))
-                    logger.info(
-                        "check_whatsapp_sessions: marked user %s disconnected (status=%r)",
-                        user.id,
-                        status,
-                    )
-
-            await db.commit()
-
-        return {"checked": checked, "dead_sessions": dead_sessions}
-
-    return _run(_check())
+    return _run(_runner())

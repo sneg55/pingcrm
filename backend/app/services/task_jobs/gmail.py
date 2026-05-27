@@ -1,16 +1,94 @@
-"""Gmail sync Celery tasks."""
+"""Gmail sync Celery tasks.
+
+The Celery entrypoints (``sync_gmail_for_user`` / ``sync_gmail_all``) are thin
+wrappers around the ``_sync_gmail`` / ``_collect_gmail_user_ids`` coroutines so
+the sync logic is directly unit-testable against a real ``AsyncSession``
+without spinning up a Celery broker or the ``task_session`` machinery.
+"""
 from __future__ import annotations
 
 import uuid
 
 from celery import shared_task
 from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.constants import Provider
 from app.core.database import task_session
+from app.integrations.gmail import sync_gmail_for_user as _gmail_sync
 from app.models.contact import Contact
 from app.models.user import User
-from app.services.task_jobs.common import _run, logger, notify_sync_failure
+from app.services.identity_resolution import find_deterministic_matches
+from app.services.scoring import calculate_score
+from app.services.sync_history import (
+    record_sync_complete,
+    record_sync_failure,
+    record_sync_start,
+)
+from app.services.task_jobs.common import _run, logger
+
+
+async def _sync_gmail(db: AsyncSession, uid: uuid.UUID) -> dict:
+    """Sync Gmail threads for a single user against an already-open session.
+
+    Returns ``{"status": ..., "new_interactions": ...}``. Records sync history
+    and re-raises on integration errors so the Celery wrapper can retry.
+    """
+    result = await db.execute(select(User).where(User.id == uid))
+    user = result.scalar_one_or_none()
+    if user is None:
+        logger.warning("sync_gmail_for_user: user %s not found.", uid)
+        return {"status": "user_not_found", "new_interactions": 0}
+
+    sync_event = await record_sync_start(uid, Provider.GMAIL, "scheduled", db)
+
+    try:
+        new_count = await _gmail_sync(user, db)
+    except Exception as exc:
+        logger.exception(
+            "sync_gmail_for_user failed",
+            extra={"provider": Provider.GMAIL, "user_id": str(uid)},
+        )
+        await record_sync_failure(sync_event, str(exc), db=db)
+        await db.commit()
+        raise
+
+    # Rescore contacts that have interactions
+    if new_count > 0:
+        contact_ids_result = await db.execute(
+            select(Contact.id).where(
+                Contact.user_id == uid,
+                Contact.last_interaction_at.isnot(None),
+            )
+        )
+        for (cid,) in contact_ids_result.all():
+            try:
+                await calculate_score(cid, db)
+            except Exception:
+                logger.warning("gmail: score recalc failed for contact %s", cid, exc_info=True)
+
+    await record_sync_complete(sync_event, records_created=new_count, db=db)
+
+    # Auto-merge deterministic duplicates (same email/phone)
+    if new_count > 0:
+        try:
+            merged = await find_deterministic_matches(uid, db)
+            if merged:
+                logger.info("gmail sync: auto-merged %d duplicate(s) for user %s", len(merged), uid)
+        except Exception:
+            logger.warning("gmail sync: auto-merge failed for user %s", uid, exc_info=True)
+
+    await db.commit()
+
+    return {"status": "ok", "new_interactions": new_count}
+
+
+async def _collect_gmail_user_ids(db: AsyncSession) -> list[str]:
+    """User IDs eligible for the beat-scheduled ``sync_gmail_all`` task."""
+    result = await db.execute(
+        select(User.id).where(User.google_refresh_token.isnot(None))
+    )
+    return [str(row) for row in result.scalars().all()]
 
 
 @shared_task(name="app.services.tasks.sync_gmail_for_user", bind=True, max_retries=3, soft_time_limit=900, time_limit=1200)
@@ -24,69 +102,18 @@ def sync_gmail_for_user(self, user_id: str) -> dict:
     Returns:
         A dict with ``new_interactions`` count and ``status``.
     """
-    async def _sync(uid: uuid.UUID) -> dict:
-        from app.integrations.gmail import sync_gmail_for_user as _gmail_sync
-        from app.services.scoring import calculate_score
-        from app.services.sync_history import record_sync_start, record_sync_complete, record_sync_failure
-
-        async with task_session() as db:
-            result = await db.execute(select(User).where(User.id == uid))
-            user = result.scalar_one_or_none()
-            if user is None:
-                logger.warning("sync_gmail_for_user: user %s not found.", uid)
-                return {"status": "user_not_found", "new_interactions": 0}
-
-            sync_event = await record_sync_start(uid, Provider.GMAIL, "scheduled", db)
-
-            try:
-                new_count = await _gmail_sync(user, db)
-            except Exception as exc:
-                logger.exception(
-                    "sync_gmail_for_user failed",
-                    extra={"provider": Provider.GMAIL, "user_id": str(uid)},
-                )
-                await record_sync_failure(sync_event, str(exc), db=db)
-                await db.commit()
-                raise
-
-            # Rescore contacts that have interactions
-            if new_count > 0:
-                contact_ids_result = await db.execute(
-                    select(Contact.id).where(
-                        Contact.user_id == uid,
-                        Contact.last_interaction_at.isnot(None),
-                    )
-                )
-                for (cid,) in contact_ids_result.all():
-                    try:
-                        await calculate_score(cid, db)
-                    except Exception:
-                        logger.warning("gmail: score recalc failed for contact %s", cid, exc_info=True)
-
-            await record_sync_complete(sync_event, records_created=new_count, db=db)
-
-            # Auto-merge deterministic duplicates (same email/phone)
-            if new_count > 0:
-                try:
-                    from app.services.identity_resolution import find_deterministic_matches
-                    merged = await find_deterministic_matches(uid, db)
-                    if merged:
-                        logger.info("gmail sync: auto-merged %d duplicate(s) for user %s", len(merged), uid)
-                except Exception:
-                    logger.warning("gmail sync: auto-merge failed for user %s", uid, exc_info=True)
-
-            await db.commit()
-
-        return {"status": "ok", "new_interactions": new_count}
-
     try:
         uid = uuid.UUID(user_id)
     except ValueError:
         logger.error("sync_gmail_for_user: invalid user_id %r", user_id)
         return {"status": "invalid_user_id", "new_interactions": 0}
 
+    async def _runner() -> dict:
+        async with task_session() as db:
+            return await _sync_gmail(db, uid)
+
     try:
-        return _run(_sync(uid))
+        return _run(_runner())
     except Exception as exc:
         logger.exception("sync_gmail_for_user failed for %s, retrying.", user_id)
         raise self.retry(exc=exc, countdown=60) from exc
@@ -101,14 +128,11 @@ def sync_gmail_all() -> dict:
     Returns:
         A dict with ``queued`` count.
     """
-    async def _get_user_ids() -> list[str]:
+    async def _runner() -> list[str]:
         async with task_session() as db:
-            result = await db.execute(
-                select(User.id).where(User.google_refresh_token.isnot(None))
-            )
-            return [str(row) for row in result.scalars().all()]
+            return await _collect_gmail_user_ids(db)
 
-    user_ids = _run(_get_user_ids())
+    user_ids = _run(_runner())
     for uid in user_ids:
         sync_gmail_for_user.delay(uid)
 
