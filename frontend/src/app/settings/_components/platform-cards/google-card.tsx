@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { RefreshCw, Check, AlertCircle, X, Link2, Settings, Key, History, Unplug } from "lucide-react";
+import { RefreshCw, Check, X, Link2, Settings, Key, History, Unplug } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { client } from "@/lib/api-client";
 import { SyncHistoryModal } from "../sync-history-modal";
@@ -9,11 +9,11 @@ import { SyncSettingsModal } from "../sync-settings-modal";
 import {
   ConnectionBadge,
   SyncButtonWrapper,
-  SyncResultPanel,
   KebabMenu,
   GmailIcon,
 } from "../shared";
 import type { ConnectedAccounts, SyncState } from "../../_hooks/use-settings-controller";
+import { GoogleStatusBanners } from "./google-card-status-banners";
 
 export type GoogleCardProps = {
   connected: ConnectedAccounts;
@@ -24,7 +24,7 @@ export type GoogleCardProps = {
   handleGoogleSyncAll: () => Promise<void>;
 }
 
-// eslint-disable-next-line sonarjs/cognitive-complexity -- card composes connect/sync/error/progress state branches; refactor tracked separately
+// eslint-disable-next-line sonarjs/cognitive-complexity -- card composes connect/sync/error/progress state branches; sub-component extraction tracked in #79
 export function GoogleCard({
   connected,
   googleConnect,
@@ -154,39 +154,7 @@ export function GoogleCard({
           )}
         </div>
       </div>
-      {googleConnect.message && (
-        <p
-          className={cn(
-            "text-xs mt-3 flex items-center gap-1",
-            googleConnect.status === "error" ? "text-red-500" : "text-emerald-600 dark:text-emerald-400"
-          )}
-        >
-          {googleConnect.status === "error" ? (
-            <AlertCircle className="w-3 h-3" />
-          ) : (
-            <Check className="w-3 h-3" />
-          )}
-          {googleConnect.message}
-        </p>
-      )}
-      {googleSync.message && !googleSync.details && (
-        <p
-          className={cn(
-            "text-xs mt-3 flex items-center gap-1",
-            googleSync.status === "error" ? "text-red-500" : "text-emerald-600 dark:text-emerald-400"
-          )}
-        >
-          {googleSync.status === "error" ? (
-            <AlertCircle className="w-3 h-3" />
-          ) : (
-            <Check className="w-3 h-3" />
-          )}
-          {googleSync.message}
-        </p>
-      )}
-      {googleSync.details && (
-        <SyncResultPanel details={googleSync.details} status={googleSync.status} />
-      )}
+      <GoogleStatusBanners googleConnect={googleConnect} googleSync={googleSync} />
     </div>
     {showSyncHistory && <SyncHistoryModal platform="gmail" onClose={() => setShowSyncHistory(false)} />}
     {showSyncSettings && <SyncSettingsModal platform="gmail" onClose={() => setShowSyncSettings(false)} />}
