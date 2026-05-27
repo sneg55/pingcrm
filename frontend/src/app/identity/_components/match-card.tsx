@@ -31,6 +31,63 @@ const CONTACT_BREAKDOWN: BreakdownRow[] = [
   { label: "Mutual signals", weight: 10 },
 ];
 
+function ContactPanelDetails({
+  contact,
+  extraEmails,
+}: {
+  contact: IdentityMatchContact;
+  extraEmails: string[];
+}) {
+  return (
+    <div className="mt-2 pt-2 border-t border-stone-200 dark:border-stone-700 space-y-1.5 text-xs text-stone-600 dark:text-stone-300">
+      {contact.title && (
+        <div className="flex items-center gap-2">
+          <Briefcase className="w-3.5 h-3.5 text-stone-400 dark:text-stone-500 shrink-0" />
+          <span className="truncate">{contact.title}</span>
+        </div>
+      )}
+      {extraEmails.map((email) => (
+        <div key={email} className="flex items-center gap-2 truncate">
+          <Mail className="w-3.5 h-3.5 text-stone-400 dark:text-stone-500 shrink-0" />
+          <span className="font-mono truncate">{email}</span>
+        </div>
+      ))}
+      {contact.phones.map((phone) => (
+        <div key={phone} className="flex items-center gap-2">
+          <Phone className="w-3.5 h-3.5 text-stone-400 dark:text-stone-500 shrink-0" />
+          <span className="font-mono">{phone}</span>
+        </div>
+      ))}
+      {contact.linkedin_url && (
+        <div className="flex items-center gap-2 truncate">
+          <Globe className="w-3.5 h-3.5 text-stone-400 dark:text-stone-500 shrink-0" />
+          <a href={contact.linkedin_url} target="_blank" rel="noopener noreferrer" className="text-teal-600 dark:text-teal-400 hover:underline font-mono truncate">
+            LinkedIn
+          </a>
+        </div>
+      )}
+      {contact.tags.length > 0 && (
+        <div className="flex items-start gap-2">
+          <Tag className="w-3.5 h-3.5 text-stone-400 dark:text-stone-500 shrink-0 mt-0.5" />
+          <div className="flex flex-wrap gap-1">
+            {contact.tags.map((tag) => (
+              <span key={tag} className="px-1.5 py-0.5 rounded text-xs bg-stone-200 dark:bg-stone-700 text-stone-700 dark:text-stone-300">
+                {tag}
+              </span>
+            ))}
+          </div>
+        </div>
+      )}
+      {contact.notes && (
+        <div className="flex items-start gap-2">
+          <FileText className="w-3.5 h-3.5 text-stone-400 dark:text-stone-500 shrink-0 mt-0.5" />
+          <span className="text-xs text-stone-500 dark:text-stone-400 line-clamp-3">{contact.notes}</span>
+        </div>
+      )}
+    </div>
+  );
+}
+
 function ContactPanel({ contact }: { contact: IdentityMatchContact }) {
   const [expanded, setExpanded] = useState(false);
   const displayName = contact.full_name ?? "Unnamed";
@@ -104,52 +161,7 @@ function ContactPanel({ contact }: { contact: IdentityMatchContact }) {
           </button>
 
           {expanded && (
-            <div className="mt-2 pt-2 border-t border-stone-200 dark:border-stone-700 space-y-1.5 text-xs text-stone-600 dark:text-stone-300">
-              {contact.title && (
-                <div className="flex items-center gap-2">
-                  <Briefcase className="w-3.5 h-3.5 text-stone-400 dark:text-stone-500 shrink-0" />
-                  <span className="truncate">{contact.title}</span>
-                </div>
-              )}
-              {extraEmails.map((email) => (
-                <div key={email} className="flex items-center gap-2 truncate">
-                  <Mail className="w-3.5 h-3.5 text-stone-400 dark:text-stone-500 shrink-0" />
-                  <span className="font-mono truncate">{email}</span>
-                </div>
-              ))}
-              {contact.phones.map((phone) => (
-                <div key={phone} className="flex items-center gap-2">
-                  <Phone className="w-3.5 h-3.5 text-stone-400 dark:text-stone-500 shrink-0" />
-                  <span className="font-mono">{phone}</span>
-                </div>
-              ))}
-              {contact.linkedin_url && (
-                <div className="flex items-center gap-2 truncate">
-                  <Globe className="w-3.5 h-3.5 text-stone-400 dark:text-stone-500 shrink-0" />
-                  <a href={contact.linkedin_url} target="_blank" rel="noopener noreferrer" className="text-teal-600 dark:text-teal-400 hover:underline font-mono truncate">
-                    LinkedIn
-                  </a>
-                </div>
-              )}
-              {contact.tags.length > 0 && (
-                <div className="flex items-start gap-2">
-                  <Tag className="w-3.5 h-3.5 text-stone-400 dark:text-stone-500 shrink-0 mt-0.5" />
-                  <div className="flex flex-wrap gap-1">
-                    {contact.tags.map((tag) => (
-                      <span key={tag} className="px-1.5 py-0.5 rounded text-xs bg-stone-200 dark:bg-stone-700 text-stone-700 dark:text-stone-300">
-                        {tag}
-                      </span>
-                    ))}
-                  </div>
-                </div>
-              )}
-              {contact.notes && (
-                <div className="flex items-start gap-2">
-                  <FileText className="w-3.5 h-3.5 text-stone-400 dark:text-stone-500 shrink-0 mt-0.5" />
-                  <span className="text-xs text-stone-500 dark:text-stone-400 line-clamp-3">{contact.notes}</span>
-                </div>
-              )}
-            </div>
+            <ContactPanelDetails contact={contact} extraEmails={extraEmails} />
           )}
         </>
       )}
