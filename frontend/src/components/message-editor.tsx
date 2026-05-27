@@ -1,39 +1,20 @@
 "use client";
 
-import { useState, useRef, useEffect, type ReactNode } from "react";
-import { Mail, MessageCircle, Twitter, RefreshCw, Send, Clock } from "lucide-react";
+import { useState, useRef, useEffect } from "react";
+import { Clock } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { client } from "@/lib/api-client";
+import { MessageEditorToolbar } from "./message-editor-toolbar";
 
 type Channel = "email" | "telegram" | "twitter";
 
-type ChannelConfig = {
-  label: string;
-  icon: ReactNode;
-  maxChars: number;
-  activeColor: string;
-}
-
-const channelConfig: Record<Channel, ChannelConfig> = {
-  email: {
-    label: "Email",
-    icon: <Mail className="w-4 h-4" />,
-    maxChars: 2000,
-    activeColor: "text-blue-500 dark:text-blue-400",
-  },
-  telegram: {
-    label: "Telegram",
-    icon: <MessageCircle className="w-4 h-4" />,
-    maxChars: 4096,
-    activeColor: "text-sky-500 dark:text-sky-400",
-  },
-  twitter: {
-    label: "Twitter/X",
-    icon: <Twitter className="w-4 h-4" />,
-    maxChars: 280,
-    activeColor: "text-stone-600 dark:text-stone-300",
-  },
+const channelMaxChars: Record<Channel, number> = {
+  email: 2000,
+  telegram: 4096,
+  twitter: 280,
 };
+
+const allChannels = Object.keys(channelMaxChars) as Channel[];
 
 type MessageEditorProps = {
   suggestionId?: string | null;
@@ -47,7 +28,6 @@ type MessageEditorProps = {
   autoFocus?: boolean;
 }
 
-// eslint-disable-next-line sonarjs/cognitive-complexity -- editor coordinates channel toggles, send states, tone analysis, and disabled-channel hints; refactor tracked separately
 export function MessageEditor({
   suggestionId,
   contactId,
@@ -61,11 +41,9 @@ export function MessageEditor({
 }: MessageEditorProps) {
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const [message, setMessage] = useState(initialMessage);
-  const availableChannels = (Object.keys(channelConfig) as Channel[]).filter(
-    (ch) => !disabledChannels[ch]
-  );
+  const availableChannels = allChannels.filter((ch) => !disabledChannels[ch]);
   const [channel, setChannel] = useState<Channel>(() => {
-    if (initialChannel && initialChannel in channelConfig && !disabledChannels[initialChannel]) {
+    if (initialChannel && initialChannel in channelMaxChars && !disabledChannels[initialChannel]) {
       return initialChannel;
     }
     return availableChannels[0] ?? "email";
@@ -77,10 +55,10 @@ export function MessageEditor({
   const [rateLimitEnd, setRateLimitEnd] = useState<number | null>(null);
   const [rateLimitRemaining, setRateLimitRemaining] = useState(0);
 
-  const config = channelConfig[channel] ?? channelConfig.email;
+  const maxChars = channelMaxChars[channel] ?? channelMaxChars.email;
   const charCount = message.length;
-  const isOverLimit = charCount > config.maxChars;
-  const charPercent = Math.min((charCount / config.maxChars) * 100, 100);
+  const isOverLimit = charCount > maxChars;
+  const charPercent = Math.min((charCount / maxChars) * 100, 100);
   const isRateLimited = rateLimitEnd !== null && rateLimitRemaining > 0;
 
   useEffect(() => {
@@ -218,103 +196,25 @@ export function MessageEditor({
       )}
 
       {/* Toolbar — Twitter-style: icons left, char count + send right */}
-      <div className="flex items-center justify-between mt-2 pt-2 border-t border-stone-100 dark:border-stone-800">
-        {/* Left: icon actions */}
-        <div className="flex items-center gap-1">
-          {/* Channel selector icons */}
-          {(Object.keys(channelConfig) as Channel[]).map((ch) => {
-            const cfg = channelConfig[ch];
-            const isSelected = channel === ch;
-            const disabledReason = disabledChannels[ch];
-            const isDisabled = Boolean(disabledReason);
-            return (
-              <button
-                key={ch}
-                onClick={() => !isDisabled && setChannel(ch)}
-                disabled={isDisabled}
-                title={isDisabled ? disabledReason : `Send via ${cfg.label}`}
-                className={cn(
-                  "p-1.5 rounded-md transition-colors",
-                  isDisabled
-                    ? "text-stone-300 dark:text-stone-700 cursor-not-allowed"
-                    : isSelected
-                      ? cn(cfg.activeColor, "bg-stone-100 dark:bg-stone-800")
-                      : "text-stone-400 dark:text-stone-500 hover:text-stone-600 dark:hover:text-stone-300 hover:bg-stone-50 dark:hover:bg-stone-800"
-                )}
-              >
-                {cfg.icon}
-              </button>
-            );
-          })}
-
-          {/* Divider */}
-          <div className="w-px h-4 bg-stone-200 dark:bg-stone-700 mx-1" />
-
-          {/* Regenerate */}
-          <button
-            onClick={() => { void handleRegenerate(); }}
-            disabled={isRegenerating}
-            title="Regenerate message"
-            className="p-1.5 rounded-md text-stone-400 dark:text-stone-500 hover:text-stone-600 dark:hover:text-stone-300 hover:bg-stone-50 dark:hover:bg-stone-800 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-          >
-            <RefreshCw className={cn("w-4 h-4", isRegenerating && "animate-spin")} />
-          </button>
-
-        </div>
-
-        {/* Right: schedule + char count + send */}
-        <div className="flex items-center gap-2">
-          {/* Schedule (Telegram only) */}
-          {channel === "telegram" && (
-            <button
-              onClick={() => {
-                setShowSchedule((v) => !v);
-                if (showSchedule) setScheduledFor("");
-              }}
-              title={showSchedule ? "Cancel schedule" : "Schedule send"}
-              className={cn(
-                "p-1.5 rounded-md transition-colors",
-                showSchedule
-                  ? "text-sky-500 dark:text-sky-400 bg-sky-50 dark:bg-sky-950"
-                  : "text-stone-400 dark:text-stone-500 hover:text-stone-600 dark:hover:text-stone-300 hover:bg-stone-50 dark:hover:bg-stone-800"
-              )}
-            >
-              <Clock className="w-4 h-4" />
-            </button>
-          )}
-          {charCount > 0 && (
-            <span
-              className={cn(
-                "text-xs tabular-nums",
-                isOverLimit ? "text-red-500 font-medium" : "text-stone-400 dark:text-stone-500"
-              )}
-            >
-              {charCount}/{config.maxChars}
-            </span>
-          )}
-          <button
-            onClick={() => { void handleSend(); }}
-            disabled={!message.trim() || isOverLimit || isSending || isRateLimited || (showSchedule && !scheduledFor)}
-            className={cn(
-              "inline-flex items-center justify-center w-8 h-8 rounded-full transition-colors disabled:opacity-30 disabled:cursor-not-allowed",
-              message.trim() && !isOverLimit && !isSending
-                ? showSchedule && scheduledFor
-                  ? "bg-sky-500 text-white hover:bg-sky-600"
-                  : "bg-teal-500 text-white hover:bg-teal-600"
-                : "bg-stone-200 dark:bg-stone-700 text-stone-400 dark:text-stone-500"
-            )}
-            title={showSchedule && scheduledFor ? "Schedule" : "Send"}
-          >
-            {isSending ? (
-              <RefreshCw className="w-4 h-4 animate-spin" />
-            ) : showSchedule && scheduledFor ? (
-              <Clock className="w-4 h-4" />
-            ) : (
-              <Send className="w-4 h-4" />
-            )}
-          </button>
-        </div>
-      </div>
+      <MessageEditorToolbar
+        channel={channel}
+        onChannelChange={setChannel}
+        disabledChannels={disabledChannels}
+        isRegenerating={isRegenerating}
+        onRegenerate={() => { void handleRegenerate(); }}
+        showSchedule={showSchedule}
+        onToggleSchedule={() => {
+          setShowSchedule((v) => !v);
+          if (showSchedule) setScheduledFor("");
+        }}
+        scheduledFor={scheduledFor}
+        charCount={charCount}
+        isOverLimit={isOverLimit}
+        isSending={isSending}
+        isRateLimited={isRateLimited}
+        hasMessage={Boolean(message.trim())}
+        onSend={() => { void handleSend(); }}
+      />
     </div>
   );
 }

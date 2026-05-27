@@ -3,13 +3,13 @@
 import { useState, useEffect } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { ArrowRight, Check, GitMerge, Minus, X , Search } from "lucide-react";
+import { ArrowRight, Check, Minus, X, Search } from "lucide-react";
 import { useQueryClient } from "@tanstack/react-query";
-import { cn } from "@/lib/utils";
 import { useContactDuplicates, useContacts, useMergeContacts } from "@/hooks/use-contacts";
 import { client } from "@/lib/api-client";
 import { ContactAvatar } from "@/components/contact-avatar";
 import type { components } from "@/lib/api-types";
+import { DuplicateMatchBadge, DuplicateMergeActions } from "./duplicate-row-parts";
 
 type ContactResponse = components["schemas"]["ContactResponse"];
 
@@ -34,7 +34,6 @@ type DuplicateLike = {
 
 /* ── Duplicate Row ── */
 
-// eslint-disable-next-line sonarjs/cognitive-complexity -- row encapsulates dismiss/merge/confirm states; splitting would just shuffle conditionals across helpers
 function DuplicateRow({
   dup,
   contactId,
@@ -49,14 +48,13 @@ function DuplicateRow({
   const router = useRouter();
   const [confirmId, setConfirmId] = useState<string | null>(null);
   const [dismissing, setDismissing] = useState(false);
+  const [mergeError, setMergeError] = useState<string | null>(null);
 
   const name =
     dup.full_name ||
     [dup.given_name, dup.family_name].filter(Boolean).join(" ") ||
     "Unnamed";
   const score = typeof dup.score === "number" ? Math.round(dup.score * 100) : null;
-
-  const [mergeError, setMergeError] = useState<string | null>(null);
 
   const handleMerge = () => {
     setMergeError(null);
@@ -103,38 +101,7 @@ function DuplicateRow({
 
   return (
     <div className="border border-stone-200 dark:border-stone-700 rounded-lg overflow-hidden">
-      {score !== null && (
-        <div className="flex items-center justify-between px-3 py-2 bg-stone-50 dark:bg-stone-800 border-b border-stone-100 dark:border-stone-700">
-          <span
-            className={cn(
-              "inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium border",
-              score >= 85
-                ? "bg-emerald-50 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-400 border-emerald-200 dark:border-emerald-800"
-                : score >= 65
-                ? "bg-amber-50 dark:bg-amber-950 text-amber-700 dark:text-amber-400 border-amber-200 dark:border-amber-800"
-                : "bg-sky-50 dark:bg-sky-950 text-sky-700 dark:text-sky-400 border-sky-200 dark:border-sky-800"
-            )}
-          >
-            {score >= 85
-              ? "Strong match"
-              : score >= 65
-              ? "Probable match"
-              : "Possible match"}
-          </span>
-          <div className="flex items-center gap-1.5">
-            <div className="w-12 h-1.5 bg-stone-200 dark:bg-stone-700 rounded-full overflow-hidden">
-              <div
-                className={cn(
-                  "h-full rounded-full",
-                  score >= 85 ? "bg-emerald-500" : score >= 65 ? "bg-amber-400" : "bg-sky-400"
-                )}
-                style={{ width: `${score}%` }}
-              />
-            </div>
-            <span className="font-mono text-xs font-bold text-stone-600 dark:text-stone-300">{score}%</span>
-          </div>
-        </div>
-      )}
+      {score !== null && <DuplicateMatchBadge score={score} />}
 
       <div className="px-3 py-3">
         <Link
@@ -181,39 +148,16 @@ function DuplicateRow({
           <p className="text-[11px] text-red-500 mb-2">{mergeError}</p>
         )}
 
-        {confirmId === dup.id ? (
-          <div className="flex items-center gap-2">
-            <button
-              onClick={handleMerge}
-              disabled={mergeContacts.isPending}
-              className="flex-1 inline-flex items-center justify-center gap-1 px-2.5 py-1.5 text-[11px] font-medium rounded-md bg-teal-600 text-white hover:bg-teal-700 disabled:opacity-50 transition-colors"
-            >
-              {mergeContacts.isPending ? "Merging..." : "Confirm merge"}
-            </button>
-            <button
-              onClick={() => setConfirmId(null)}
-              className="flex-1 inline-flex items-center justify-center gap-1 px-2.5 py-1.5 text-[11px] font-medium rounded-md border border-stone-200 dark:border-stone-700 text-stone-600 dark:text-stone-300 hover:bg-stone-50 dark:hover:bg-stone-800 transition-colors"
-            >
-              Cancel
-            </button>
-          </div>
-        ) : (
-          <div className="flex items-center gap-2">
-            <button
-              onClick={() => { void handleDismiss(); }}
-              disabled={dismissing}
-              className="flex-1 inline-flex items-center justify-center gap-1 px-2.5 py-1.5 text-[11px] font-medium rounded-md border border-stone-200 dark:border-stone-700 text-stone-600 dark:text-stone-300 hover:bg-stone-50 dark:hover:bg-stone-800 disabled:opacity-50 transition-colors"
-            >
-              <X className="w-3 h-3" /> {dismissing ? "Dismissing..." : "Not the same"}
-            </button>
-            <button
-              onClick={() => setConfirmId(dup.id)}
-              className="flex-1 inline-flex items-center justify-center gap-1 px-2.5 py-1.5 text-[11px] font-medium rounded-md bg-teal-600 text-white hover:bg-teal-700 transition-colors"
-            >
-              <GitMerge className="w-3 h-3" /> Merge
-            </button>
-          </div>
-        )}
+        <DuplicateMergeActions
+          dupId={dup.id}
+          confirmId={confirmId}
+          dismissing={dismissing}
+          merging={mergeContacts.isPending}
+          onConfirmMerge={handleMerge}
+          onCancelConfirm={() => setConfirmId(null)}
+          onDismiss={() => { void handleDismiss(); }}
+          onRequestConfirm={() => setConfirmId(dup.id)}
+        />
       </div>
     </div>
   );

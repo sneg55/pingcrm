@@ -314,7 +314,13 @@ describe("useCreateContact", () => {
     });
 
     expect(mockClient.POST).toHaveBeenCalledWith("/api/v1/contacts", {
-      body: { full_name: "Bob" },
+      body: {
+        full_name: "Bob",
+        emails: [],
+        phones: [],
+        tags: [],
+        priority_level: "medium",
+      },
     });
     expect(returned).toEqual(created);
   });
@@ -568,7 +574,7 @@ describe("useUpdateContact", () => {
     });
   });
 
-  it("throws structured error with status + detail when API returns error envelope", async () => {
+  it("throws structured error with status + apiError when API returns error envelope", async () => {
     mockClient.PUT.mockResolvedValueOnce({
       data: null,
       error: { detail: { conflicting_contact: { id: "other" } } },
@@ -592,9 +598,13 @@ describe("useUpdateContact", () => {
     });
 
     expect(caught).toBeInstanceOf(Error);
-    const err = caught as Error & { status?: number; detail?: unknown };
-    expect(err.message).toBe("Update failed");
+    const err = caught as Error & { status?: number; apiError?: unknown };
+    expect(err.message).toBe("Conflict");
     expect(err.status).toBe(409);
-    expect(err.detail).toEqual({ conflicting_contact: { id: "other" } });
+    expect(err.apiError).toEqual({
+      kind: "conflict",
+      message: "Conflict",
+      conflictingContact: { id: "other" },
+    });
   });
 });

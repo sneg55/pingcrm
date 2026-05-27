@@ -17,6 +17,7 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import { client } from "@/lib/api-client";
+import { toOrgUpdateBody, type OrganizationUpdateInput } from "@/lib/api-mappers";
 import { ContactAvatar } from "@/components/contact-avatar";
 import { ArchivedChip } from "@/components/archived-chip";
 import { CompanyFavicon } from "@/components/company-favicon";
@@ -90,12 +91,10 @@ export default function OrganizationDetailPage() {
   });
 
   const updateMutation = useMutation({
-    mutationFn: async (updates: Partial<OrganizationData>) => {
+    mutationFn: async (updates: OrganizationUpdateInput) => {
       const res = await client.PATCH("/api/v1/organizations/{org_id}", {
         params: { path: { org_id: id } },
-         
-        // biome-ignore lint/suspicious/noExplicitAny: local OrganizationData has fields not in generated OrganizationUpdate schema
-        body: updates as any,
+        body: toOrgUpdateBody(updates),
       });
       return res.data?.data;
     },
@@ -152,7 +151,7 @@ export default function OrganizationDetailPage() {
 
   const org = data;
   const saveField = (field: string, value: string) => {
-    updateMutation.mutate({ [field]: value } as Partial<OrganizationData>);
+    updateMutation.mutate({ [field]: value } as OrganizationUpdateInput);
   };
 
   return (

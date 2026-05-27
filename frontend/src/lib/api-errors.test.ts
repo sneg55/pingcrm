@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { extractErrorMessage } from "./api-errors";
+import { extractApiError, type ConflictingContact } from "./api-errors";
 
 describe("extractErrorMessage", () => {
   describe("non-object inputs return undefined", () => {
@@ -95,5 +96,60 @@ describe("extractErrorMessage", () => {
     it("returns undefined when detail is an object (not array, not string)", () => {
       expect(extractErrorMessage({ detail: { code: "ERR" } })).toBeUndefined();
     });
+  });
+});
+
+describe("extractApiError", () => {
+  it("returns null for nullish input", () => {
+    expect(extractApiError(null)).toBeNull();
+    expect(extractApiError(undefined)).toBeNull();
+  });
+
+  it("returns a plain error for FastAPI string detail", () => {
+    const result = extractApiError({ detail: "Contact not found" });
+    expect(result).toEqual({ kind: "plain", message: "Contact not found" });
+  });
+
+  it("returns a plain error for FastAPI validation detail", () => {
+    const result = extractApiError({
+      detail: [{ loc: ["body", "emails"], msg: "field required", type: "value_error.missing" }],
+    });
+    expect(result?.kind).toBe("plain");
+    expect(result?.message).toContain("field required");
+  });
+
+  it("returns a conflict error when detail includes conflicting_contact", () => {
+    const conflictingContact: ConflictingContact = {
+      id: "abc-123",
+      full_name: "Ada Lovelace",
+    };
+    const result = extractApiError({
+      detail: {
+        message: "Email already used by another contact",
+        conflicting_contact: conflictingContact,
+      },
+    });
+    expect(result).toEqual({
+      kind: "conflict",
+      message: "Email already used by another contact",
+      conflictingContact,
+    });
+  });
+
+  it("returns a plain error for unknown error shapes", () => {
+    const result = extractApiError({ some: "weird shape" });
+    expect(result?.kind).toBe("plain");
+  });
+
+  it("returns a plain error for Error instances", () => {
+    const result = extractApiError(new Error("Boom"));
+    expect(result).toEqual({ kind: "plain", message: "Boom" });
+  });
+
+  it("falls back to plain when conflicting_contact is null (malformed payload)", () => {
+    const result = extractApiError({ detail: { conflicting_contact: null } });
+    // Should not return kind: 'conflict' with a null conflictingContact (type unsafe).
+    // Fall through to fallback.
+    expect(result?.kind).toBe("plain");
   });
 });

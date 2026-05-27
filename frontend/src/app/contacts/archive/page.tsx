@@ -9,40 +9,9 @@ import {
   ArrowLeft,
   ArchiveRestore,
   X,
-  ChevronLeft,
-  ChevronRight,
 } from "lucide-react";
 import { useContacts, useUpdateContact } from "@/hooks/use-contacts";
-import { formatDistanceToNow } from "date-fns";
-import { cn } from "@/lib/utils";
-import { ContactAvatar } from "@/components/contact-avatar";
-
-/* ── Score badge ── */
-function ScorePill({ score }: { score: number | null | undefined }) {
-  const s = score ?? 0;
-  if (s >= 70) {
-    return (
-      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-medium bg-emerald-50 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800">
-        <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
-        <span className="font-mono">{Math.round(s / 10)}</span> Strong
-      </span>
-    );
-  }
-  if (s >= 30) {
-    return (
-      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-medium bg-amber-50 dark:bg-amber-950 text-amber-700 dark:text-amber-400 border border-amber-200 dark:border-amber-800">
-        <span className="w-1.5 h-1.5 rounded-full bg-amber-400" />
-        <span className="font-mono">{Math.round(s / 10)}</span> Warm
-      </span>
-    );
-  }
-  return (
-    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-medium bg-red-50 dark:bg-red-950 text-red-700 dark:text-red-400 border border-red-200 dark:border-red-800">
-      <span className="w-1.5 h-1.5 rounded-full bg-red-400" />
-      <span className="font-mono">{Math.round(s / 10)}</span> Cold
-    </span>
-  );
-}
+import { ArchivedContactsTable } from "./_components/ArchivedContactsTable";
 
 /* ═══════════════ PAGE ═══════════════ */
 
@@ -134,19 +103,6 @@ function ArchivedContactsInner() {
   const allSelected = contacts.length > 0 && selected.size === contacts.length;
   const someSelected = selected.size > 0 && !allSelected;
 
-  /* Pagination helpers */
-  const totalPages = meta?.total_pages ?? 1;
-  const currentPage = meta?.page ?? 1;
-
-  const pageNumbers: Array<number | "..."> = [];
-  for (let i = 1; i <= totalPages; i++) {
-    if (i <= 3 || i > totalPages - 2 || Math.abs(i - currentPage) <= 1) {
-      pageNumbers.push(i);
-    } else if (pageNumbers[pageNumbers.length - 1] !== "...") {
-      pageNumbers.push("...");
-    }
-  }
-
   return (
     <div className="min-h-screen bg-stone-50 dark:bg-stone-950">
       <main className="max-w-6xl mx-auto px-4 py-8">
@@ -212,124 +168,18 @@ function ArchivedContactsInner() {
             </p>
           </div>
         ) : (
-          /* Table */
-          <div className="bg-white dark:bg-stone-900 rounded-xl border border-stone-200 dark:border-stone-700 overflow-hidden">
-            {/* Header row */}
-            <div className="grid grid-cols-[40px_1fr_140px_100px_140px_140px] gap-2 px-4 py-3 bg-stone-50 dark:bg-stone-800 border-b border-stone-200 dark:border-stone-700 items-center">
-              <div>
-                <input
-                  type="checkbox"
-                  checked={allSelected}
-                  ref={(el) => { if (el) el.indeterminate = someSelected; }}
-                  onChange={toggleSelectAll}
-                  className="w-3.5 h-3.5 rounded border-stone-300 dark:border-stone-600 text-teal-600 cursor-pointer"
-                />
-              </div>
-              <div className="text-[11px] font-semibold text-stone-500 dark:text-stone-400 uppercase tracking-wider">Name</div>
-              <div className="text-[11px] font-semibold text-stone-500 dark:text-stone-400 uppercase tracking-wider">Company</div>
-              <div className="text-[11px] font-semibold text-stone-500 dark:text-stone-400 uppercase tracking-wider text-center">Score</div>
-              <div className="text-[11px] font-semibold text-stone-500 dark:text-stone-400 uppercase tracking-wider">Last Interaction</div>
-              <div className="text-[11px] font-semibold text-stone-500 dark:text-stone-400 uppercase tracking-wider">Actions</div>
-            </div>
-
-            {/* Rows */}
-            {contacts.map((c) => {
-              const displayName = c.full_name || c.emails?.[0] || "Unnamed";
-              return (
-                <div
-                  key={c.id}
-                  className="grid grid-cols-[40px_1fr_140px_100px_140px_140px] gap-2 px-4 py-3.5 border-b border-stone-100 dark:border-stone-800 items-center hover:bg-stone-50 dark:hover:bg-stone-800 transition-colors"
-                >
-                  <div>
-                    <input
-                      type="checkbox"
-                      checked={selected.has(c.id)}
-                      onChange={() => toggleSelect(c.id)}
-                      className="w-3.5 h-3.5 rounded border-stone-300 dark:border-stone-600 text-teal-600 cursor-pointer"
-                    />
-                  </div>
-                  <div className="flex items-center gap-3 min-w-0">
-                    <ContactAvatar avatarUrl={c.avatar_url} name={displayName} size="sm" />
-                    <div className="min-w-0">
-                      <Link
-                        href={`/contacts/${c.id}`}
-                        className="text-sm font-medium text-stone-900 dark:text-stone-100 truncate block hover:text-teal-700 dark:hover:text-teal-400 transition-colors"
-                      >
-                        {displayName}
-                      </Link>
-                      {c.emails?.[0] && c.full_name && (
-                        <p className="text-xs text-stone-400 dark:text-stone-500 truncate">{c.emails[0]}</p>
-                      )}
-                    </div>
-                  </div>
-                  <div className="text-xs text-stone-600 dark:text-stone-300 truncate">{c.company || "—"}</div>
-                  <div className="text-center">
-                    <ScorePill score={c.relationship_score} />
-                  </div>
-                  <div className="text-xs text-stone-500 dark:text-stone-400">
-                    {c.last_interaction_at
-                      ? formatDistanceToNow(new Date(c.last_interaction_at), { addSuffix: true })
-                      : "Never"}
-                  </div>
-                  <div>
-                    <button
-                      onClick={() => handleUnarchive(c.id)}
-                      disabled={updateContact.isPending}
-                      className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-md border border-stone-200 dark:border-stone-700 text-stone-600 dark:text-stone-300 hover:border-teal-300 hover:text-teal-700 dark:hover:text-teal-400 hover:bg-teal-50 dark:hover:bg-teal-950 disabled:opacity-50 transition-colors"
-                    >
-                      <ArchiveRestore className="w-3.5 h-3.5" />
-                      Unarchive
-                    </button>
-                  </div>
-                </div>
-              );
-            })}
-
-            {/* Pagination */}
-            {meta && totalPages > 1 && (
-              <div className="flex items-center justify-between px-4 py-3 border-t border-stone-200 dark:border-stone-700 bg-stone-50 dark:bg-stone-800">
-                <p className="text-xs text-stone-500 dark:text-stone-400 font-mono">
-                  Page <strong className="text-stone-700 dark:text-stone-300">{currentPage}</strong> of {totalPages} — <strong className="text-stone-700 dark:text-stone-300">{meta.total}</strong> archived contacts
-                </p>
-                <div className="flex items-center gap-2">
-                  <button
-                    disabled={currentPage <= 1}
-                    onClick={() => updateUrl({ page: String(currentPage - 1) })}
-                    className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-md border border-stone-200 dark:border-stone-700 text-stone-500 dark:text-stone-400 hover:bg-stone-100 dark:hover:bg-stone-800 hover:text-stone-700 dark:hover:text-stone-100 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
-                  >
-                    <ChevronLeft className="w-3.5 h-3.5" /> Previous
-                  </button>
-                  <div className="flex items-center gap-1">
-                    {pageNumbers.map((p, i) =>
-                      p === "..." ? (
-                        <span key={`ellipsis-${i}`} className="w-7 h-7 flex items-center justify-center text-xs text-stone-400 dark:text-stone-500">...</span>
-                      ) : (
-                        <button
-                          key={p}
-                          onClick={() => updateUrl({ page: String(p) })}
-                          className={cn(
-                            "w-7 h-7 rounded-md text-xs font-medium transition-colors",
-                            p === currentPage
-                              ? "bg-teal-600 text-white"
-                              : "text-stone-600 dark:text-stone-300 hover:bg-stone-100 dark:hover:bg-stone-800"
-                          )}
-                        >
-                          {p}
-                        </button>
-                      )
-                    )}
-                  </div>
-                  <button
-                    disabled={currentPage >= totalPages}
-                    onClick={() => updateUrl({ page: String(currentPage + 1) })}
-                    className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-md border border-stone-200 dark:border-stone-700 text-stone-600 dark:text-stone-300 hover:bg-stone-100 dark:hover:bg-stone-800 hover:text-stone-700 dark:hover:text-stone-100 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
-                  >
-                    Next <ChevronRight className="w-3.5 h-3.5" />
-                  </button>
-                </div>
-              </div>
-            )}
-          </div>
+          <ArchivedContactsTable
+            contacts={contacts}
+            meta={meta}
+            selected={selected}
+            allSelected={allSelected}
+            someSelected={someSelected}
+            isPending={updateContact.isPending}
+            onToggleSelectAll={toggleSelectAll}
+            onToggleSelect={toggleSelect}
+            onUnarchive={handleUnarchive}
+            onPageChange={(page) => updateUrl({ page: String(page) })}
+          />
         )}
       </main>
 

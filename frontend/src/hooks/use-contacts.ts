@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { client } from "@/lib/api-client";
-import { extractErrorMessage } from "@/lib/api-errors";
+import { extractApiError, type ApiError, extractErrorMessage } from "@/lib/api-errors";
+import { toContactCreateBody, toContactUpdateBody } from "@/lib/api-mappers";
 
 export type Contact = {
   id: string;
@@ -113,9 +114,7 @@ export function useCreateContact() {
   return useMutation({
     mutationFn: async (input: ContactCreateInput) => {
       const { data } = await client.POST("/api/v1/contacts", {
-         
-        // biome-ignore lint/suspicious/noExplicitAny: local ContactCreateInput shape does not match generated ContactCreate schema exactly
-        body: input as any,
+        body: toContactCreateBody(input),
       });
       return data;
     },
@@ -192,15 +191,16 @@ export function useUpdateContact() {
     }) => {
       const { data, error, response } = await client.PUT("/api/v1/contacts/{contact_id}", {
         params: { path: { contact_id: id } },
-         
-        // biome-ignore lint/suspicious/noExplicitAny: local ContactCreateInput shape does not match generated ContactUpdate schema exactly
-        body: input as any,
+        body: toContactUpdateBody(input),
       });
       if (error) {
-        const err = new Error("Update failed") as Error & { status?: number; detail?: unknown };
+        const apiError = extractApiError(error) ?? { kind: "plain" as const, message: "Update failed" };
+        const err = new Error(apiError.message) as Error & {
+          status?: number;
+          apiError: ApiError;
+        };
         err.status = response.status;
-        // Preserve full structured detail (may include `conflicting_contact` for merge flows).
-        err.detail = (error as { detail?: unknown }).detail;
+        err.apiError = apiError;
         throw err;
       }
       return data;

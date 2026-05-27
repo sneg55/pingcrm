@@ -105,6 +105,48 @@ export function SyncButtonWrapper({
 }
 
 /* ── Sync result panel ── */
+function SyncStatsRow({ details }: { details: SyncDetails }) {
+  return (
+    <div className="flex items-center gap-3 mb-1">
+      {details.new_interactions !== undefined && (
+        <span className="text-emerald-700 dark:text-emerald-400">
+          {details.new_interactions} new interaction
+          {details.new_interactions !== 1 ? "s" : ""}
+        </span>
+      )}
+      {details.created !== undefined && details.created > 0 && (
+        <span className="text-teal-700 dark:text-teal-400">
+          +{details.created} new contact{details.created !== 1 ? "s" : ""}
+        </span>
+      )}
+      {details.updated !== undefined && details.updated > 0 && (
+        <span className="text-teal-700 dark:text-teal-400">{details.updated} updated</span>
+      )}
+      {details.elapsed !== undefined && (
+        <span className="text-stone-500 dark:text-stone-400 ml-auto">{details.elapsed}s</span>
+      )}
+    </div>
+  );
+}
+
+function SyncErrorList({ errors }: { errors: string[] }) {
+  return (
+    <div className="mt-2 space-y-1">
+      <p className="font-medium text-red-600 dark:text-red-400 flex items-center gap-1">
+        <AlertCircle className="w-3 h-3" />
+        {errors.length} error{errors.length > 1 ? "s" : ""}
+      </p>
+      <ul className="text-red-500 dark:text-red-400 space-y-0.5 max-h-20 overflow-y-auto">
+        {errors.map((err, i) => (
+          <li key={i} className="truncate">
+            {err}
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+
 export function SyncResultPanel({
   details,
   status,
@@ -128,42 +170,8 @@ export function SyncResultPanel({
           : "bg-emerald-50 dark:bg-emerald-950 border border-emerald-100 dark:border-emerald-800"
       }`}
     >
-      {hasStats && (
-        <div className="flex items-center gap-3 mb-1">
-          {details.new_interactions !== undefined && (
-            <span className="text-emerald-700 dark:text-emerald-400">
-              {details.new_interactions} new interaction
-              {details.new_interactions !== 1 ? "s" : ""}
-            </span>
-          )}
-          {details.created !== undefined && details.created > 0 && (
-            <span className="text-teal-700 dark:text-teal-400">
-              +{details.created} new contact{details.created !== 1 ? "s" : ""}
-            </span>
-          )}
-          {details.updated !== undefined && details.updated > 0 && (
-            <span className="text-teal-700 dark:text-teal-400">{details.updated} updated</span>
-          )}
-          {details.elapsed !== undefined && (
-            <span className="text-stone-500 dark:text-stone-400 ml-auto">{details.elapsed}s</span>
-          )}
-        </div>
-      )}
-      {details.errors && details.errors.length > 0 && (
-        <div className="mt-2 space-y-1">
-          <p className="font-medium text-red-600 dark:text-red-400 flex items-center gap-1">
-            <AlertCircle className="w-3 h-3" />
-            {details.errors.length} error{details.errors.length > 1 ? "s" : ""}
-          </p>
-          <ul className="text-red-500 dark:text-red-400 space-y-0.5 max-h-20 overflow-y-auto">
-            {details.errors.map((err, i) => (
-              <li key={i} className="truncate">
-                {err}
-              </li>
-            ))}
-          </ul>
-        </div>
-      )}
+      {hasStats && <SyncStatsRow details={details} />}
+      {hasErrors && <SyncErrorList errors={details.errors!} />}
       {!hasStats && !hasErrors && status === "error" && (
         <p className="text-red-600 dark:text-red-400">{details.message || "Sync failed"}</p>
       )}

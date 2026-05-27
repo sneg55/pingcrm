@@ -64,9 +64,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (rememberMe) params.set("remember_me", "true");
 
     const { data } = await client.POST("/api/v1/auth/login", {
-       
-      // biome-ignore lint/suspicious/noExplicitAny: URLSearchParams body for form-encoded login, schema expects JSON shape
-      body: params as any,
+      body: { username: email, password, scope: "" },
       bodySerializer: () => params,
       headers: { "Content-Type": "application/x-www-form-urlencoded" },
     });

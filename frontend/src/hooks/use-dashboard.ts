@@ -1,16 +1,7 @@
-import { useQuery } from "@tanstack/react-query";
-import { client } from "@/lib/api-client";
 import type { Suggestion } from "@/hooks/use-suggestions";
-
-type ContactStats = {
-  total: number;
-  strong: number;
-  active: number;
-  dormant: number;
-  interactions_this_week: number;
-  interactions_last_week: number;
-  active_last_week: number;
-}
+import { useDashboardSuggestions } from "@/hooks/use-dashboard-suggestions";
+import { useDashboardContacts } from "@/hooks/use-dashboard-contacts";
+import { useDashboardActivity } from "@/hooks/use-dashboard-activity";
 
 export type OverdueContact = {
   id: string;
@@ -22,7 +13,7 @@ export type OverdueContact = {
   last_interaction_at: string | null;
   days_overdue: number;
   relationship_score: number | null;
-}
+};
 
 export type ActivityEvent = {
   type: string;
@@ -33,84 +24,29 @@ export type ActivityEvent = {
   direction: string;
   content_preview: string | null;
   timestamp: string;
-}
-
-const DASHBOARD_REFETCH_MS = 5 * 60 * 1000; // 5 minutes
+};
 
 export function useDashboardStats() {
-  const suggestionsQuery = useQuery({
-    queryKey: ["suggestions"],
-    queryFn: async () => {
-      const { data } = await client.GET("/api/v1/suggestions");
-      return data ?? null;
-    },
-    refetchInterval: DASHBOARD_REFETCH_MS,
-  });
-
-  const statsQuery = useQuery({
-    queryKey: ["contacts", "stats"],
-    queryFn: async () => {
-      const { data } = await client.GET("/api/v1/contacts/stats");
-      return data ?? null;
-    },
-    refetchInterval: DASHBOARD_REFETCH_MS,
-  });
-
-  const overdueQuery = useQuery({
-    queryKey: ["contacts", "overdue"],
-    queryFn: async () => {
-      const { data } = await client.GET("/api/v1/contacts/overdue", {
-        params: { query: { limit: 5 } },
-      });
-      return data ?? { data: [], error: null };
-    },
-    refetchInterval: DASHBOARD_REFETCH_MS,
-  });
-
-  const activityQuery = useQuery({
-    queryKey: ["activity", "recent"],
-    queryFn: async () => {
-      const { data } = await client.GET("/api/v1/activity/recent", {
-        params: { query: { limit: 5 } },
-      });
-      return data ?? { data: [], error: null };
-    },
-    refetchInterval: DASHBOARD_REFETCH_MS,
-  });
-
-  const suggestions = (suggestionsQuery.data?.data ?? []) as unknown as Suggestion[];
-  const stats = statsQuery.data?.data as ContactStats | undefined;
-  const overdueContacts = (overdueQuery.data?.data ?? []) as OverdueContact[];
-  const recentActivity = (activityQuery.data?.data ?? []) as ActivityEvent[];
+  const suggestionsResult = useDashboardSuggestions();
+  const contactsResult = useDashboardContacts();
+  const activityResult = useDashboardActivity();
 
   const isLoading =
-    suggestionsQuery.isLoading ||
-    statsQuery.isLoading ||
-    overdueQuery.isLoading ||
-    activityQuery.isLoading;
-
-  // statsReady: true only when the stats API has returned data at least once.
-  // Prevents showing empty state while stats are still loading/refetching.
-  const statsReady = statsQuery.data?.data != null;
+    suggestionsResult.isLoading ||
+    contactsResult.isLoading ||
+    activityResult.isLoading;
 
   const isError =
-    suggestionsQuery.isError || statsQuery.isError ||
-    overdueQuery.isError || activityQuery.isError;
+    suggestionsResult.isError ||
+    contactsResult.isError ||
+    activityResult.isError;
 
   return {
-    suggestions,
-    statsReady,
-    stats: {
-      total: stats?.total ?? 0,
-      active: stats?.active ?? 0,
-      strong: stats?.strong ?? 0,
-      dormant: stats?.dormant ?? 0,
-      interactionsThisWeek: stats?.interactions_this_week ?? 0,
-      interactionsLastWeek: stats?.interactions_last_week ?? 0,
-      activeLastWeek: stats?.active_last_week ?? 0,
-    },
-    overdueContacts,
-    recentActivity,
+    suggestions: suggestionsResult.suggestions as Suggestion[],
+    statsReady: contactsResult.statsReady,
+    stats: contactsResult.stats,
+    overdueContacts: contactsResult.overdueContacts,
+    recentActivity: activityResult.recentActivity,
     isLoading,
     isError,
   };

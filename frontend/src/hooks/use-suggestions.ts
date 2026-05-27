@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { client } from "@/lib/api-client";
 import { extractErrorMessage } from "@/lib/api-errors";
+import { toSuggestionUpdateBody, type SuggestionUpdateInput } from "@/lib/api-mappers";
 
 export type SuggestionContact = {
   id: string;
@@ -53,15 +54,13 @@ export function useUpdateSuggestion() {
       input,
     }: {
       id: string;
-      input: UpdateSuggestionInput;
+      input: SuggestionUpdateInput;
     }) => {
       const { data } = await client.PUT(
         "/api/v1/suggestions/{suggestion_id}",
         {
           params: { path: { suggestion_id: id } },
-           
-          // biome-ignore lint/suspicious/noExplicitAny: local UpdateSuggestionInput does not match generated body schema exactly
-          body: input as any,
+          body: toSuggestionUpdateBody(input),
         }
       );
       return data;
