@@ -1,4 +1,8 @@
 [run]
+# sys.monitoring (PEP 669, Python 3.12+) correctly tracks line execution inside
+# async FastAPI endpoints; the default ctrace silently under-attributes them
+# (linkedin.py / meta.py looked like 30% but were actually 89%+).
+core = sysmon
 source = app
 omit =
     app/integrations/*
