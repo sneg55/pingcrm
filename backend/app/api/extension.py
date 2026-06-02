@@ -5,7 +5,8 @@ import logging
 from datetime import UTC, datetime, timedelta
 
 from fastapi import APIRouter, Depends, HTTPException, Request
-from jose import JWTError, jwt
+import jwt
+from jwt.exceptions import PyJWTError as JWTError
 from pydantic import BaseModel
 from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -32,8 +33,6 @@ _REFRESH_GRACE_DAYS = 90
 
 def _create_extension_token(user_id: str) -> str:
     """Create a scoped JWT for the extension (aud: pingcrm-extension, 30-day expiry)."""
-    from jose import jwt
-
     payload = {
         "sub": user_id,
         "aud": "pingcrm-extension",

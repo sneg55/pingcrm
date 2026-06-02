@@ -5,7 +5,7 @@ from datetime import timedelta
 
 import pytest
 from httpx import AsyncClient
-from jose import jwt
+import jwt
 
 from app.core.config import settings
 from app.models.user import User

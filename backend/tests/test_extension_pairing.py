@@ -20,7 +20,7 @@ from app.models.user import User
 
 def _make_extension_token(user_id: str, *, exp: datetime | None = None) -> str:
     """Create an extension-scoped JWT (aud: pingcrm-extension) for tests."""
-    from jose import jwt
+    import jwt
 
     from app.core.config import settings
 
@@ -434,7 +434,7 @@ async def test_refresh_exchanges_expired_token_within_grace(
     assert data["api_url"]
 
     # Decoding the new token should yield a future exp.
-    from jose import jwt
+    import jwt
 
     from app.core.config import settings
 
@@ -468,7 +468,7 @@ async def test_refresh_accepts_still_valid_token(
     resp = await client.post(REFRESH_URL, json={"token": token})
     assert resp.status_code == 200
 
-    from jose import jwt
+    import jwt
 
     from app.core.config import settings
 
