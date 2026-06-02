@@ -1,4 +1,9 @@
 pingcrm.sawinyh.com {
+    log {
+        output stdout
+        format json
+    }
+
     # API routes to backend
     handle /api/* {
         reverse_proxy backend:8000
