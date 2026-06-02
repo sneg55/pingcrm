@@ -38,7 +38,7 @@
     "@types/react": "^19.0.0",
     "@types/react-dom": "^19.0.0",
     "@vitejs/plugin-react": "^5.1.4",
-    "@vitest/coverage-v8": "^4.0.18",
+    "@vitest/coverage-v8": "^4.1.8",
     "eslint": "^9.0.0",
     "eslint-config-next": "16.2.7",
     "eslint-plugin-eslint-comments": "^3.2.0",
@@ -51,6 +51,6 @@
     "tailwindcss": "^4.0.0",
     "typescript": "^5.7.0",
     "typescript-eslint": "^8.59.0",
-    "vitest": "^4.0.18"
+    "vitest": "^4.1.8"
   }
 }
