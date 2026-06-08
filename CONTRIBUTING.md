@@ -12,7 +12,8 @@ Thanks for your interest in contributing! Here's how to get started.
 
 2. **Start the database and Redis**
    ```bash
-   docker-compose up -d db redis
+   cp .env.docker.example .env  # edit POSTGRES_PASSWORD and SECRET_KEY
+   docker compose up -d postgres redis
    ```
 
 3. **Backend**

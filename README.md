@@ -67,7 +67,8 @@ Point Claude Code, Cursor, Codex, or any coding agent at [`AGENT_SETUP.md`](AGEN
 ```bash
 git clone https://github.com/sneg55/pingcrm.git
 cd pingcrm
-cp backend/.env.example backend/.env  # edit values
+cp backend/.env.example backend/.env  # edit backend/integration values
+cp .env.docker.example .env           # edit POSTGRES_PASSWORD and SECRET_KEY
 docker compose up -d
 ```
 

@@ -26,9 +26,10 @@ Spin up PostgreSQL, Redis, the backend, the frontend, and the Celery worker with
 ```bash
 # Configure environment variables
 cp backend/.env.example backend/.env
+cp .env.docker.example .env
 
-# Set required variables (edit backend/.env or export in your shell)
-export POSTGRES_PASSWORD=your_secure_password
+# Set required variables used by Docker Compose interpolation
+# Edit .env and replace POSTGRES_PASSWORD and SECRET_KEY.
 
 # Start all services
 docker compose up
@@ -41,10 +42,10 @@ The dev compose file (`docker-compose.yml`) builds images from local source and 
 
 ### Environment variables
 
-Docker Compose reads from `./backend/.env` (via `env_file`) and also accepts overrides through shell environment variables. At minimum, set:
+Docker Compose reads service runtime variables from `./backend/.env` (via `env_file`). It also interpolates root-level Compose variables from `./.env` or the shell before services start. At minimum, set:
 
-- `POSTGRES_PASSWORD` -- required, used by both the `postgres` and `backend` services
-- `SECRET_KEY` -- required, generate with `python -c "import secrets; print(secrets.token_urlsafe(64))"`
+- `POSTGRES_PASSWORD` -- required in `./.env` or the shell; used by both the `postgres` and `backend` services
+- `SECRET_KEY` -- required in `./.env`, `./backend/.env`, or the shell; generate with `python -c "import secrets; print(secrets.token_urlsafe(64))"`
 
 All other integration credentials (`GOOGLE_CLIENT_ID`, `TWITTER_CLIENT_ID`, etc.) are passed through as optional environment variables. Skip ahead to [Platform Credentials](#3-platform-credentials) to fill them in.
 
