@@ -47,7 +47,7 @@
     "eslint-plugin-sonarjs": "^4.0.3",
     "jsdom": "^28.1.0",
     "openapi-typescript": "^7.13.0",
-    "postcss": "^8.5.0",
+    "postcss": "^8.5.10",
     "tailwindcss": "^4.0.0",
     "typescript": "^5.7.0",
     "typescript-eslint": "^8.59.0",
