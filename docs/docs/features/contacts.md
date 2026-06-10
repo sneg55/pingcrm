@@ -62,6 +62,8 @@ The `/contacts/[id]` page shows the full profile for a single contact.
 
 Contact fields can be edited inline -- click a field to modify it. Fields include name, email, phone, company, title, tags, priority level, and notes.
 
+If you add an email (or Telegram username / Twitter handle) that already belongs to another contact, the save is rejected and a prompt offers to **merge** the two contacts instead of creating a duplicate.
+
 ### Company Autocomplete
 
 When setting a contact's company, an autocomplete dropdown suggests existing organizations so you can link contacts to the correct org without creating duplicates.
@@ -126,6 +128,8 @@ A sidebar card displays Telegram groups shared with the contact, providing addit
 ### Duplicate Detection
 
 The system detects potential duplicate contacts based on matching email addresses, names, and cross-platform identifiers. Duplicates can be reviewed and merged.
+
+Contacts that share an exact email or phone are also auto-merged deterministically after Gmail, Telegram, LinkedIn, and Google Calendar syncs, so cross-source duplicates collapse on their own.
 
 ### Apollo Enrichment
 

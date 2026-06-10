@@ -331,6 +331,24 @@ async def _sync_google_calendar(db: AsyncSession, uid: uuid.UUID) -> dict:
         body=", ".join(parts) if parts else "No new events",
         link="/contacts?sort=recent",
     ))
+
+    # Auto-merge deterministic duplicates (same email/phone) across sources.
+    # Mirrors the Gmail sync path so calendar-sourced contacts don't linger as
+    # duplicates of contacts created by LinkedIn/manual entry.
+    if cal_result.get("new_contacts"):
+        try:
+            from app.services.identity_resolution import find_deterministic_matches
+            merged = await find_deterministic_matches(uid, db)
+            if merged:
+                logger.info(
+                    "google_calendar sync: auto-merged %d duplicate(s) for user %s",
+                    len(merged), uid,
+                )
+        except Exception:
+            logger.warning(
+                "google_calendar sync: auto-merge failed for user %s", uid, exc_info=True
+            )
+
     await db.commit()
 
     return {"status": "ok", **cal_result}
