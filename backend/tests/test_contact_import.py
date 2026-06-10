@@ -315,6 +315,35 @@ async def test_import_linkedin_connections_duplicate_detection(db: AsyncSession,
 
 
 @pytest.mark.asyncio
+async def test_import_linkedin_connections_runs_auto_merge(db: AsyncSession, user: User):
+    """After import, the deterministic auto-merge pass runs and absorbs duplicates
+    the importer's own dedup (email/url/slug/name) does not catch — here an email
+    embedded in another contact's notes. Without the wiring these stay separate."""
+    existing = Contact(
+        user_id=user.id,
+        full_name="Old Lead",
+        notes="met at conf, email frank@example.com",
+        source="manual",
+    )
+    db.add(existing)
+    await db.flush()
+
+    # Different name + url, so the importer creates a NEW contact (no direct match),
+    # but its email collides with the address in Old Lead's notes.
+    csv_bytes = (
+        "First Name,Last Name,Email Address,Company,Position,Connected On,URL\n"
+        "Frank,Castle,frank@example.com,Shield,Agent,01 Jan 2023,https://linkedin.com/in/frank\n"
+    ).encode()
+
+    result = await import_linkedin_connections(csv_bytes, user.id, db)
+    assert result["created"] == 1
+
+    rows = (await db.execute(select(Contact).where(Contact.user_id == user.id))).scalars().all()
+    assert len(rows) == 1, "auto-merge should have collapsed the notes-email duplicate"
+    assert rows[0].emails == ["frank@example.com"]
+
+
+@pytest.mark.asyncio
 async def test_import_linkedin_connections_dedup_by_linkedin_slug(db: AsyncSession, user: User):
     """A contact with a matching linkedin_profile_id is skipped even if company drifts."""
     existing = Contact(

@@ -77,7 +77,7 @@ export default function ContactDetailPage() {
         field === "family_name" ? (value as string) : (contact.family_name ?? "");
       input.full_name = [given, family].filter(Boolean).join(" ") || "";
     }
-    if (field === "telegram_username" || field === "twitter_handle") {
+    if (field === "telegram_username" || field === "twitter_handle" || field === "emails") {
       try {
         await ctrl.updateContact.mutateAsync({ id, input });
       } catch (err: unknown) {
@@ -85,7 +85,12 @@ export default function ContactDetailPage() {
         if (apiError?.kind === "conflict") {
           const conflicting = apiError.conflictingContact;
           const conflictingId = conflicting.id;
-          const platformLabel = field === "telegram_username" ? "Telegram username" : "Twitter handle";
+          const platformLabel =
+            field === "telegram_username"
+              ? "Telegram username"
+              : field === "twitter_handle"
+                ? "Twitter handle"
+                : "Email";
           ctrl.setToast({
             type: "error",
             text: `${platformLabel} already used by ${conflicting.full_name || "another contact"}`,

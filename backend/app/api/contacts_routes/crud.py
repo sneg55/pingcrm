@@ -181,6 +181,44 @@ async def update_contact(
                 },
             )
 
+    # Check email uniqueness (case-insensitive) for emails newly added to this
+    # contact, against OTHER contacts. Mirrors the create path so the UI can
+    # offer to merge instead of silently creating a duplicate email.
+    if "emails" in update_data and update_data["emails"]:
+        from sqlalchemy import text as _sql_text
+        from app.services.contact_resolver import normalize_email
+        existing_norms = {
+            n for e in (contact.emails or []) if (n := normalize_email(e))
+        }
+        for raw_email in update_data["emails"]:
+            email_norm = normalize_email(raw_email)
+            if not email_norm or email_norm in existing_norms:
+                continue
+            dup_row = await db.execute(
+                _sql_text(
+                    """
+                    SELECT id, full_name FROM contacts
+                    WHERE user_id = :uid
+                      AND id != :cid
+                      AND EXISTS (
+                        SELECT 1 FROM unnest(emails) e
+                        WHERE lower(trim(e)) = :norm
+                      )
+                    LIMIT 1
+                    """
+                ),
+                {"uid": current_user.id, "cid": contact_id, "norm": email_norm},
+            )
+            row = dup_row.first()
+            if row:
+                raise HTTPException(
+                    status_code=status.HTTP_409_CONFLICT,
+                    detail={
+                        "message": f"Another contact already has email {raw_email}",
+                        "conflicting_contact": {"id": str(row[0]), "full_name": row[1]},
+                    },
+                )
+
     # Clear stale telegram_user_id when username changes
     if telegram_username_changed:
         update_data["telegram_user_id"] = None

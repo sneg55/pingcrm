@@ -313,6 +313,22 @@ async def import_linkedin_connections(
             logger.warning("import_linkedin_connections: failed to import row %d for user %s", i + 1, user_id, exc_info=True)
             errors.append(f"Row {i + 1}: {exc!s}")
 
+    # Auto-merge deterministic duplicates (same email/phone) the import may have
+    # introduced against contacts from other sources. Mirrors the Gmail sync path.
+    if created > 0:
+        try:
+            from app.services.identity_resolution import find_deterministic_matches
+            merged = await find_deterministic_matches(user_id, db)
+            if merged:
+                logger.info(
+                    "linkedin import: auto-merged %d duplicate(s) for user %s",
+                    len(merged), user_id,
+                )
+        except Exception:
+            logger.warning(
+                "linkedin import: auto-merge failed for user %s", user_id, exc_info=True
+            )
+
     return {"created": created, "skipped": skipped, "errors": errors}
 
 

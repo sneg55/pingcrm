@@ -73,6 +73,47 @@ async def test_update_contact(client: AsyncClient, auth_headers: dict, test_cont
 
 
 @pytest.mark.asyncio
+async def test_update_contact_duplicate_email_returns_conflict(
+    client: AsyncClient, auth_headers: dict, db, test_user: User
+):
+    """Editing a contact to add an email another contact already owns must 409
+    with the conflicting contact, so the UI can offer to merge."""
+    owner = Contact(user_id=test_user.id, full_name="Email Owner", emails=["dup@test.com"])
+    target = Contact(user_id=test_user.id, full_name="Target", emails=[])
+    db.add_all([owner, target])
+    await db.commit()
+
+    resp = await client.put(
+        f"/api/v1/contacts/{target.id}",
+        json={"emails": ["DUP@test.com"]},  # case-insensitive match
+        headers=auth_headers,
+    )
+    assert resp.status_code == 409
+    detail = resp.json()["detail"]
+    assert detail["conflicting_contact"]["id"] == str(owner.id)
+    assert detail["conflicting_contact"]["full_name"] == "Email Owner"
+
+
+@pytest.mark.asyncio
+async def test_update_contact_keeps_own_email_no_conflict(
+    client: AsyncClient, auth_headers: dict, db, test_user: User
+):
+    """Re-saving a contact's own existing email (e.g. while editing another field)
+    must not 409 against itself."""
+    target = Contact(user_id=test_user.id, full_name="Self", emails=["mine@test.com"])
+    db.add(target)
+    await db.commit()
+
+    resp = await client.put(
+        f"/api/v1/contacts/{target.id}",
+        json={"emails": ["mine@test.com"], "company": "Acme"},
+        headers=auth_headers,
+    )
+    assert resp.status_code == 200
+    assert resp.json()["data"]["company"] == "Acme"
+
+
+@pytest.mark.asyncio
 async def test_delete_contact(client: AsyncClient, auth_headers: dict, test_contact: Contact):
     resp = await client.delete(f"/api/v1/contacts/{test_contact.id}", headers=auth_headers)
     assert resp.status_code == 200
