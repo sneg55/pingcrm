@@ -84,7 +84,7 @@ async def bulk_update_contacts(
         pending_result = await db.execute(
             select(FollowUpSuggestion).where(
                 FollowUpSuggestion.contact_id.in_(archive_contact_ids),
-                FollowUpSuggestion.status == "pending",
+                FollowUpSuggestion.status.in_(["pending", "snoozed"]),
             )
         )
         for suggestion in pending_result.scalars().all():

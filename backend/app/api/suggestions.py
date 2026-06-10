@@ -106,6 +106,7 @@ async def list_suggestions(
         .where(
             FollowUpSuggestion.user_id == current_user.id,
             FollowUpSuggestion.status == "pending",
+            Contact.priority_level != "archived",
             or_(Contact.tags.is_(None), ~Contact.tags.contains(["2nd tier"])),
             or_(
                 func.coalesce(func.array_length(Contact.emails, 1), 0) > 0,

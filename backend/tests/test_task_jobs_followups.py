@@ -407,6 +407,38 @@ async def test_reactivate_treats_null_scheduled_for_as_not_due(
     assert s.status == "snoozed"
 
 
+@pytest.mark.asyncio
+async def test_reactivate_skips_archived_contacts(
+    db: AsyncSession, test_user: User
+):
+    """A due snoozed suggestion on an archived contact must NOT be reactivated.
+
+    Otherwise the hourly task revives a pending suggestion for a contact the
+    user explicitly archived."""
+    contact = await _make_contact(db, test_user.id)
+    contact.priority_level = "archived"
+    db.add(contact)
+    await db.commit()
+
+    s = FollowUpSuggestion(
+        id=uuid.uuid4(),
+        contact_id=contact.id,
+        user_id=test_user.id,
+        trigger_type="time_based",
+        suggested_message="x",
+        suggested_channel="email",
+        status="snoozed",
+        scheduled_for=datetime.now(UTC) - timedelta(hours=1),
+    )
+    db.add(s)
+    await db.commit()
+
+    result = await _reactivate_snoozed_suggestions(db)
+    assert result == 0
+    await db.refresh(s)
+    assert s.status == "snoozed"
+
+
 # ---------------------------------------------------------------------------
 # Celery wrappers — argument validation + retry plumbing
 # ---------------------------------------------------------------------------

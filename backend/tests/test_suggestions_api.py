@@ -299,6 +299,44 @@ async def test_list_excludes_second_tier_contacts(
 
 
 @pytest.mark.asyncio
+async def test_list_excludes_archived_contacts(
+    client: AsyncClient,
+    auth_headers: dict[str, str],
+    db: AsyncSession,
+    test_user: User,
+) -> None:
+    """GET /suggestions excludes suggestions whose contact is archived.
+
+    A snoozed suggestion survives archiving (dismissal only targets 'pending')
+    and can later be reactivated to 'pending' by the hourly task, so the list
+    endpoint must defensively exclude archived contacts at read time.
+    """
+    archived_contact = Contact(
+        id=uuid.uuid4(),
+        user_id=test_user.id,
+        full_name="Archived Person",
+        emails=["archived@example.com"],
+        relationship_score=5,
+        source="manual",
+        priority_level="archived",
+    )
+    db.add(archived_contact)
+    await db.commit()
+    await db.refresh(archived_contact)
+
+    suggestion = _make_suggestion(archived_contact, test_user, message="Should be filtered")
+    db.add(suggestion)
+    await db.commit()
+
+    response = await client.get("/api/v1/suggestions", headers=auth_headers)
+
+    assert response.status_code == 200
+    body = response.json()
+    contact_ids_in_response = [item["contact_id"] for item in body["data"]]
+    assert str(archived_contact.id) not in contact_ids_in_response
+
+
+@pytest.mark.asyncio
 async def test_list_excludes_unreachable_contacts(
     client: AsyncClient,
     auth_headers: dict[str, str],

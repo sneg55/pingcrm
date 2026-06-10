@@ -1,12 +1,85 @@
 """Tests for contacts API endpoints."""
 import io
 import uuid
+from datetime import UTC, datetime, timedelta
 
 import pytest
 from httpx import AsyncClient
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.contact import Contact
+from app.models.follow_up import FollowUpSuggestion
 from app.models.user import User
+
+
+def _make_suggestion(
+    contact: Contact, user: User, *, status: str
+) -> FollowUpSuggestion:
+    return FollowUpSuggestion(
+        id=uuid.uuid4(),
+        contact_id=contact.id,
+        user_id=user.id,
+        trigger_type="time_based",
+        suggested_message="Hey!",
+        suggested_channel="email",
+        status=status,
+        scheduled_for=datetime.now(UTC) + timedelta(days=3),
+        created_at=datetime.now(UTC),
+    )
+
+
+@pytest.mark.asyncio
+async def test_archive_via_put_dismisses_snoozed_suggestion(
+    client: AsyncClient,
+    auth_headers: dict,
+    db: AsyncSession,
+    test_contact: Contact,
+    test_user: User,
+):
+    """PUT archiving a contact dismisses its snoozed (not just pending) suggestions.
+
+    A surviving snoozed suggestion would later be reactivated to pending by the
+    hourly task and surface on an archived contact.
+    """
+    snoozed = _make_suggestion(test_contact, test_user, status="snoozed")
+    db.add(snoozed)
+    await db.commit()
+
+    resp = await client.put(
+        f"/api/v1/contacts/{test_contact.id}",
+        json={"priority_level": "archived"},
+        headers=auth_headers,
+    )
+    assert resp.status_code == 200
+
+    await db.refresh(snoozed)
+    assert snoozed.status == "dismissed"
+    assert snoozed.dismissed_by == "system"
+
+
+@pytest.mark.asyncio
+async def test_bulk_archive_dismisses_snoozed_suggestion(
+    client: AsyncClient,
+    auth_headers: dict,
+    db: AsyncSession,
+    test_contact: Contact,
+    test_user: User,
+):
+    """Bulk archiving a contact dismisses its snoozed (not just pending) suggestions."""
+    snoozed = _make_suggestion(test_contact, test_user, status="snoozed")
+    db.add(snoozed)
+    await db.commit()
+
+    resp = await client.post(
+        "/api/v1/contacts/bulk-update",
+        json={"contact_ids": [str(test_contact.id)], "priority_level": "archived"},
+        headers=auth_headers,
+    )
+    assert resp.status_code == 200
+
+    await db.refresh(snoozed)
+    assert snoozed.status == "dismissed"
+    assert snoozed.dismissed_by == "system"
 
 
 @pytest.mark.asyncio

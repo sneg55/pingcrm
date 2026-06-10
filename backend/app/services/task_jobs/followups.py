@@ -16,6 +16,7 @@ from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import task_session
+from app.models.contact import Contact
 from app.models.follow_up import FollowUpSuggestion
 from app.models.user import User
 from app.services.digest_email import send_weekly_digest
@@ -88,11 +89,16 @@ async def _generate_suggestions_all(db: AsyncSession) -> dict:
 async def _reactivate_snoozed_suggestions(db: AsyncSession) -> int:
     """Set snoozed suggestions back to pending when their scheduled_for has passed."""
     now = datetime.now(UTC)
+    # Exclude archived contacts: archiving dismisses active suggestions, but a
+    # row that was archived through another path must not be revived to pending.
     result = await db.execute(
         update(FollowUpSuggestion)
         .where(
             FollowUpSuggestion.status == "snoozed",
             FollowUpSuggestion.scheduled_for <= now,
+            FollowUpSuggestion.contact_id.in_(
+                select(Contact.id).where(Contact.priority_level != "archived")
+            ),
         )
         .values(status="pending")
         .returning(FollowUpSuggestion.id)

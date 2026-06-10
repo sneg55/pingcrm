@@ -255,13 +255,15 @@ async def update_contact(
         from app.services.organization_service import auto_create_organization
         await auto_create_organization(contact, current_user.id, db)
 
-    # When archiving, dismiss any pending follow-up suggestions
+    # When archiving, dismiss any active follow-up suggestions. Snoozed ones
+    # must be included: otherwise the hourly reactivation task revives them to
+    # pending on a contact the user explicitly archived.
     if contact.priority_level == "archived":
         from app.models.follow_up import FollowUpSuggestion
         pending_result = await db.execute(
             select(FollowUpSuggestion).where(
                 FollowUpSuggestion.contact_id == contact_id,
-                FollowUpSuggestion.status == "pending",
+                FollowUpSuggestion.status.in_(["pending", "snoozed"]),
             )
         )
         for suggestion in pending_result.scalars().all():
