@@ -45,7 +45,7 @@ The dev compose file (`docker-compose.yml`) builds images from local source and 
 Docker Compose reads service runtime variables from `./backend/.env` (via `env_file`). It also interpolates root-level Compose variables from `./.env` or the shell before services start. At minimum, set:
 
 - `POSTGRES_PASSWORD` -- required in `./.env` or the shell; used by both the `postgres` and `backend` services
-- `SECRET_KEY` -- required in `./.env`, `./backend/.env`, or the shell; generate with `python -c "import secrets; print(secrets.token_urlsafe(64))"`
+- `SECRET_KEY` -- required in `./.env` or the shell; generate with `python -c "import secrets; print(secrets.token_urlsafe(64))"`
 
 All other integration credentials (`GOOGLE_CLIENT_ID`, `TWITTER_CLIENT_ID`, etc.) are passed through as optional environment variables. Skip ahead to [Platform Credentials](#3-platform-credentials) to fill them in.
 
