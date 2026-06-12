@@ -15,7 +15,7 @@ The `/contacts` page displays all contacts in a searchable, sortable, paginated 
 
 ### Search and Filtering
 
-- **Full-text search** across contact names, emails, companies, notes, and social handles. Results are ranked by relevance: exact name prefix matches rank highest, followed by partial name matches, company/title matches, social handle matches, then other fields.
+- **Full-text search** across contact names, emails, companies, notes, and social handles. A leading `@` is ignored, so `@username` and `username` find the same contacts. Results are ranked by relevance: exact name prefix matches rank highest, followed by partial name matches, company/title matches, social handle matches, then other fields.
 - **Filter by tags** to narrow results to specific groups.
 - **Filter by source** (Gmail, Telegram, Twitter, LinkedIn, CSV import, manual entry).
 - **Filter by relationship score** range.

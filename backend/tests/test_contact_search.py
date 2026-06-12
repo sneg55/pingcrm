@@ -83,6 +83,31 @@ async def test_search_by_email(db: AsyncSession, test_user: User):
 
 
 @pytest.mark.asyncio
+async def test_search_handle_with_at_prefix(db: AsyncSession, test_user: User):
+    contact = _make_contact(test_user.id, full_name="Federico", telegram_username="fede_0x")
+    other = _make_contact(test_user.id, full_name="Other Person", telegram_username="someone_else")
+    db.add_all([contact, other])
+    await db.commit()
+
+    results = await _run_query(db, test_user.id, search="@fede_0x")
+
+    assert len(results) == 1
+    assert results[0].telegram_username == "fede_0x"
+
+
+@pytest.mark.asyncio
+async def test_search_twitter_handle_with_at_prefix(db: AsyncSession, test_user: User):
+    contact = _make_contact(test_user.id, full_name="Tweeter", twitter_handle="jack_dev")
+    db.add(contact)
+    await db.commit()
+
+    results = await _run_query(db, test_user.id, search="@jack_dev")
+
+    assert len(results) == 1
+    assert results[0].twitter_handle == "jack_dev"
+
+
+@pytest.mark.asyncio
 async def test_search_by_company(db: AsyncSession, test_user: User):
     contact = _make_contact(test_user.id, full_name="Corp Worker", company="Acme Corp")
     other = _make_contact(test_user.id, full_name="Solo Worker", company=None)

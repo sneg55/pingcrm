@@ -70,6 +70,10 @@ def build_contact_filter_query(
         base_query = base_query.where(Contact.priority_level != "archived")
 
     if search:
+        # Leading "@" is handle notation (@username); stored handles have no "@".
+        # Strip one so handle searches match. Emails never start with "@".
+        if search.startswith("@"):
+            search = search[1:]
         # Escape SQL LIKE wildcards to prevent wildcard injection
         safe_search = search.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
         pattern = f"%{safe_search}%"
