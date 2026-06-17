@@ -28,6 +28,11 @@
     "rehype-sanitize": "^6.0.0",
     "tailwind-merge": "^2.6.0"
   },
+  "overrides": {
+    "esbuild": "^0.28.1",
+    "js-yaml": "^4.2.0",
+    "@babel/core": "^7.29.6"
+  },
   "devDependencies": {
     "@biomejs/biome": "^2.4.12",
     "@tailwindcss/postcss": "^4.0.0",
