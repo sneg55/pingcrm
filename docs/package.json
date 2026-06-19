@@ -32,7 +32,9 @@
     "js-yaml": "^4.2.0",
     "gray-matter": {
       "js-yaml": "3.14.2"
-    }
+    },
+    "undici": "^7.28.0",
+    "webpack-dev-server": "^5.2.5"
   },
   "devDependencies": {
     "@docusaurus/module-type-aliases": "3.9.2",
