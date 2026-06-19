@@ -10,7 +10,7 @@ This guide walks you through setting up PingCRM for local development. Docker Co
 ## Prerequisites
 
 - **Docker** and **Docker Compose** (recommended)
-- Or, for manual setup: **Python 3.12+**, **Node.js 18+**, **PostgreSQL 14+**, **Redis 6+**
+- Or, for manual setup: **Python 3.12+**, **Node.js 20+**, **PostgreSQL 14+**, **Redis 6+**
 
 ## 1. Clone the Repository
 
@@ -215,7 +215,7 @@ celery -A worker.celery_app worker --loglevel=info
 | `SECRET_KEY` | Yes | JWT signing key |
 | `DATABASE_URL` | Yes | PostgreSQL connection string (asyncpg) |
 | `REDIS_URL` | No | Redis URL (default: `redis://localhost:6379/0`) |
-| `ENCRYPTION_KEY` | No | Fernet key for stored OAuth tokens |
+| `ENCRYPTION_KEY` | Prod / for OAuth | Fernet key for stored OAuth tokens — required in production and for any platform integration |
 | `GOOGLE_CLIENT_ID` | No | Google OAuth client ID |
 | `GOOGLE_CLIENT_SECRET` | No | Google OAuth client secret |
 | `TWITTER_CLIENT_ID` | No | Twitter OAuth 2.0 client ID |

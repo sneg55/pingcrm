@@ -38,7 +38,7 @@ Messages are fetched via LinkedIn's Voyager GraphQL API, called directly from th
 
 On each sync the extension reads your LinkedIn session cookies from the browser, fetches conversations sorted by most-recent activity, and stops paginating once it reaches messages already seen in a previous sync (the **watermark**). Parsed results are pushed to the backend; LinkedIn cookies are never included.
 
-A **2-hour throttle** prevents excessive syncs during a browsing session. The popup's **Sync Now** button bypasses the throttle for an immediate sync.
+A **15-minute throttle** prevents excessive syncs during a browsing session. The popup's **Sync Now** button bypasses the throttle for an immediate sync.
 
 ## What Gets Synced
 
@@ -58,12 +58,10 @@ The extension syncs contacts you have **LinkedIn conversations** with. If you've
 
 When you open a LinkedIn message composer, the extension injects two small buttons into the toolbar:
 
-- **P (Pull)** — fetches your current pending follow-up suggestions for the contact whose conversation is open and displays them in a compact overlay above the composer.
-- **R (Regenerate)** — asks the backend to generate a fresh AI-drafted message for that suggestion, then updates the overlay with the new text.
+- **P (Pull)** — pastes the current pending suggestion's draft directly into the LinkedIn composer. This button is hidden when no pending suggestion exists.
+- **R (Regenerate)** — regenerates the AI draft and replaces the composer text with the new version.
 
-Clicking a suggestion in the overlay pastes it directly into the composer via a simulated keyboard event, so the LinkedIn send button activates normally. Both buttons use the extension's scoped JWT (`aud: pingcrm-extension`) to authenticate against the same `/api/v1/suggestions` endpoints used by the web app.
-
-The overlay is injected into LinkedIn's shadow DOM alongside the compose area and is removed automatically when the composer closes.
+The draft is inserted into the composer via a simulated paste event, so the LinkedIn send button activates normally. Both buttons use the extension's scoped JWT (`aud: pingcrm-extension`) to authenticate against the same `/api/v1/suggestions` endpoints used by the web app.
 
 ## Extension Architecture
 
@@ -72,7 +70,7 @@ The extension is built from two main pieces:
 - **Content script** — monitors the LinkedIn page for compose areas inside LinkedIn's shadow DOM. When a compose area appears, it injects the P and R buttons and manages the suggestion overlay lifecycle.
 - **Service worker** — handles sync logic: reads LinkedIn session cookies, calls the Voyager GraphQL API to fetch conversations and profiles, resolves a contact by matching the Voyager member ID or profile slug against the backend, and pushes parsed results to `/api/v1/linkedin/push`.
 
-When the **P** button is clicked, the content script sends a message to the service worker, which calls `/api/v1/suggestions` with the extension JWT and returns suggestions filtered to the current contact. The **R** button calls `/api/v1/suggestions/{id}/regenerate`. Text is inserted into the composer via a `paste` event simulation so LinkedIn's React input detects the change correctly.
+When the composer toolbar is detected, the content script asks the service worker for the pending suggestion for that contact (via `/api/v1/suggestions`); the P button then pastes that cached draft. The R button calls `/api/v1/suggestions/{id}/regenerate`. Text is inserted into the composer via a `paste` event simulation so LinkedIn's React input detects the change correctly.
 
 ## Profile Backfill
 
@@ -99,7 +97,7 @@ LinkedIn session cookies (`li_at` and `JSESSIONID`) are read fresh from your bro
 
 | Trigger | Behavior |
 |---|---|
-| Any LinkedIn page visit | Syncs if more than 2 hours have passed since the last sync |
+| Any LinkedIn page visit | Syncs if more than 15 minutes have passed since the last sync |
 | Manual "Sync Now" (popup) | Syncs immediately, no throttle |
 
 Sync is purely event-driven — no background alarms or scheduled tasks are needed. If your LinkedIn session expires, the popup shows a prompt to visit linkedin.com so the extension can pick up fresh cookies automatically on your next page visit.

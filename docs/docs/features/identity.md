@@ -7,6 +7,8 @@ title: Identity Resolution
 
 The **Identity Resolution** page (`/identity`) detects and merges duplicate contacts that represent the same person across different platforms. PingCRM uses a multi-tier matching system to surface candidates, from deterministic exact matches to probabilistic scoring.
 
+The page has two tabs: **Contacts** (covered below) and **Organizations**, which surfaces duplicate organizations for review and merge using the same compare-and-merge workflow.
+
 ![Identity resolution queue](/img/screenshots/identity/queue.png)
 
 ## Tier 1: Deterministic Matching
@@ -35,7 +37,7 @@ When no exact identifier overlap exists, PingCRM computes a weighted similarity 
 | Username similarity | 10% |
 | Mutual signals (shared groups, common connections) | 10% |
 
-A combined score **above 85%** triggers an automatic merge. Scores below that threshold are surfaced for manual review.
+A combined score **above 85%** triggers an automatic merge. Scores between 70% and 85% are surfaced for manual review; scores below 70% are discarded.
 
 ### Guards
 
@@ -64,4 +66,4 @@ For each pair, you can:
 
 ## On-Demand Scan
 
-Click the **Scan** button on the Identity Resolution page to trigger a fresh duplicate detection pass across all contacts. This is useful after a large import or platform sync. The scan runs as a background task, and you will receive a notification when new matches are found.
+Click the **Scan for duplicates** button on the Identity Resolution page to run a fresh duplicate detection pass across all contacts — useful after a large import or platform sync. The scan runs synchronously and returns its results inline (matches found / auto-merged / pending review); it is not a background job and produces no notification.

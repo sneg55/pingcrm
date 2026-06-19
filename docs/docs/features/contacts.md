@@ -18,16 +18,21 @@ The `/contacts` page displays all contacts in a searchable, sortable, paginated 
 - **Full-text search** across contact names, emails, companies, notes, and social handles. A leading `@` is ignored, so `@username` and `username` find the same contacts. Results are ranked by relevance: exact name prefix matches rank highest, followed by partial name matches, company/title matches, social handle matches, then other fields.
 - **Filter by tags** to narrow results to specific groups.
 - **Filter by source** (Gmail, Telegram, Twitter, LinkedIn, CSV import, manual entry).
-- **Filter by relationship score** range.
-- **Filter by priority level** (high, medium, low, archived).
+- **Filter by relationship score** tier: strong (8-10), active (4-7), or dormant (0-3).
+- **Filter by priority level** (high, medium, low). Archived contacts are excluded by default and shown via a separate archived toggle.
 
 ### Sorting
 
 The list can be sorted by:
 
-- Name (alphabetical)
-- Relationship score (highest or lowest first)
-- Date added or last interaction date
+- Relationship score (default)
+- Date added
+- Last interaction
+- Activity (interaction count)
+- Company (alphabetical)
+- Upcoming birthday
+- Priority level
+- Most overdue
 
 ### Pagination
 
@@ -83,14 +88,12 @@ A visual badge displays the contact's computed relationship score, giving you an
 
 ### Message Composer
 
-Send messages directly from the contact detail page. Supported channels:
+The composer uses AI to draft context-aware messages for any channel, based on the contact's profile and interaction history. Direct in-app sending, however, is currently supported for **Telegram only**:
 
-- **Email** (via connected Gmail account)
-- **Telegram**
-- **Twitter DM**
-- **LinkedIn** (via Chrome extension)
-
-The composer uses AI to draft context-aware messages based on the contact's profile and interaction history.
+- **Telegram** -- drafted messages are sent directly through this endpoint.
+- **Email** -- send the draft from your own Gmail client; it is logged to the timeline via BCC addressing rather than sent through this endpoint.
+- **LinkedIn** -- messages are sent via the Chrome extension, not through this endpoint.
+- **Twitter DM** -- sending is not yet supported.
 
 ![Message composer drafting an AI-suggested message](/img/screenshots/contacts/detail-composer.png)
 

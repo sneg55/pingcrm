@@ -38,13 +38,13 @@ By default `docker-compose.prod.yml` uses `:latest`. To pin:
 ```yaml
 services:
   backend:
-    image: ghcr.io/sneg55/pingcrm/backend:v1.7.0
+    image: ghcr.io/sneg55/pingcrm/backend:1.7.0
   frontend:
-    image: ghcr.io/sneg55/pingcrm/frontend:v1.7.0
+    image: ghcr.io/sneg55/pingcrm/frontend:1.7.0
 ```
 
 Available tag forms:
-- `:v1.7.0` — exact version
+- `:1.7.0` — exact version
 - `:1.7` — latest patch in the 1.7 line
 - `:1` — latest minor in the 1.x line
 - `:latest` — most recent release

@@ -11,15 +11,16 @@ PingCRM connects to Gmail via OAuth 2.0 with Google, syncing email threads, cont
 
 The Gmail integration uses standard Google OAuth 2.0. After granting access on the Google consent screen, PingCRM stores a refresh token to maintain access without repeated sign-in. Multi-account support allows connecting more than one Gmail address.
 
+> **Setup note:** The Google OAuth consent screen must be published **"In production."** In **"Testing"** mode, Google expires refresh tokens after 7 days, which repeatedly breaks Gmail, Calendar, and Contacts sync.
+
 ![Gmail section in Settings](/img/screenshots/gmail/settings-section.png)
 
 ## Email Sync
 
 Individual email messages are imported as interactions. Each message captures:
 
-- **Sender and recipients** -- mapped to existing contacts or used to create new ones.
+- **Sender and recipients** -- matched to existing contacts by email address (or BCC hash). Email sync does not create new contacts; messages with no matching contact are skipped.
 - **Direction** -- inbound (contact sent to you) or outbound (you sent to contact), per message.
-- **Subject line** -- prepended to the message snippet for context.
 - **Timestamps** -- sent times for accurate timeline ordering.
 - **Body snippets** -- a preview of the email content without storing full message bodies.
 
