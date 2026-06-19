@@ -42,7 +42,7 @@ Tweets that @mention you and your outbound replies are imported as interactions 
 PingCRM periodically checks the Twitter bios of your contacts for changes. When a change is detected:
 
 1. A **notification** is created alerting you to the update.
-2. A **timeline event** is added to the contact's interaction history, recording the old and new bio text.
+2. A **timeline event** is added to the contact's interaction history, recording the new bio text.
 
 Bio changes are a valuable signal for identifying career moves, fundraising activity, and other networking-relevant events.
 
@@ -67,7 +67,7 @@ See [Follow-Up Suggestions](./suggestions.md) for the full suggestion algorithm,
 
 ## Bird CLI (`@steipete/bird`)
 
-PingCRM uses the [Bird CLI](https://www.npmjs.com/package/@anthropic-ai/bird) (`@steipete/bird v0.8.0`) as the **primary** data source for Twitter/X. Bird authenticates via browser cookies rather than API keys, bypassing X API rate limits and credit restrictions.
+PingCRM uses the [Bird CLI](https://www.npmjs.com/package/@steipete/bird) (`@steipete/bird v0.8.0`) as the **primary** data source for Twitter/X. Bird authenticates via browser cookies rather than API keys, bypassing X API rate limits and credit restrictions.
 
 ### What Bird CLI provides
 

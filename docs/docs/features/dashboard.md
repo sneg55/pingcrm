@@ -11,7 +11,7 @@ The `/dashboard` page is the daily-driver view: stat cards at the top, follow-up
 
 ## Stat Cards
 
-Three counters at the top of the page, each with a week-over-week trend arrow when prior data is available:
+Three counters at the top of the page. Active relationships and Interactions this week each show a week-over-week trend arrow when prior data is available; Total contacts has no trend arrow.
 
 - **Total contacts** — every contact in the CRM, archived and active.
 - **Active relationships** — sum of contacts in the `active` and `strong` score buckets. The trend compares against the same value seven days ago.
@@ -23,7 +23,7 @@ When a fresh account has zero contacts, the stat cards are replaced with an inli
 
 Up to five pending suggestions from the follow-up engine, each rendered as an expandable card. Click a card to reveal the AI-drafted message inline; from there you can:
 
-- **Send** through the suggested channel (email, Telegram, Twitter, LinkedIn).
+- **Send** through the suggested channel (email, Telegram, or Twitter).
 - **Snooze** for 2 weeks, 1 month, or 3 months.
 - **Dismiss** to remove the suggestion.
 

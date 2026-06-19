@@ -31,7 +31,7 @@ cd frontend && npm test
 
 ## Pre-push hook
 
-`.githooks/pre-push` runs the test suite (and the API-doc / response-model guards) before any push. It uses `backend/.venv`'s Python, so any new test dependency added to `requirements-test.txt` must also be installed in that venv:
+`.githooks/pre-push` runs the backend test suite (pytest, which includes the API-doc guard via test_api_doc.py), the frontend type-check (tsc), lint (next lint), and tests (vitest) before any push. The response-model guard (scripts/check_response_models.py) is a separate CI/manual check, not run by the hook. It uses `backend/.venv`'s Python, so any new test dependency added to `requirements-test.txt` must also be installed in that venv:
 
 ```bash
 cd backend && source .venv/bin/activate && pip install -r requirements-test.txt

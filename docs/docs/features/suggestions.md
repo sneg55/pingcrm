@@ -19,7 +19,7 @@ Four independent triggers feed into Pool A. A contact only needs to match **one*
 
 | Trigger | Condition | Example |
 |---|---|---|
-| **Time-based** | No interaction in 90+ days, score > 0 | "Haven't talked to Alex in 3 months" |
+| **Time-based** | No interaction within the contact's priority interval (high 30d / medium 60d / low 180d), relationship score below 4 | "Haven't talked to Alex in 3 months" |
 | **Event-based** | DetectedEvent in last 7 days, confidence > 70% | Bio change, tweet about fundraising |
 | **Scheduled** | Past the priority interval since last follow-up | Medium priority set to 60 days, last follow-up was 65 days ago |
 | **Birthday** | Birthday in next 3 days | High priority (1500), bypasses dormancy filter |
@@ -32,13 +32,13 @@ Surfaces contacts you've lost touch with but had meaningful past engagement. Thr
 
 | Trigger | Condition |
 |---|---|
-| **B1 — Deep dormant** | No interaction in 365+ days, 2+ past interactions, score >= 3, history spans 30+ days |
-| **B2 — Mid dormant** | No interaction in 180-365 days, 3+ past interactions, score >= 4 |
-| **B3 — Event revival** | Dormant 180+ days but had a recent detected event (job change, etc.) |
+| **B1 — Deep dormant** | No interaction in 365 days to 5 years, score > 0, and (5+ past interactions OR score >= 5) |
+| **B2 — Mid dormant** | No interaction in 365 days to 3 years, score > 0, 2+ past interactions |
+| **B3 — Event revival** | Dormant past the threshold (default 365+ days) but had a detected event in the last 14 days (job change, etc.) |
 
 ### Cooldowns and Guards
 
-All triggers respect these guards — **including event-based triggers**:
+These guards apply broadly — **including event-based triggers**. Note the **interaction cooldown** is an interaction-recency filter that the birthday trigger is exempt from:
 
 | Guard | Rule |
 |---|---|
@@ -46,10 +46,10 @@ All triggers respect these guards — **including event-based triggers**:
 | **Follow-up cooldown** | Skip if last follow-up suggestion was within **14 days** |
 | **Already queued** | Skip if a pending or snoozed suggestion already exists |
 | **Archived** | Skip archived contacts |
-| **2nd-tier** | Skip contacts labelled "2nd-tier" |
-| **No channel** | Skip contacts with no email, Telegram, or Twitter handle |
-| **Ghosting (3+)** | Skip if last 3+ consecutive interactions are all outbound with no reply |
-| **Ghosting (2)** | Reduce priority by 50% if last 2 consecutive interactions are outbound |
+| **2nd-tier** | Skip contacts labelled "2nd tier" |
+| **No channel** | Skip contacts with no email, Telegram, Twitter, or LinkedIn |
+| **Ghosting (3+)** | Skip if last 3+ consecutive interactions are all outbound with no reply and the most recent was within 30 days |
+| **Ghosting (2)** | Reduce priority by 50% if last 2 consecutive interactions are outbound and the most recent was within 30 days |
 | **Unread outbound** | Skip if last outbound Telegram message hasn't been read by recipient |
 | **Read no reply** | Boost priority +100 if last outbound was read but no inbound reply |
 
@@ -64,17 +64,17 @@ Within each pool, candidates are ranked by priority score:
 
 ### Relationship Score
 
-The relationship score (0-10) is computed from five weighted dimensions plus a tenure bonus:
+The relationship score (0-10) is an additive sum of integer point ranges across several dimensions plus a tenure bonus, capped at 10:
 
-| Dimension | Weight | What it measures |
+| Dimension | Points | What it measures |
 |---|---|---|
-| Reciprocity | 30% | Balance of inbound vs outbound messages |
-| Recency | 25% | How recently you interacted (exponential decay) |
-| Frequency | 20% | How often you interact |
-| Breadth | 15% | Number of platforms you communicate on |
-| Tenure | 10% | How long you've known the contact |
+| Reciprocity | 0-4 | Balance of inbound vs outbound (min/max ratio) |
+| Recency | 0-3 | Stepwise recency buckets (≤7d / ≤30d / ≤90d), halved when there is no inbound message |
+| Frequency | 0-2 | Weighted interaction counts across time windows |
+| Breadth | 0-1 | 1 point if 2+ platforms |
+| Tenure | 0-2 bonus | Long-term contacts (>=20 interactions & >=1yr, or >=50 & >=2yr) |
 
-**Tenure bonus:** 0-2 extra points based on relationship duration (caps at 2 years).
+**Tenure bonus:** 0-2 extra points for long-term contacts. Requires both interaction-count and duration thresholds: >=20 interactions and >=1 year, or >=50 interactions and >=2 years.
 
 **Extended decay:** Interactions from 1-2 years ago still contribute at 0.05x weight; 2-5 years at 0.02x. This prevents long-term contacts from dropping to zero.
 

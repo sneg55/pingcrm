@@ -26,8 +26,9 @@ Once authenticated, the session is persisted so you do not need to re-authentica
 | Direct messages | DM dialogs | Daily (03:00 UTC) + manual |
 | Contact info | DM participants | During chat sync |
 | Group members | Private groups / supergroups | First sync only; on-demand thereafter |
-| User bios | Telegram "about" field | Every 3 days (periodic recheck); 7-day freshness filter during chat sync |
+| User bios | Telegram "about" field | Every 3 days (periodic recheck, 3-day staleness); first-sync bio step uses a 7-day staleness filter |
 | Usernames | All synced users | During chat / group sync |
+| Phone/video calls | DM call events | During chat sync (call_type + duration recorded) |
 | Common groups | Shared group memberships | Cached 24 hours |
 
 ## Chat Sync
@@ -108,7 +109,7 @@ Disabling 2nd Tier sync does not delete existing 2nd Tier contacts — use the b
 User bios (the "about" field in Telegram profiles) are periodically checked for changes.
 
 ### Freshness filter
-A 7-day freshness filter skips users whose bios were fetched recently during a chat or group sync, reducing API calls by approximately 70%.
+A freshness filter skips contacts whose bio was last checked within the staleness window (based on each contact's telegram_bio_checked_at timestamp, set only by bio sync). The window is 7 days for the first-sync bio step and 3 days for the periodic recheck.
 
 ### Periodic recheck
 Every 3 days, a background task rechecks bios for all non-2nd-Tier contacts whose `telegram_bio_checked_at` is older than 3 days or null.

@@ -36,7 +36,6 @@ Sessions can expire if you remove the linked device from your phone or if WhatsA
 |------|--------|-----------|
 | Direct messages | 1:1 chats | Real-time (via webhook) + 30-day backfill on connect |
 | Contact name | WhatsApp profile | During message sync |
-| About text | WhatsApp "About" field | During message sync |
 
 ### Not synced
 - Group messages
@@ -76,7 +75,7 @@ A daily Celery beat task (`check_whatsapp_sessions`, 01:00 UTC) verifies that al
 
 From Settings > Integrations > WhatsApp, use the kebab menu to disconnect. This:
 
-1. Destroys the sidecar session (including stored auth data).
+1. Destroys the in-memory sidecar session and shuts down its browser. (Stored on-disk auth data under /data/sessions is not deleted.)
 2. Clears the user's WhatsApp connection fields.
 3. Does **not** delete synced interactions or contacts.
 

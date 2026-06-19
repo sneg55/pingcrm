@@ -44,14 +44,16 @@ title: Technical Architecture
 
 | File | Lines | Role |
 |------|-------|------|
-| `integrations/telegram.py` | ~800 | Telegram DM/bio sync |
-| `integrations/telegram_transport.py` | ~200 | Telethon client lifecycle |
+| `integrations/telegram.py` | ~300 | Telegram DM/bio sync |
+| `integrations/telegram_transport.py` | ~85 | Telethon client lifecycle |
 | `integrations/telegram_helpers.py` | ~150 | Contact resolution helpers |
 | `integrations/telegram_groups.py` | ~250 | Group member sync |
-| `integrations/twitter.py` | ~700 | Twitter DM/mention/reply sync |
-| `integrations/twitter_auth.py` | ~160 | OAuth 2.0 PKCE token management |
-| `services/followup_engine.py` | ~750 | AI follow-up suggestion generation |
+| `integrations/twitter.py` | ~470 | Twitter DM/mention/reply sync |
+| `integrations/twitter_auth.py` | ~200 | OAuth 2.0 PKCE token management |
+| `services/followup_engine.py` | ~490 | AI follow-up suggestion generation |
 | `services/scoring.py` | ~200 | Relationship score calculation |
+
+Telegram sync logic is split across `telegram_bio_sync.py`, `telegram_chat_sync.py`, and `telegram_chat_batch.py`.
 
 ---
 
@@ -121,7 +123,8 @@ backend/app/
 All endpoints return a typed generic envelope. This provides a consistent contract for the frontend:
 
 ```python
-from pydantic import BaseModel, Generic, TypeVar
+from typing import Generic, TypeVar
+from pydantic import BaseModel
 
 T = TypeVar("T")
 
@@ -201,7 +204,7 @@ PostgreSQL with UUID primary keys throughout. Key models and their relationships
 
 **Contact** -- `full_name`, `emails[]` (PostgreSQL ARRAY with GIN index), `phones[]`, `company`, `organization_id`, `twitter_handle`, `twitter_bio`, `telegram_username`, `telegram_bio`, `linkedin_url`, `relationship_score` (0-10), `interaction_count`, `priority_level` (high/medium/low/archived), `tags[]`, `last_interaction_at`, `last_followup_at`, `birthday`.
 
-**Interaction** -- `contact_id`, `platform` (email/telegram/twitter/linkedin), `direction` (inbound/outbound), `content_preview`, `occurred_at`.
+**Interaction** -- `contact_id`, `platform` (email/telegram/twitter/linkedin), `direction` (inbound/outbound), `content_preview`, `occurred_at`, `call_type` (call category, e.g. voice/video), `duration_seconds` (call length).
 
 **FollowUpSuggestion** -- `contact_id`, `trigger_type` (time_based/event_based/scheduled/birthday/dormant_*), `suggested_message`, `suggested_channel`, `status` (pending/snoozed/dismissed/completed), `pool` (A/B), `snooze_until`.
 
@@ -237,10 +240,11 @@ Celery with Redis as both broker and result backend. Tasks use JSON serializatio
 | `refresh_org_stats` | Hourly (:30) | Refresh `organization_stats_mv` materialized view |
 | `reactivate_snoozed_suggestions` | Hourly (:00) | Un-snooze suggestions past their `snooze_until` |
 | `send_weekly_digests` | Monday 09:00 UTC | Email weekly networking digest |
-| `recheck_telegram_bios` | Every 3 days | Re-check Telegram bios for changes |
+| `recheck_telegram_bios_all` | Every 3 days | Re-check Telegram bios for changes |
 | `cleanup_stale_telegram_locks` | Hourly (:15) | Remove stale Telegram rate-limit locks |
 | `scan_meeting_preps` | Every 10 minutes | Scan upcoming Calendar meetings and email pre-meeting prep briefs |
 | `check_whatsapp_sessions` | Daily 01:00 UTC | Verify WhatsApp sidecar sessions are still connected |
+| `check_for_updates` | Every 6 hours (:15) | Check GitHub for new PingCRM releases |
 
 ### Task Safety
 

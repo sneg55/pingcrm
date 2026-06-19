@@ -26,7 +26,7 @@ If a contact's location couldn't be geocoded (free-form text like a URL, emoji, 
 
 ## Viewport sidebar
 
-The right-hand sidebar lists contacts currently in view, sorted by relationship score (highest first). Moving or zooming the map refreshes the list automatically (debounced ~250ms).
+The right-hand sidebar lists contacts currently in view, sorted by relationship score (highest first). Moving or zooming the map refreshes the list automatically once the pan/zoom gesture ends (Mapbox moveend).
 
 Each row shows the contact's avatar, name, and score. Clicking a row opens the full contact page.
 
@@ -34,7 +34,7 @@ When a metro has more than 500 contacts in view, the sidebar shows a "Showing 50
 
 ## Clustering
 
-Zoomed-out views collapse nearby pins into numbered cluster bubbles. Clicking a cluster zooms in and breaks it apart. Cluster radius is 50 pixels, and clusters disappear at zoom level 14+.
+Zoomed-out views collapse nearby pins into numbered cluster bubbles. Clicking a cluster zooms in and breaks it apart. Cluster radius is 50 pixels, and clusters stop forming above zoom level 14 (individual pins from zoom 15).
 
 ![Cluster bubbles at zoomed-out view](/img/screenshots/map/cluster.png)
 
@@ -53,7 +53,7 @@ The task is idempotent: it skips contacts whose stored `geocoded_location` alrea
 |---|---|---|
 | 200 with a match | `latitude`, `longitude`, `geocoded_location`, `geocoded_at` all set | Pin rendered on map |
 | 200 with zero results | `geocoded_at` set, lat/lng null | Contact hidden from map; no retry until location changes |
-| 4xx | Same as zero results | Silently dropped; logged at info level |
+| 4xx | Same as zero results | Dropped; logged at warning (provider) + info (task) |
 | 429 (rate limit) | -- | Task re-queued with exponential backoff |
 | 5xx / timeout | -- | Retried up to 3 times inside the service, then Celery retry |
 

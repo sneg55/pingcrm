@@ -13,11 +13,11 @@ The **Notifications** page (`/notifications`) is the central feed for system eve
 
 PingCRM generates notifications for the following events:
 
-- **Sync completion** -- confirms that a platform sync (Gmail, Telegram, Twitter, LinkedIn) finished successfully, including counts of new or updated records.
+- **Sync completion** -- confirms that a platform sync (Gmail, Telegram, Twitter) finished successfully, including counts of new or updated records.
 - **Sync failure** -- alerts when a sync could not complete, with error details.
 - **New suggestions** -- notifies when the follow-up engine produces new outreach suggestions.
-- **Bio change detections** -- fires when a monitored Twitter contact updates their bio, often indicating a job change or new venture.
-- **Identity matches** -- surfaces newly discovered duplicate contact candidates from the identity resolution engine.
+- **Bio change detections** -- fires when a monitored Twitter or Telegram contact updates their bio, often indicating a job change or new venture.
+- **Auto-tagging** -- reports when an automatic LLM tagging run finishes (or fails).
 - **Rate limit alerts** -- warns when a platform API rate limit has been hit, with estimated recovery time.
 - **Connection expired** -- alerts when a platform OAuth token has expired and needs re-authorization.
 - **Meeting prep re-auth** -- prompts re-authorization when the `gmail.send` scope is needed for pre-meeting prep emails.
@@ -47,5 +47,5 @@ The notification feed supports the following filter tabs:
 | All | Every notification, read and unread |
 | Unread | Only notifications not yet marked as read |
 | Suggestions | Follow-up suggestions from the AI engine |
-| Events | Bio changes, identity matches, and other contact events |
+| Events | Bio changes and other contact events |
 | System | Sync completions, sync failures, and rate limit alerts |
