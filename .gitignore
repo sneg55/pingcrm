@@ -40,6 +40,7 @@ celerybeat-schedule.db
 
 # Coverage
 .coverage
+.coverage_*.json
 coverage/
 
 # Build artifacts
