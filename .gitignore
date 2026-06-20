@@ -69,3 +69,14 @@ docs/superpowers/
 **/.claude/
 CLAUDE.local.md
 .superpowers/
+
+# Raw debug screenshots (not referenced by docs)
+docs/static/img/screenshots/gmail/contact-email-area.png
+docs/static/img/screenshots/gmail/contact-raw.png
+docs/static/img/screenshots/gmail/contact-scroll1.png
+docs/static/img/screenshots/gmail/contact-scroll2.png
+docs/static/img/screenshots/gmail/pri-contact-raw.png
+docs/static/img/screenshots/gmail/pri-fresh.png
+docs/static/img/screenshots/gmail/pri-timeline-raw.png
+docs/static/img/screenshots/gmail/settings-section-raw.png
+docs/static/img/screenshots/gmail/timeline-check.png
