@@ -8,6 +8,9 @@ export default defineConfig({
     environment: "jsdom",
     setupFiles: ["./src/test/setup.ts"],
     globals: true,
+    // Threads spin up far faster than the default forked processes, which matters
+    // when each of the 35 files pays jsdom environment-setup cost.
+    pool: "threads",
   },
   resolve: {
     alias: {
