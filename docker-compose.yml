@@ -1,6 +1,12 @@
 services:
   postgres:
     image: postgres:16-alpine
+    # Published to the host so host-based development (running alembic/uvicorn
+    # from a local venv, per CONTRIBUTING.md) can reach the database at
+    # localhost:5432. Containers on the compose network still use the "postgres"
+    # service hostname.
+    ports:
+      - "5432:5432"
     command:
       - postgres
       - -c
@@ -27,6 +33,9 @@ services:
 
   redis:
     image: redis:7-alpine
+    # Published to the host for host-based development (see postgres above).
+    ports:
+      - "6379:6379"
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 5s
