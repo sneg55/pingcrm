@@ -33,9 +33,12 @@ import { fileURLToPath } from "node:url";
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const EXT_DIR = path.resolve(HERE, "..");
 // --profile=<slug> probes one profile through the backfill extraction logic.
+// --enrich=<slug> runs the real profile-visit push against API_URL/EXT_TOKEN.
 const PROFILE_ARG = process.argv.find((a) => a.startsWith("--profile"));
-const PROFILE_SLUG = PROFILE_ARG ? (PROFILE_ARG.split("=")[1] || process.argv[process.argv.indexOf(PROFILE_ARG) + 1]) : null;
-const MODE = PROFILE_ARG ? "profile" : process.argv.includes("--capture") ? "capture" : "e2e";
+const ENRICH_ARG = process.argv.find((a) => a.startsWith("--enrich"));
+const SLUG_ARG = ENRICH_ARG || PROFILE_ARG;
+const PROFILE_SLUG = SLUG_ARG ? (SLUG_ARG.split("=")[1] || process.argv[process.argv.indexOf(SLUG_ARG) + 1]) : null;
+const MODE = ENRICH_ARG ? "enrich" : PROFILE_ARG ? "profile" : process.argv.includes("--capture") ? "capture" : "e2e";
 const PORT = Number(process.env.CDP_PORT || 9222);
 const CHROME_BIN =
   process.env.CHROME_BIN || "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome";
@@ -273,6 +276,51 @@ async function runProfileProbe(evaluate, slug) {
   }
 }
 
+// Run the REAL profile-visit push against a live backend (mirrors the SW's
+// PROFILE_VISIT handler body) and report what the backend did.
+async function runEnrich(evaluate, slug) {
+  const apiUrl = (process.env.API_URL || "").replace(/\/+$/, "");
+  const token = process.env.EXT_TOKEN;
+  if (!apiUrl || !token) {
+    console.error("✖ --enrich requires API_URL and EXT_TOKEN (web or extension JWT).");
+    process.exit(2);
+  }
+  console.log(`→ Enriching "${slug}" against ${apiUrl} (real Voyager + avatar + push)...`);
+  const out = await evaluate(`(async () => {
+    const apiUrl = ${JSON.stringify(apiUrl)}, token = ${JSON.stringify(token)};
+    const { liAt, jsessionid } = await _readLinkedInCookies();
+    const raw = await voyagerGetProfile(liAt, jsessionid, ${JSON.stringify(slug)});
+    const fields = _extractProfileFields(raw);
+    if (!fields) return { error: "NO_PROFILE" };
+    let avatarData = null;
+    if (fields.avatarUrl) { try { avatarData = await fetchLinkedInImageAsBase64(fields.avatarUrl); } catch (e) {} }
+    const resp = await fetch(apiUrl + "/api/v1/linkedin/push", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "Authorization": "Bearer " + token },
+      body: JSON.stringify({
+        enrich_only: true,
+        profiles: [{
+          profile_id: ${JSON.stringify(slug)}, member_id: fields.memberId,
+          profile_url: "https://www.linkedin.com/in/" + ${JSON.stringify(slug)},
+          full_name: fields.fullName, headline: fields.headline, company: fields.company,
+          location: fields.location, avatar_url: fields.avatarUrl, avatar_data: avatarData,
+        }],
+        messages: [],
+      }),
+    });
+    const json = await resp.json().catch(() => null);
+    return { status: resp.status, memberId: fields.memberId, company: fields.company,
+             headline: fields.headline, avatarBytes: !!avatarData, data: json?.data };
+  })()`);
+  console.log(JSON.stringify(out, null, 2));
+  if (out.status === 200) {
+    console.log(`✓ Push accepted — updated ${out.data?.contacts_updated ?? "?"} contact(s), company="${out.company}", avatar bytes=${out.avatarBytes}`);
+  } else {
+    console.error(`✖ Push returned ${out.status}`);
+    process.exitCode = 1;
+  }
+}
+
 // ── Main ─────────────────────────────────────────────────────────────────────
 (async () => {
   console.log(`PingCRM extension Layer 3 — mode: ${MODE}`);
@@ -285,7 +333,8 @@ async function runProfileProbe(evaluate, slug) {
     await openLinkedInTab(conn.b);
     console.log("→ Attaching to extension service worker...");
     const { evaluate } = await attachServiceWorker(conn.b, conn.targets);
-    if (MODE === "profile") await runProfileProbe(evaluate, PROFILE_SLUG);
+    if (MODE === "enrich") await runEnrich(evaluate, PROFILE_SLUG);
+    else if (MODE === "profile") await runProfileProbe(evaluate, PROFILE_SLUG);
     else if (MODE === "capture") await runCapture(evaluate);
     else await runE2E(evaluate);
   } catch (e) {
