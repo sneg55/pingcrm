@@ -1,0 +1,66 @@
+{
+  "data": {
+    "messengerConversationsBySyncToken": {
+      "elements": [
+        {
+          "entityUrn": "urn:li:msg_conversation:CONV1",
+          "backendUrn": "urn:li:msg_conversation:CONV1",
+          "lastActivityAt": 1749990000000,
+          "title": { "text": "Partner One" },
+          "conversationUrl": { "url": "https://www.linkedin.com/messaging/thread/CONV1" },
+          "conversationParticipants": [
+            {
+              "hostIdentityUrn": "urn:li:fsd_profile:PARTNER1",
+              "participantType": {
+                "member": {
+                  "profileUrl": "https://www.linkedin.com/in/partner-one",
+                  "firstName": "Partner",
+                  "lastName": "One"
+                }
+              }
+            },
+            {
+              "hostIdentityUrn": "urn:li:fsd_profile:SELF123",
+              "participantType": {
+                "member": {
+                  "profileUrl": "https://www.linkedin.com/in/self-user",
+                  "firstName": "Self",
+                  "lastName": "User"
+                }
+              }
+            }
+          ]
+        },
+        {
+          "entityUrn": "urn:li:msg_conversation:CONV2",
+          "backendUrn": "urn:li:msg_conversation:CONV2",
+          "lastActivityAt": 1749000000000,
+          "title": { "text": "Partner Two" },
+          "conversationUrl": { "url": "https://www.linkedin.com/messaging/thread/CONV2" },
+          "conversationParticipants": [
+            {
+              "hostIdentityUrn": "urn:li:fsd_profile:PARTNER2",
+              "participantType": {
+                "member": {
+                  "profileUrl": "https://www.linkedin.com/in/partner-two",
+                  "firstName": "Partner",
+                  "lastName": "Two"
+                }
+              }
+            },
+            {
+              "hostIdentityUrn": "urn:li:fsd_profile:SELF123",
+              "participantType": {
+                "member": {
+                  "profileUrl": "https://www.linkedin.com/in/self-user",
+                  "firstName": "Self",
+                  "lastName": "User"
+                }
+              }
+            }
+          ]
+        }
+      ]
+    }
+  }
+}

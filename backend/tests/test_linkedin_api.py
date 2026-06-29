@@ -594,3 +594,125 @@ async def test_push_matches_contact_by_name_when_profile_id_is_urn(
     # Existing contact should now have the URN stored as linkedin_profile_id
     await db.refresh(existing)
     assert existing.linkedin_profile_id == urn_id
+
+
+# ---------------------------------------------------------------------------
+# Profile-visit enrichment: member_id matching, ACo repair, enrich_only
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_profile_push_repairs_aco_contact_via_member_id(
+    client: AsyncClient,
+    auth_headers: dict,
+    db: AsyncSession,
+    test_user,
+):
+    """A profile-visit push (slug + member_id) should match a contact created
+    from a DM under the anonymized ACo member id, enrich it, and upgrade its
+    identity to the real public slug."""
+    aco_id = "ACoAAAFS80wBexample"
+    existing = Contact(
+        user_id=test_user.id,
+        full_name="Matt Lam",
+        linkedin_profile_id=aco_id,  # created from a DM — anonymized id
+        linkedin_url=f"https://www.linkedin.com/in/{aco_id}",
+        source="linkedin",
+    )
+    db.add(existing)
+    await db.commit()
+    await db.refresh(existing)
+
+    payload = {
+        "enrich_only": True,
+        "profiles": [
+            {
+                "profile_id": "mattjlam",
+                "member_id": aco_id,
+                "profile_url": "https://www.linkedin.com/in/mattjlam",
+                "full_name": "Matt Lam",
+                "headline": "Builder of Web3 Services",
+                "company": "Bloq",
+                "location": "San Francisco Bay Area",
+            }
+        ],
+        "messages": [],
+    }
+
+    resp = await client.post(PUSH_URL, json=payload, headers=auth_headers)
+    assert resp.status_code == 200
+    data = resp.json()["data"]
+    assert data["contacts_created"] == 0
+    assert data["contacts_updated"] == 1
+
+    await db.refresh(existing)
+    assert existing.company == "Bloq"
+    assert existing.linkedin_headline == "Builder of Web3 Services"
+    # ACo identity repaired to the real slug
+    assert existing.linkedin_profile_id == "mattjlam"
+
+
+@pytest.mark.asyncio
+async def test_enrich_only_does_not_create_unknown_contact(
+    client: AsyncClient,
+    auth_headers: dict,
+    db: AsyncSession,
+    test_user,
+):
+    """enrich_only push for a profile that matches no contact must NOT create one."""
+    payload = {
+        "enrich_only": True,
+        "profiles": [
+            {
+                "profile_id": "stranger-xyz",
+                "member_id": "ACoStrangerXyz",
+                "profile_url": "https://www.linkedin.com/in/stranger-xyz",
+                "full_name": "Random Stranger",
+                "company": "NowhereCo",
+            }
+        ],
+        "messages": [],
+    }
+
+    resp = await client.post(PUSH_URL, json=payload, headers=auth_headers)
+    assert resp.status_code == 200
+    data = resp.json()["data"]
+    assert data["contacts_created"] == 0
+    assert data["contacts_updated"] == 0
+
+    result = await db.execute(
+        select(Contact).where(Contact.linkedin_profile_id == "stranger-xyz")
+    )
+    assert result.scalar_one_or_none() is None, "enrich_only must not create strangers"
+
+
+@pytest.mark.asyncio
+async def test_non_enrich_push_still_creates_contact(
+    client: AsyncClient,
+    auth_headers: dict,
+    db: AsyncSession,
+    test_user,
+):
+    """Default (non-enrich) profile push still creates contacts (backfill path)."""
+    payload = {
+        "profiles": [
+            {
+                "profile_id": "created-via-backfill",
+                "profile_url": "https://www.linkedin.com/in/created-via-backfill",
+                "full_name": "New Person",
+                "company": "AcmeCorp",
+            }
+        ],
+        "messages": [],
+    }
+
+    resp = await client.post(PUSH_URL, json=payload, headers=auth_headers)
+    assert resp.status_code == 200
+    assert resp.json()["data"]["contacts_created"] == 1
+
+    result = await db.execute(
+        select(Contact).where(Contact.linkedin_profile_id == "created-via-backfill")
+    )
+    c = result.scalar_one_or_none()
+    assert c is not None
+    assert c.company == "AcmeCorp"

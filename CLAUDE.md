@@ -195,7 +195,7 @@ alembic revision --autogenerate -m "description"
 
 # API type generation (run after adding/changing API endpoints)
 cd backend && PYTHONPATH=. python3 -c "
-import json; from app.main import app; from fastapi.openapi.utils import get_openapi
+import json; from app.main import fastapi_app as app; from fastapi.openapi.utils import get_openapi
 schema = get_openapi(title=app.title, version=app.version, routes=app.routes)
 with open('openapi.json', 'w') as f: json.dump(schema, f, indent=2)
 "

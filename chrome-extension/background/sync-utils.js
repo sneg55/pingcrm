@@ -184,6 +184,63 @@ function _eventToMessage(msg, conversationUrn, partnerPublicId, partnerName, sel
   };
 }
 
+// ── Profile extraction ───────────────────────────────────────────────────────
+
+/**
+ * Extract contact fields from a Voyager /identity/dash/profiles response.
+ *
+ * Shared by profile-visit capture and backfill so the two paths can never
+ * drift. Pulls:
+ *   - memberId: the stable member id (ACo…) from the profile entityUrn. This
+ *     is what contacts created from DMs are keyed on, so it lets the backend
+ *     match a slug-fetched profile back to an anonymized contact.
+ *   - fullName / headline / location
+ *   - company / title from the CURRENT position (a Position with no
+ *     dateRange.end). Among several current roles, the latest start wins.
+ *   - avatarUrl: largest artifact under the display image vector.
+ *
+ * @returns {null | {memberId,fullName,headline,location,company,title,avatarUrl}}
+ */
+function _extractProfileFields(raw) {
+  const included = raw?.included ?? [];
+  const profileObj = included.find(
+    i => /\.Profile$/.test(i?.$type || "") || (i?.$type || "").includes("MiniProfile")
+  );
+  if (!profileObj) return null;
+
+  const memberId = (profileObj.entityUrn || "").split(":").pop() || null;
+
+  let avatarUrl = null;
+  const artifacts = profileObj?.profilePicture?.displayImageReference?.vectorImage?.artifacts ?? [];
+  if (artifacts.length > 0) {
+    const largest = artifacts[artifacts.length - 1];
+    const rootUrl = profileObj?.profilePicture?.displayImageReference?.vectorImage?.rootUrl ?? "";
+    if (rootUrl && largest?.fileIdentifyingUrlPathSegment) {
+      avatarUrl = rootUrl + largest.fileIdentifyingUrlPathSegment;
+    }
+  }
+
+  const positions = included.filter(i => /\.Position$/.test(i?.$type || ""));
+  const startScore = (p) => {
+    const s = p?.dateRange?.start;
+    return s ? (s.year || 0) * 12 + (s.month || 0) : 0;
+  };
+  const current = positions.filter(p => !p?.dateRange?.end);
+  const pick = (current.length ? current : positions)
+    .slice()
+    .sort((a, b) => startScore(b) - startScore(a))[0] ?? null;
+
+  return {
+    memberId,
+    fullName: [profileObj.firstName, profileObj.lastName].filter(Boolean).join(" ") || null,
+    headline: profileObj.headline ?? null,
+    location: profileObj.geoLocationName ?? null,
+    company: pick?.companyName ?? null,
+    title: pick?.title ?? null,
+    avatarUrl,
+  };
+}
+
 // ── Error handler ────────────────────────────────────────────────────────────
 
 /**

@@ -1,0 +1,36 @@
+{
+  "data": {
+    "messengerMessagesByConversation": {
+      "elements": [
+        {
+          "entityUrn": "urn:li:msg_message:M1",
+          "deliveredAt": 1749980000000,
+          "body": { "text": "Hey, great to connect!" },
+          "sender": {
+            "hostIdentityUrn": "urn:li:fsd_profile:PARTNER1",
+            "memberProfile": {
+              "entityUrn": "urn:li:fsd_profile:PARTNER1",
+              "publicIdentifier": "partner-one",
+              "firstName": "Partner",
+              "lastName": "One"
+            }
+          }
+        },
+        {
+          "entityUrn": "urn:li:msg_message:M2",
+          "deliveredAt": 1749990000000,
+          "body": { "text": "Likewise! Let's catch up next week." },
+          "sender": {
+            "hostIdentityUrn": "urn:li:fsd_profile:SELF123",
+            "memberProfile": {
+              "entityUrn": "urn:li:fsd_profile:SELF123",
+              "publicIdentifier": "self-user",
+              "firstName": "Self",
+              "lastName": "User"
+            }
+          }
+        }
+      ]
+    }
+  }
+}

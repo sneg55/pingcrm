@@ -1,0 +1,22 @@
+{
+  "data": {
+    "messengerMessagesByConversation": {
+      "elements": [
+        {
+          "entityUrn": "urn:li:msg_message:M3",
+          "deliveredAt": 1748990000000,
+          "body": { "text": "Thanks for the intro earlier." },
+          "sender": {
+            "hostIdentityUrn": "urn:li:fsd_profile:PARTNER2",
+            "memberProfile": {
+              "entityUrn": "urn:li:fsd_profile:PARTNER2",
+              "publicIdentifier": "partner-two",
+              "firstName": "Partner",
+              "lastName": "Two"
+            }
+          }
+        }
+      ]
+    }
+  }
+}

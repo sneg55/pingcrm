@@ -50,6 +50,11 @@ function setBadge(text, color) {
 let _lastProfileSyncAt = 0;
 const PROFILE_SYNC_THROTTLE_MS = 5 * 60 * 1000; // 5 minutes
 
+// Per-slug throttle for profile-visit capture (avoid re-fetching the same
+// person every time the user reopens their profile).
+const _profileVisitAt = {};
+const PROFILE_VISIT_THROTTLE_MS = 10 * 60 * 1000; // 10 minutes per profile
+
 // ── Throttle state for Meta auto-sync ────────────────────────────────────────
 let _lastMetaSyncAt = 0;
 const META_AUTO_SYNC_THROTTLE_MS = 5 * 60 * 1000; // 5 minutes
@@ -127,6 +132,95 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
         console.warn("[PingCRM SW] Cookie refresh failed:", e.message);
       }
       sendResponse({ ok: true });
+    })();
+    return true;
+  }
+
+  // PROFILE_VISIT — user opened a member profile page (/in/<slug>). Fetch that
+  // person via Voyager and enrich the matching contact (avatar, company,
+  // headline). Unlike DM sync, this is the only path that has the public slug,
+  // so it can also repair contacts stored under an anonymized ACo member id.
+  if (message.type === "PROFILE_VISIT") {
+    (async () => {
+      try {
+        const slug = (message.slug || "").trim();
+        // ACo member ids aren't accepted by the profile endpoint (needs a slug).
+        if (!slug || /^aco/i.test(slug)) {
+          sendResponse({ ok: false, error: "NO_SLUG" });
+          return;
+        }
+
+        const { apiUrl, token } = await chrome.storage.local.get(["apiUrl", "token"]);
+        if (!apiUrl || !token) {
+          sendResponse({ ok: false, error: "Not paired" });
+          return;
+        }
+
+        const now = Date.now();
+        if (now - (_profileVisitAt[slug] || 0) < PROFILE_VISIT_THROTTLE_MS) {
+          sendResponse({ ok: true, throttled: true });
+          return;
+        }
+        _profileVisitAt[slug] = now;
+
+        const cookies = await chrome.cookies.getAll({ domain: ".linkedin.com" });
+        const liAt = cookies.find(c => c.name === "li_at")?.value;
+        const jsid = cookies.find(c => c.name === "JSESSIONID")?.value;
+        if (!liAt || !jsid) {
+          sendResponse({ ok: false, error: "MISSING_COOKIES" });
+          return;
+        }
+
+        const raw = await voyagerGetProfile(liAt, jsid, slug);
+        const fields = _extractProfileFields(raw);
+        if (!fields) {
+          console.warn("[ProfileVisit] No profile object for:", slug);
+          sendResponse({ ok: false, error: "NO_PROFILE" });
+          return;
+        }
+
+        let avatarData = null;
+        if (fields.avatarUrl) {
+          try {
+            avatarData = await fetchLinkedInImageAsBase64(fields.avatarUrl);
+          } catch (err) {
+            console.warn("[ProfileVisit] Avatar fetch failed for:", slug, err.message);
+          }
+        }
+
+        const resp = await fetch(`${apiUrl}/api/v1/linkedin/push`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json", "Authorization": `Bearer ${token}` },
+          body: JSON.stringify({
+            // Enrich existing contacts only — don't create a CRM entry for every
+            // stranger whose profile you happen to open.
+            enrich_only: true,
+            profiles: [{
+              profile_id: slug,
+              member_id: fields.memberId,
+              profile_url: `https://www.linkedin.com/in/${slug}`,
+              full_name: fields.fullName,
+              headline: fields.headline,
+              company: fields.company,
+              location: fields.location,
+              avatar_url: fields.avatarUrl,
+              avatar_data: avatarData,
+            }],
+            messages: [],
+          }),
+        });
+
+        if (!resp.ok) {
+          console.warn("[ProfileVisit] Push failed:", slug, resp.status);
+          sendResponse({ ok: false, error: `PUSH_FAILED:${resp.status}` });
+          return;
+        }
+        console.log("[ProfileVisit] Enriched:", slug, "company:", fields.company, "avatar:", !!avatarData);
+        sendResponse({ ok: true, company: fields.company, avatar: !!avatarData });
+      } catch (e) {
+        console.warn("[ProfileVisit] Failed:", message.slug, e.message);
+        sendResponse({ ok: false, error: e.message });
+      }
     })();
     return true;
   }
@@ -496,31 +590,18 @@ async function _runPendingBackfill() {
       const raw = await voyagerGetProfile(liAt, jsid, publicId);
       console.log("[Backfill] Got response for:", publicId);
 
-      const profileObj = (raw?.included ?? []).find(
-        i => i?.$type?.includes("Profile") || i?.$type?.includes("MiniProfile")
-      );
-      if (!profileObj) {
+      const fields = _extractProfileFields(raw);
+      if (!fields) {
         console.log("[Backfill] No profile object in response for:", publicId);
         continue;
-      }
-
-      // Extract avatar URL
-      let avatarUrl = null;
-      const artifacts = profileObj?.profilePicture?.displayImageReference?.vectorImage?.artifacts ?? [];
-      if (artifacts.length > 0) {
-        const largest = artifacts[artifacts.length - 1];
-        const rootUrl = profileObj?.profilePicture?.displayImageReference?.vectorImage?.rootUrl ?? "";
-        if (rootUrl && largest?.fileIdentifyingUrlPathSegment) {
-          avatarUrl = rootUrl + largest.fileIdentifyingUrlPathSegment;
-        }
       }
 
       // Fetch the image bytes inside the LinkedIn tab — the backend can't
       // download from media.licdn.com directly (CDN returns 403 server-side).
       let avatarData = null;
-      if (avatarUrl) {
+      if (fields.avatarUrl) {
         try {
-          avatarData = await fetchLinkedInImageAsBase64(avatarUrl);
+          avatarData = await fetchLinkedInImageAsBase64(fields.avatarUrl);
         } catch (err) {
           console.warn("[Backfill] Avatar fetch failed for:", publicId, err.message);
         }
@@ -536,17 +617,19 @@ async function _runPendingBackfill() {
         body: JSON.stringify({
           profiles: [{
             profile_id: publicId,
+            member_id: fields.memberId,
             profile_url: `https://www.linkedin.com/in/${publicId}`,
-            full_name: [profileObj?.firstName, profileObj?.lastName].filter(Boolean).join(" ") || null,
-            headline: profileObj?.headline ?? null,
-            location: profileObj?.geoLocationName ?? null,
-            avatar_url: avatarUrl,
+            full_name: fields.fullName,
+            headline: fields.headline,
+            company: fields.company,
+            location: fields.location,
+            avatar_url: fields.avatarUrl,
             avatar_data: avatarData,
           }],
           messages: [],
         }),
       });
-      console.log("[Backfill] Pushed profile for:", publicId, "avatar:", !!avatarUrl, "bytes:", !!avatarData);
+      console.log("[Backfill] Pushed profile for:", publicId, "company:", fields.company, "avatar:", !!fields.avatarUrl, "bytes:", !!avatarData);
       processed++;
     } catch (e) {
       // Only stop on rate limiting — individual profile 401/403/404 are expected for bad IDs

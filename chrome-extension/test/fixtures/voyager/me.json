@@ -1,0 +1,11 @@
+{
+  "included": [
+    {
+      "$type": "com.linkedin.voyager.identity.shared.MiniProfile",
+      "entityUrn": "urn:li:fsd_profile:SELF123",
+      "publicIdentifier": "self-user",
+      "firstName": "Self",
+      "lastName": "User"
+    }
+  ]
+}

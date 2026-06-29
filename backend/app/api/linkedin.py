@@ -69,6 +69,10 @@ class LinkedInProfilePush(BaseModel):
     profile_id: str
     profile_url: str
     full_name: str
+    # Stable member id (ACo…) from the profile URN. Lets us match a contact
+    # created from a DM (keyed on this id) to a profile fetched by public slug,
+    # and repair its anonymized identity.
+    member_id: str | None = None
     headline: str | None = None
     company: str | None = None
     location: str | None = None
@@ -90,6 +94,10 @@ class LinkedInMessagePush(BaseModel):
 class LinkedInPushRequest(BaseModel):
     profiles: list[LinkedInProfilePush] = Field(default=[], max_length=50)
     messages: list[LinkedInMessagePush] = Field(default=[], max_length=500)
+    # When true, profiles that don't match an existing contact are skipped
+    # rather than created. Used by profile-visit enrichment so opening a
+    # stranger's profile doesn't spam the CRM with new contacts.
+    enrich_only: bool = False
 
 
 @router.post("/push", response_model=Envelope[LinkedInPushResult])
@@ -157,8 +165,20 @@ async def push_linkedin_data(
         contact = profile_id_map.get(profile.profile_id)
         if not contact and profile_url_normalized:
             contact = url_map.get(profile_url_normalized)
+        # Match contacts created from DMs, which are keyed on the anonymized
+        # member id (ACo…) rather than the public slug.
+        if not contact and profile.member_id:
+            contact = profile_id_map.get(profile.member_id)
 
         if contact:
+            # Repair anonymized identity: upgrade an ACo member-id contact to
+            # the real public slug now that we know it.
+            if profile.profile_id and (
+                not contact.linkedin_profile_id
+                or contact.linkedin_profile_id.startswith("ACo")
+            ):
+                contact.linkedin_profile_id = profile.profile_id
+                profile_id_map[profile.profile_id] = contact
             # Update fields — respect user-edited field protection
             sync_set_field(contact, "full_name", profile.full_name)
             if profile.headline:
@@ -186,6 +206,10 @@ async def push_linkedin_data(
                     contact.avatar_url = local_path
             contacts_updated += 1
         else:
+            # Enrichment-only push (e.g. profile visit): don't create a contact
+            # for someone who isn't already in the CRM.
+            if body.enrich_only:
+                continue
             name_parts = (profile.full_name or "").split(None, 1)
             contact, created = await find_or_create_contact_by_linkedin_profile_id(
                 db, current_user.id, profile.profile_id,

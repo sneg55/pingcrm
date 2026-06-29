@@ -2642,9 +2642,7 @@ export interface components {
         /** CsvImportResult */
         CsvImportResult: {
             /** Created */
-            created: {
-                [key: string]: unknown;
-            }[];
+            created: Record<string, never>[];
             /** Errors */
             errors: string[];
         };
@@ -2708,9 +2706,7 @@ export interface components {
             /** Error */
             error?: string | null;
             /** Meta */
-            meta?: {
-                [key: string]: unknown;
-            } | null;
+            meta?: Record<string, never> | null;
         };
         /** Envelope[ApplyTagsResult] */
         Envelope_ApplyTagsResult_: {
@@ -2718,9 +2714,7 @@ export interface components {
             /** Error */
             error?: string | null;
             /** Meta */
-            meta?: {
-                [key: string]: unknown;
-            } | null;
+            meta?: Record<string, never> | null;
         };
         /** Envelope[AutoTagResult] */
         Envelope_AutoTagResult_: {
@@ -2728,9 +2722,7 @@ export interface components {
             /** Error */
             error?: string | null;
             /** Meta */
-            meta?: {
-                [key: string]: unknown;
-            } | null;
+            meta?: Record<string, never> | null;
         };
         /** Envelope[AvatarRefreshData] */
         Envelope_AvatarRefreshData_: {
@@ -2738,9 +2730,7 @@ export interface components {
             /** Error */
             error?: string | null;
             /** Meta */
-            meta?: {
-                [key: string]: unknown;
-            } | null;
+            meta?: Record<string, never> | null;
         };
         /** Envelope[BioRefreshData] */
         Envelope_BioRefreshData_: {
@@ -2748,9 +2738,7 @@ export interface components {
             /** Error */
             error?: string | null;
             /** Meta */
-            meta?: {
-                [key: string]: unknown;
-            } | null;
+            meta?: Record<string, never> | null;
         };
         /** Envelope[ContactResponse] */
         Envelope_ContactResponse_: {
@@ -2758,9 +2746,7 @@ export interface components {
             /** Error */
             error?: string | null;
             /** Meta */
-            meta?: {
-                [key: string]: unknown;
-            } | null;
+            meta?: Record<string, never> | null;
         };
         /** Envelope[ContactStatsData] */
         Envelope_ContactStatsData_: {
@@ -2768,9 +2754,7 @@ export interface components {
             /** Error */
             error?: string | null;
             /** Meta */
-            meta?: {
-                [key: string]: unknown;
-            } | null;
+            meta?: Record<string, never> | null;
         };
         /** Envelope[CsvImportResult] */
         Envelope_CsvImportResult_: {
@@ -2778,9 +2762,7 @@ export interface components {
             /** Error */
             error?: string | null;
             /** Meta */
-            meta?: {
-                [key: string]: unknown;
-            } | null;
+            meta?: Record<string, never> | null;
         };
         /** Envelope[DeletedData] */
         Envelope_DeletedData_: {
@@ -2788,9 +2770,7 @@ export interface components {
             /** Error */
             error?: string | null;
             /** Meta */
-            meta?: {
-                [key: string]: unknown;
-            } | null;
+            meta?: Record<string, never> | null;
         };
         /** Envelope[DismissOrgMatchResult] */
         Envelope_DismissOrgMatchResult_: {
@@ -2798,9 +2778,7 @@ export interface components {
             /** Error */
             error?: string | null;
             /** Meta */
-            meta?: {
-                [key: string]: unknown;
-            } | null;
+            meta?: Record<string, never> | null;
         };
         /** Envelope[EnrichData] */
         Envelope_EnrichData_: {
@@ -2808,9 +2786,7 @@ export interface components {
             /** Error */
             error?: string | null;
             /** Meta */
-            meta?: {
-                [key: string]: unknown;
-            } | null;
+            meta?: Record<string, never> | null;
         };
         /** Envelope[FollowUpResponse] */
         Envelope_FollowUpResponse_: {
@@ -2818,9 +2794,7 @@ export interface components {
             /** Error */
             error?: string | null;
             /** Meta */
-            meta?: {
-                [key: string]: unknown;
-            } | null;
+            meta?: Record<string, never> | null;
         };
         /** Envelope[IdentityMatchData] */
         Envelope_IdentityMatchData_: {
@@ -2828,9 +2802,7 @@ export interface components {
             /** Error */
             error?: string | null;
             /** Meta */
-            meta?: {
-                [key: string]: unknown;
-            } | null;
+            meta?: Record<string, never> | null;
         };
         /** Envelope[InteractionResponse] */
         Envelope_InteractionResponse_: {
@@ -2838,9 +2810,7 @@ export interface components {
             /** Error */
             error?: string | null;
             /** Meta */
-            meta?: {
-                [key: string]: unknown;
-            } | null;
+            meta?: Record<string, never> | null;
         };
         /** Envelope[LinkedInImportResult] */
         Envelope_LinkedInImportResult_: {
@@ -2848,9 +2818,7 @@ export interface components {
             /** Error */
             error?: string | null;
             /** Meta */
-            meta?: {
-                [key: string]: unknown;
-            } | null;
+            meta?: Record<string, never> | null;
         };
         /** Envelope[LinkedInMessagesImportResult] */
         Envelope_LinkedInMessagesImportResult_: {
@@ -2858,9 +2826,7 @@ export interface components {
             /** Error */
             error?: string | null;
             /** Meta */
-            meta?: {
-                [key: string]: unknown;
-            } | null;
+            meta?: Record<string, never> | null;
         };
         /** Envelope[LinkedInPushResult] */
         Envelope_LinkedInPushResult_: {
@@ -2868,9 +2834,7 @@ export interface components {
             /** Error */
             error?: string | null;
             /** Meta */
-            meta?: {
-                [key: string]: unknown;
-            } | null;
+            meta?: Record<string, never> | null;
         };
         /** Envelope[MapConfig] */
         Envelope_MapConfig_: {
@@ -2878,9 +2842,7 @@ export interface components {
             /** Error */
             error?: string | null;
             /** Meta */
-            meta?: {
-                [key: string]: unknown;
-            } | null;
+            meta?: Record<string, never> | null;
         };
         /** Envelope[MarkedData] */
         Envelope_MarkedData_: {
@@ -2888,9 +2850,7 @@ export interface components {
             /** Error */
             error?: string | null;
             /** Meta */
-            meta?: {
-                [key: string]: unknown;
-            } | null;
+            meta?: Record<string, never> | null;
         };
         /** Envelope[McpKeyData] */
         Envelope_McpKeyData_: {
@@ -2898,9 +2858,7 @@ export interface components {
             /** Error */
             error?: string | null;
             /** Meta */
-            meta?: {
-                [key: string]: unknown;
-            } | null;
+            meta?: Record<string, never> | null;
         };
         /** Envelope[McpKeyRevokedData] */
         Envelope_McpKeyRevokedData_: {
@@ -2908,9 +2866,7 @@ export interface components {
             /** Error */
             error?: string | null;
             /** Meta */
-            meta?: {
-                [key: string]: unknown;
-            } | null;
+            meta?: Record<string, never> | null;
         };
         /** Envelope[McpKeyStatusData] */
         Envelope_McpKeyStatusData_: {
@@ -2918,9 +2874,7 @@ export interface components {
             /** Error */
             error?: string | null;
             /** Meta */
-            meta?: {
-                [key: string]: unknown;
-            } | null;
+            meta?: Record<string, never> | null;
         };
         /** Envelope[MergeOrgMatchResult] */
         Envelope_MergeOrgMatchResult_: {
@@ -2928,9 +2882,7 @@ export interface components {
             /** Error */
             error?: string | null;
             /** Meta */
-            meta?: {
-                [key: string]: unknown;
-            } | null;
+            meta?: Record<string, never> | null;
         };
         /** Envelope[MergeOrganizationsResult] */
         Envelope_MergeOrganizationsResult_: {
@@ -2938,9 +2890,7 @@ export interface components {
             /** Error */
             error?: string | null;
             /** Meta */
-            meta?: {
-                [key: string]: unknown;
-            } | null;
+            meta?: Record<string, never> | null;
         };
         /** Envelope[MergedContactData] */
         Envelope_MergedContactData_: {
@@ -2948,9 +2898,7 @@ export interface components {
             /** Error */
             error?: string | null;
             /** Meta */
-            meta?: {
-                [key: string]: unknown;
-            } | null;
+            meta?: Record<string, never> | null;
         };
         /** Envelope[MetaPushResult] */
         Envelope_MetaPushResult_: {
@@ -2958,9 +2906,7 @@ export interface components {
             /** Error */
             error?: string | null;
             /** Meta */
-            meta?: {
-                [key: string]: unknown;
-            } | null;
+            meta?: Record<string, never> | null;
         };
         /** Envelope[NotificationReadData] */
         Envelope_NotificationReadData_: {
@@ -2968,9 +2914,7 @@ export interface components {
             /** Error */
             error?: string | null;
             /** Meta */
-            meta?: {
-                [key: string]: unknown;
-            } | null;
+            meta?: Record<string, never> | null;
         };
         /** Envelope[OAuthUrlData] */
         Envelope_OAuthUrlData_: {
@@ -2978,9 +2922,7 @@ export interface components {
             /** Error */
             error?: string | null;
             /** Meta */
-            meta?: {
-                [key: string]: unknown;
-            } | null;
+            meta?: Record<string, never> | null;
         };
         /** Envelope[OrgStatsResponse] */
         Envelope_OrgStatsResponse_: {
@@ -2988,9 +2930,7 @@ export interface components {
             /** Error */
             error?: string | null;
             /** Meta */
-            meta?: {
-                [key: string]: unknown;
-            } | null;
+            meta?: Record<string, never> | null;
         };
         /** Envelope[OrganizationResponse] */
         Envelope_OrganizationResponse_: {
@@ -2998,9 +2938,7 @@ export interface components {
             /** Error */
             error?: string | null;
             /** Meta */
-            meta?: {
-                [key: string]: unknown;
-            } | null;
+            meta?: Record<string, never> | null;
         };
         /** Envelope[PairTokenResponse] */
         Envelope_PairTokenResponse_: {
@@ -3008,9 +2946,7 @@ export interface components {
             /** Error */
             error?: string | null;
             /** Meta */
-            meta?: {
-                [key: string]: unknown;
-            } | null;
+            meta?: Record<string, never> | null;
         };
         /** Envelope[PrioritySettingsData] */
         Envelope_PrioritySettingsData_: {
@@ -3018,9 +2954,7 @@ export interface components {
             /** Error */
             error?: string | null;
             /** Meta */
-            meta?: {
-                [key: string]: unknown;
-            } | null;
+            meta?: Record<string, never> | null;
         };
         /** Envelope[RegenerateResult] */
         Envelope_RegenerateResult_: {
@@ -3028,9 +2962,7 @@ export interface components {
             /** Error */
             error?: string | null;
             /** Meta */
-            meta?: {
-                [key: string]: unknown;
-            } | null;
+            meta?: Record<string, never> | null;
         };
         /** Envelope[ScanOrgsResult] */
         Envelope_ScanOrgsResult_: {
@@ -3038,9 +2970,7 @@ export interface components {
             /** Error */
             error?: string | null;
             /** Meta */
-            meta?: {
-                [key: string]: unknown;
-            } | null;
+            meta?: Record<string, never> | null;
         };
         /** Envelope[ScanResultData] */
         Envelope_ScanResultData_: {
@@ -3048,9 +2978,7 @@ export interface components {
             /** Error */
             error?: string | null;
             /** Meta */
-            meta?: {
-                [key: string]: unknown;
-            } | null;
+            meta?: Record<string, never> | null;
         };
         /** Envelope[ScoresRecalculatedData] */
         Envelope_ScoresRecalculatedData_: {
@@ -3058,9 +2986,7 @@ export interface components {
             /** Error */
             error?: string | null;
             /** Meta */
-            meta?: {
-                [key: string]: unknown;
-            } | null;
+            meta?: Record<string, never> | null;
         };
         /** Envelope[SendMessageData] */
         Envelope_SendMessageData_: {
@@ -3068,9 +2994,7 @@ export interface components {
             /** Error */
             error?: string | null;
             /** Meta */
-            meta?: {
-                [key: string]: unknown;
-            } | null;
+            meta?: Record<string, never> | null;
         };
         /** Envelope[SuggestionPrefsData] */
         Envelope_SuggestionPrefsData_: {
@@ -3078,9 +3002,7 @@ export interface components {
             /** Error */
             error?: string | null;
             /** Meta */
-            meta?: {
-                [key: string]: unknown;
-            } | null;
+            meta?: Record<string, never> | null;
         };
         /** Envelope[SyncSettingsData] */
         Envelope_SyncSettingsData_: {
@@ -3088,9 +3010,7 @@ export interface components {
             /** Error */
             error?: string | null;
             /** Meta */
-            meta?: {
-                [key: string]: unknown;
-            } | null;
+            meta?: Record<string, never> | null;
         };
         /** Envelope[SyncStartedData] */
         Envelope_SyncStartedData_: {
@@ -3098,9 +3018,7 @@ export interface components {
             /** Error */
             error?: string | null;
             /** Meta */
-            meta?: {
-                [key: string]: unknown;
-            } | null;
+            meta?: Record<string, never> | null;
         };
         /** Envelope[TaxonomyResult] */
         Envelope_TaxonomyResult_: {
@@ -3108,9 +3026,7 @@ export interface components {
             /** Error */
             error?: string | null;
             /** Meta */
-            meta?: {
-                [key: string]: unknown;
-            } | null;
+            meta?: Record<string, never> | null;
         };
         /** Envelope[TelegramConnectData] */
         Envelope_TelegramConnectData_: {
@@ -3118,9 +3034,7 @@ export interface components {
             /** Error */
             error?: string | null;
             /** Meta */
-            meta?: {
-                [key: string]: unknown;
-            } | null;
+            meta?: Record<string, never> | null;
         };
         /** Envelope[TelegramConnectedData] */
         Envelope_TelegramConnectedData_: {
@@ -3128,9 +3042,7 @@ export interface components {
             /** Error */
             error?: string | null;
             /** Meta */
-            meta?: {
-                [key: string]: unknown;
-            } | null;
+            meta?: Record<string, never> | null;
         };
         /** Envelope[TelegramSettingsData] */
         Envelope_TelegramSettingsData_: {
@@ -3138,9 +3050,7 @@ export interface components {
             /** Error */
             error?: string | null;
             /** Meta */
-            meta?: {
-                [key: string]: unknown;
-            } | null;
+            meta?: Record<string, never> | null;
         };
         /** Envelope[TelegramVerifyData] */
         Envelope_TelegramVerifyData_: {
@@ -3148,9 +3058,7 @@ export interface components {
             /** Error */
             error?: string | null;
             /** Meta */
-            meta?: {
-                [key: string]: unknown;
-            } | null;
+            meta?: Record<string, never> | null;
         };
         /** Envelope[TokenData] */
         Envelope_TokenData_: {
@@ -3158,9 +3066,7 @@ export interface components {
             /** Error */
             error?: string | null;
             /** Meta */
-            meta?: {
-                [key: string]: unknown;
-            } | null;
+            meta?: Record<string, never> | null;
         };
         /** Envelope[TwitterAuthUrlData] */
         Envelope_TwitterAuthUrlData_: {
@@ -3168,9 +3074,7 @@ export interface components {
             /** Error */
             error?: string | null;
             /** Meta */
-            meta?: {
-                [key: string]: unknown;
-            } | null;
+            meta?: Record<string, never> | null;
         };
         /** Envelope[TwitterBirdStatusData] */
         Envelope_TwitterBirdStatusData_: {
@@ -3178,9 +3082,7 @@ export interface components {
             /** Error */
             error?: string | null;
             /** Meta */
-            meta?: {
-                [key: string]: unknown;
-            } | null;
+            meta?: Record<string, never> | null;
         };
         /** Envelope[TwitterConnectedData] */
         Envelope_TwitterConnectedData_: {
@@ -3188,9 +3090,7 @@ export interface components {
             /** Error */
             error?: string | null;
             /** Meta */
-            meta?: {
-                [key: string]: unknown;
-            } | null;
+            meta?: Record<string, never> | null;
         };
         /** Envelope[UnreadCountData] */
         Envelope_UnreadCountData_: {
@@ -3198,9 +3098,7 @@ export interface components {
             /** Error */
             error?: string | null;
             /** Meta */
-            meta?: {
-                [key: string]: unknown;
-            } | null;
+            meta?: Record<string, never> | null;
         };
         /** Envelope[UserResponse] */
         Envelope_UserResponse_: {
@@ -3208,9 +3106,7 @@ export interface components {
             /** Error */
             error?: string | null;
             /** Meta */
-            meta?: {
-                [key: string]: unknown;
-            } | null;
+            meta?: Record<string, never> | null;
         };
         /** Envelope[UserWithAccountsData] */
         Envelope_UserWithAccountsData_: {
@@ -3218,9 +3114,7 @@ export interface components {
             /** Error */
             error?: string | null;
             /** Meta */
-            meta?: {
-                [key: string]: unknown;
-            } | null;
+            meta?: Record<string, never> | null;
         };
         /** Envelope[VersionData] */
         Envelope_VersionData_: {
@@ -3228,9 +3122,7 @@ export interface components {
             /** Error */
             error?: string | null;
             /** Meta */
-            meta?: {
-                [key: string]: unknown;
-            } | null;
+            meta?: Record<string, never> | null;
         };
         /** Envelope[WhatsAppSessionData] */
         Envelope_WhatsAppSessionData_: {
@@ -3238,9 +3130,7 @@ export interface components {
             /** Error */
             error?: string | null;
             /** Meta */
-            meta?: {
-                [key: string]: unknown;
-            } | null;
+            meta?: Record<string, never> | null;
         };
         /** Envelope[WhatsAppStatusData] */
         Envelope_WhatsAppStatusData_: {
@@ -3248,22 +3138,16 @@ export interface components {
             /** Error */
             error?: string | null;
             /** Meta */
-            meta?: {
-                [key: string]: unknown;
-            } | null;
+            meta?: Record<string, never> | null;
         };
         /** Envelope[dict] */
         Envelope_dict_: {
             /** Data */
-            data?: {
-                [key: string]: unknown;
-            } | null;
+            data?: Record<string, never> | null;
             /** Error */
             error?: string | null;
             /** Meta */
-            meta?: {
-                [key: string]: unknown;
-            } | null;
+            meta?: Record<string, never> | null;
         };
         /** Envelope[list] */
         Envelope_list_: {
@@ -3272,9 +3156,7 @@ export interface components {
             /** Error */
             error?: string | null;
             /** Meta */
-            meta?: {
-                [key: string]: unknown;
-            } | null;
+            meta?: Record<string, never> | null;
         };
         /** Envelope[list[ContactMapPin]] */
         Envelope_list_ContactMapPin__: {
@@ -3283,9 +3165,7 @@ export interface components {
             /** Error */
             error?: string | null;
             /** Meta */
-            meta?: {
-                [key: string]: unknown;
-            } | null;
+            meta?: Record<string, never> | null;
         };
         /** Envelope[list[DuplicateContactData]] */
         Envelope_list_DuplicateContactData__: {
@@ -3294,9 +3174,7 @@ export interface components {
             /** Error */
             error?: string | null;
             /** Meta */
-            meta?: {
-                [key: string]: unknown;
-            } | null;
+            meta?: Record<string, never> | null;
         };
         /** Envelope[list[FollowUpResponse]] */
         Envelope_list_FollowUpResponse__: {
@@ -3305,9 +3183,7 @@ export interface components {
             /** Error */
             error?: string | null;
             /** Meta */
-            meta?: {
-                [key: string]: unknown;
-            } | null;
+            meta?: Record<string, never> | null;
         };
         /** Envelope[list[GoogleAccountData]] */
         Envelope_list_GoogleAccountData__: {
@@ -3316,9 +3192,7 @@ export interface components {
             /** Error */
             error?: string | null;
             /** Meta */
-            meta?: {
-                [key: string]: unknown;
-            } | null;
+            meta?: Record<string, never> | null;
         };
         /** Envelope[list[IdentityMatchData]] */
         Envelope_list_IdentityMatchData__: {
@@ -3327,9 +3201,7 @@ export interface components {
             /** Error */
             error?: string | null;
             /** Meta */
-            meta?: {
-                [key: string]: unknown;
-            } | null;
+            meta?: Record<string, never> | null;
         };
         /** Envelope[list[InteractionResponse]] */
         Envelope_list_InteractionResponse__: {
@@ -3338,9 +3210,7 @@ export interface components {
             /** Error */
             error?: string | null;
             /** Meta */
-            meta?: {
-                [key: string]: unknown;
-            } | null;
+            meta?: Record<string, never> | null;
         };
         /** Envelope[list[OrgIdentityMatchData]] */
         Envelope_list_OrgIdentityMatchData__: {
@@ -3349,9 +3219,7 @@ export interface components {
             /** Error */
             error?: string | null;
             /** Meta */
-            meta?: {
-                [key: string]: unknown;
-            } | null;
+            meta?: Record<string, never> | null;
         };
         /** Envelope[list[OrganizationResponse]] */
         Envelope_list_OrganizationResponse__: {
@@ -3360,22 +3228,16 @@ export interface components {
             /** Error */
             error?: string | null;
             /** Meta */
-            meta?: {
-                [key: string]: unknown;
-            } | null;
+            meta?: Record<string, never> | null;
         };
         /** Envelope[list[dict]] */
         Envelope_list_dict__: {
             /** Data */
-            data?: {
-                [key: string]: unknown;
-            }[] | null;
+            data?: Record<string, never>[] | null;
             /** Error */
             error?: string | null;
             /** Meta */
-            meta?: {
-                [key: string]: unknown;
-            } | null;
+            meta?: Record<string, never> | null;
         };
         /** Envelope[list[str]] */
         Envelope_list_str__: {
@@ -3384,9 +3246,7 @@ export interface components {
             /** Error */
             error?: string | null;
             /** Meta */
-            meta?: {
-                [key: string]: unknown;
-            } | null;
+            meta?: Record<string, never> | null;
         };
         /** FollowUpResponse */
         FollowUpResponse: {
@@ -3600,6 +3460,8 @@ export interface components {
             profile_url: string;
             /** Full Name */
             full_name: string;
+            /** Member Id */
+            member_id?: string | null;
             /** Headline */
             headline?: string | null;
             /** Company */
@@ -3625,6 +3487,11 @@ export interface components {
              * @default []
              */
             messages: components["schemas"]["LinkedInMessagePush"][];
+            /**
+             * Enrich Only
+             * @default false
+             */
+            enrich_only: boolean;
         };
         /** LinkedInPushResult */
         LinkedInPushResult: {
@@ -4167,21 +4034,13 @@ export interface components {
         /** SyncSettingsData */
         SyncSettingsData: {
             /** Telegram */
-            telegram: {
-                [key: string]: unknown;
-            };
+            telegram: Record<string, never>;
             /** Gmail */
-            gmail: {
-                [key: string]: unknown;
-            };
+            gmail: Record<string, never>;
             /** Twitter */
-            twitter: {
-                [key: string]: unknown;
-            };
+            twitter: Record<string, never>;
             /** Linkedin */
-            linkedin: {
-                [key: string]: unknown;
-            };
+            linkedin: Record<string, never>;
         };
         /**
          * SyncSettingsInput
@@ -4189,21 +4048,13 @@ export interface components {
          */
         SyncSettingsInput: {
             /** Telegram */
-            telegram?: {
-                [key: string]: unknown;
-            } | null;
+            telegram?: Record<string, never> | null;
             /** Gmail */
-            gmail?: {
-                [key: string]: unknown;
-            } | null;
+            gmail?: Record<string, never> | null;
             /** Twitter */
-            twitter?: {
-                [key: string]: unknown;
-            } | null;
+            twitter?: Record<string, never> | null;
             /** Linkedin */
-            linkedin?: {
-                [key: string]: unknown;
-            } | null;
+            linkedin?: Record<string, never> | null;
         };
         /** SyncStartedData */
         SyncStartedData: {
@@ -4396,9 +4247,7 @@ export interface components {
              */
             meta_sync_instagram: boolean;
             /** Priority Settings */
-            priority_settings?: {
-                [key: string]: unknown;
-            } | null;
+            priority_settings?: Record<string, never> | null;
         };
         /** UserWithAccountsData */
         UserWithAccountsData: {
@@ -6517,9 +6366,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": {
-                        [key: string]: unknown;
-                    };
+                    "application/json": Record<string, never>;
                 };
             };
         };
@@ -8039,9 +7886,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": {
-                        [key: string]: unknown;
-                    };
+                    "application/json": Record<string, never>;
                 };
             };
             /** @description Validation Error */
@@ -8070,9 +7915,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": {
-                        [key: string]: unknown;
-                    };
+                    "application/json": Record<string, never>;
                 };
             };
         };
