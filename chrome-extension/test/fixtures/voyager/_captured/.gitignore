@@ -1,0 +1,4 @@
+# Raw Voyager captures contain real LinkedIn data — never commit.
+# Sanitize and copy into the parent dir to update the offline fixtures.
+*
+!.gitignore

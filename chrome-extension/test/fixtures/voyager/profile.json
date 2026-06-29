@@ -1,0 +1,35 @@
+{
+  "included": [
+    {
+      "$type": "com.linkedin.voyager.dash.identity.profile.Profile",
+      "entityUrn": "urn:li:fsd_profile:ACoTESTMEMBER1",
+      "firstName": "Partner",
+      "lastName": "One",
+      "headline": "COO at Acme",
+      "geoLocationName": "San Francisco Bay Area",
+      "profilePicture": {
+        "displayImageReference": {
+          "vectorImage": {
+            "rootUrl": "https://media.licdn.com/dms/image/test/",
+            "artifacts": [
+              { "fileIdentifyingUrlPathSegment": "100_100.jpg" },
+              { "fileIdentifyingUrlPathSegment": "800_800.jpg" }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "$type": "com.linkedin.voyager.dash.identity.profile.Position",
+      "companyName": "Acme",
+      "title": "COO",
+      "dateRange": { "start": { "year": 2022, "month": 1 } }
+    },
+    {
+      "$type": "com.linkedin.voyager.dash.identity.profile.Position",
+      "companyName": "OldCo",
+      "title": "Engineer",
+      "dateRange": { "start": { "year": 2015 }, "end": { "year": 2020 } }
+    }
+  ]
+}

@@ -74,9 +74,15 @@ When the composer toolbar is detected, the content script asks the service worke
 
 ## Profile Backfill
 
-After each sync, the backend identifies contacts missing a job title, company, or avatar. The extension then fetches those profiles via the Voyager API and pushes the enriched data back — up to 10 profiles per sync cycle. No manual profile visits required.
+After each sync, the backend identifies contacts missing a job title, company, or avatar. The extension then fetches those profiles via the Voyager API and pushes the enriched data back — up to 10 profiles per sync cycle. The current company is read from the profile's active position (the experience with no end date), and the avatar CDN URL is fetched as image bytes inside the LinkedIn tab (the backend can't download from LinkedIn's CDN directly).
 
-Voyager profile responses include CDN URLs for profile photos at multiple resolutions. The backend downloads the images server-side, so contacts you've messaged but never visited on LinkedIn receive avatars automatically.
+Backfill can only enrich contacts whose `linkedin_profile_id` is a public slug. Contacts created from DMs are often keyed on an **anonymized member id** (`ACo…`), which the profile endpoint rejects — those are skipped by backfill and enriched via profile visits instead (below).
+
+## Profile-Visit Enrichment
+
+When you open someone's LinkedIn profile (`/in/<slug>`), the extension fetches that person via the Voyager API and pushes their avatar, current company, headline, and location to the backend. The push includes both the public slug **and** the member id, so the backend can match a contact that was created from a DM under an anonymized `ACo…` id, enrich it, and upgrade its stored identity to the real slug.
+
+This path is **enrichment-only**: opening the profile of someone who isn't already a contact does not create a new CRM entry. Each profile is fetched at most once per 10 minutes.
 
 ## Importing Full History
 

@@ -1,0 +1,12 @@
+{
+  "name": "pingcrm-extension-tests",
+  "private": true,
+  "type": "module",
+  "description": "Offline + scripted harness for debugging the PingCRM companion extension without a manual browser session.",
+  "scripts": {
+    "test": "node --test \"**/*.test.mjs\"",
+    "test:watch": "node --test --watch \"**/*.test.mjs\"",
+    "capture": "node capture-and-e2e.mjs --capture",
+    "e2e": "node capture-and-e2e.mjs --e2e"
+  }
+}
