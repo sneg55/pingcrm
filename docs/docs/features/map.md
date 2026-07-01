@@ -1,6 +1,7 @@
 ---
 sidebar_position: 8
 title: Map
+description: "The PingCRM map plots contacts on an interactive world map to find nearby people while traveling and spot geographic clusters in your network."
 ---
 
 # Map

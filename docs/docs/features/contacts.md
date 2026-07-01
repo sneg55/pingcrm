@@ -1,6 +1,7 @@
 ---
 sidebar_position: 2
 title: Contact Management
+description: "Manage contacts in PingCRM: browse, search, edit, and interact with your professional network from the contact list and detail pages."
 ---
 
 # Contact Management

@@ -1,6 +1,7 @@
 ---
 sidebar_position: 7
 title: Settings
+description: "PingCRM settings: manage platform connections, data imports, and sync controls, with a connection status badge for each integration."
 ---
 
 # Settings

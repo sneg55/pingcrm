@@ -1,6 +1,7 @@
 ---
 sidebar_position: 5
 title: Identity Resolution
+description: "Identity resolution in PingCRM detects and merges duplicate contacts across platforms using deterministic and probabilistic matching."
 ---
 
 # Identity Resolution

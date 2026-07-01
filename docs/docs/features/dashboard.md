@@ -1,6 +1,7 @@
 ---
 sidebar_position: 1
 title: Dashboard
+description: "The PingCRM dashboard: stat cards, follow-ups, recent activity, and an 'is anything slipping' panel that keeps your network from going cold."
 ---
 
 # Dashboard

@@ -1,6 +1,7 @@
 ---
 sidebar_position: 12
 title: MCP Server
+description: "PingCRM's MCP server lets AI clients like Claude Desktop, Cursor, and VS Code query your CRM data: contacts, interactions, suggestions, and stats."
 ---
 
 # MCP Server (Model Context Protocol)

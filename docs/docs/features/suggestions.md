@@ -1,6 +1,7 @@
 ---
 sidebar_position: 3
 title: Follow-Up Suggestions
+description: "PingCRM's follow-up suggestions use AI to recommend who to reach out to and why, so you maintain relationships before connections go cold."
 ---
 
 # Follow-Up Suggestions

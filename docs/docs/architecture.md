@@ -1,6 +1,7 @@
 ---
 sidebar_position: 3
 title: Technical Architecture
+description: "PingCRM's technical architecture: FastAPI backend, PostgreSQL, Redis/Celery queue, and Next.js frontend, and how the dependency layers fit together."
 ---
 
 # Technical Architecture

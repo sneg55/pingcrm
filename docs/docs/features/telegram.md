@@ -1,6 +1,7 @@
 ---
 sidebar_position: 9
 title: Telegram Integration
+description: "PingCRM connects to Telegram via the MTProto protocol (Telethon) to sync DMs, group memberships, and user bios into your contact timeline."
 ---
 
 # Telegram Integration

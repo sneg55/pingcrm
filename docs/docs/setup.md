@@ -1,6 +1,7 @@
 ---
 sidebar_position: 2
 title: Setup Guide
+description: "Set up PingCRM in under 10 minutes: a Docker Compose quickstart for self-hosting, plus a manual path to install each service yourself."
 ---
 
 # Setup Guide

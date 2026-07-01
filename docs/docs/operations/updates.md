@@ -1,5 +1,6 @@
 ---
 sidebar_position: 3
+description: "How self-hosted PingCRM instances detect new releases and show an in-app update banner, and how to upgrade your deployment."
 ---
 
 # Update Notifications

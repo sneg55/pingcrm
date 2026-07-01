@@ -1,6 +1,7 @@
 ---
 sidebar_position: 10
 title: WhatsApp Integration
+description: "PingCRM connects to WhatsApp via the WhatsApp Web protocol (whatsapp-web.js) to sync personal chat history and contact profile information."
 ---
 
 # WhatsApp Integration

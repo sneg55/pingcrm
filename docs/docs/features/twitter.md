@@ -1,6 +1,7 @@
 ---
 sidebar_position: 10
 title: Twitter/X Integration
+description: "PingCRM connects to Twitter/X via OAuth 2.0 PKCE to sync DMs, mentions, and profiles into each contact's unified interaction timeline."
 ---
 
 # Twitter / X Integration

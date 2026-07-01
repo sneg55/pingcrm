@@ -1,6 +1,7 @@
 ---
 sidebar_position: 6
 title: Notifications
+description: "PingCRM notifications: a central feed of system events, alerts, and actionable updates, with an unread badge in the navbar."
 ---
 
 # Notifications

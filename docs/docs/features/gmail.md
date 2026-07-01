@@ -1,6 +1,7 @@
 ---
 sidebar_position: 8
 title: Gmail Integration
+description: "PingCRM's Gmail integration syncs email threads, contacts, and calendar events via Google OAuth 2.0 to build a complete interaction history."
 ---
 
 # Gmail Integration

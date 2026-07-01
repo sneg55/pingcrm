@@ -1,5 +1,6 @@
 ---
 sidebar_position: 99
+description: "How to contribute to PingCRM, the open-source personal networking CRM: dev setup, guidelines, and where to find the full contributing guide."
 ---
 
 # Contributing

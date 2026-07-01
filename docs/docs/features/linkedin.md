@@ -1,6 +1,7 @@
 ---
 sidebar_position: 11
 title: LinkedIn Integration
+description: "PingCRM syncs LinkedIn messages and profiles through a Chrome extension using the Voyager API, so your LinkedIn credentials never touch the backend."
 ---
 
 # LinkedIn Integration

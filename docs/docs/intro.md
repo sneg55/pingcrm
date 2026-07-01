@@ -2,6 +2,7 @@
 slug: /
 sidebar_position: 1
 title: Introduction
+description: "PingCRM is an open-source, self-hostable AI personal networking CRM that syncs Gmail, Telegram, Twitter/X, and LinkedIn to help you keep in touch."
 ---
 
 # PingCRM

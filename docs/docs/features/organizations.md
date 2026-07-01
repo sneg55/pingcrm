@@ -1,6 +1,7 @@
 ---
 sidebar_position: 4
 title: Organizations
+description: "Organizations in PingCRM group contacts by company so you can track companies across your network and see relationships at the org level."
 ---
 
 # Organizations

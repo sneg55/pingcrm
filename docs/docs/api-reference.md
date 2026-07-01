@@ -1,6 +1,7 @@
 ---
 sidebar_position: 20
 title: API Reference
+description: "PingCRM REST API reference: all endpoints under /api/v1, the standard { data, error, meta } response envelope, authentication, and pagination."
 ---
 
 # API Reference
