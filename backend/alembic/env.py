@@ -1,20 +1,24 @@
 import asyncio
 from logging.config import fileConfig
 
+# app.models is imported for its side effect: registering every model on
+# Base.metadata so Alembic autogenerate can detect them.
+import app.models  # noqa: F401
 from alembic import context
-from sqlalchemy.ext.asyncio import async_engine_from_config
-from sqlalchemy import pool
-
-# Import Base and all models so Alembic can detect them
+from app.core.config import settings
 from app.core.database import Base
-import app.models  # noqa: F401 - ensures all models are registered
+from sqlalchemy import pool
+from sqlalchemy.ext.asyncio import async_engine_from_config
 
 config = context.config
 
-import os
-db_url = os.environ.get("DATABASE_URL")
-if db_url:
-    config.set_main_option("sqlalchemy.url", db_url)
+# Source the database URL from the application settings so migrations use the
+# exact same configuration as the app. pydantic-settings resolves real
+# environment variables first (e.g. the DATABASE_URL injected by docker compose),
+# then falls back to the .env file, then to the default. This keeps a single
+# source of truth and also applies the +asyncpg driver normalisation defined on
+# Settings.DATABASE_URL.
+config.set_main_option("sqlalchemy.url", settings.DATABASE_URL)
 
 if config.config_file_name is not None:
     fileConfig(config.config_file_name)
