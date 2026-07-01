@@ -144,6 +144,40 @@ const STEPS = [
   },
 ];
 
+// Answer-first FAQ — each answer leads with a direct, extractable sentence so
+// search + AI answer engines can quote it. Maps to priority target queries.
+// The same array feeds the FAQPage JSON-LD below (keep them in sync).
+const FAQS = [
+  {
+    q: "What is PingCRM?",
+    a: "PingCRM is an open-source personal networking CRM. It syncs your conversations across Gmail, Telegram, Twitter/X, and LinkedIn into one timeline per contact, scores each relationship, and uses Claude AI to draft follow-up messages so you stay in touch without the mental overhead.",
+  },
+  {
+    q: "Is PingCRM open source and self-hostable?",
+    a: "Yes. PingCRM is fully open source under the AGPL-3.0 license and self-hostable on your own server. You can deploy it in under 10 minutes with Docker Compose, audit every line of code, and own your relationship data completely — no vendor lock-in and no data harvesting.",
+  },
+  {
+    q: "Which platforms does PingCRM sync?",
+    a: "PingCRM syncs Gmail, Telegram, Twitter/X, and LinkedIn. Every email, DM, group chat, and mention is unified into a single chronological timeline for each contact.",
+  },
+  {
+    q: "How does PingCRM use AI?",
+    a: "PingCRM uses Claude AI to draft contextual follow-up messages based on your conversation history. It only drafts — nothing is ever sent automatically. You review, edit, and send each message yourself.",
+  },
+  {
+    q: "What is relationship scoring?",
+    a: "Relationship scoring is a transparent 0–10 score for each contact, decomposed into reciprocity, recency, frequency, and breadth. It shows exactly why a relationship is cooling off so you know who needs attention.",
+  },
+  {
+    q: "Is my data private with PingCRM?",
+    a: "Yes. Because PingCRM is self-hosted, your data lives on your own infrastructure. Nothing is sent to a third-party CRM cloud, and the AGPL-3.0 license keeps the whole stack auditable.",
+  },
+  {
+    q: "Is there a hosted version of PingCRM?",
+    a: "A managed, hosted version of PingCRM is in the works. If you'd prefer not to self-host, you can join the waitlist from the homepage.",
+  },
+];
+
 function GitHubIcon({ size = 20 }: { size?: number }) {
   return (
     <svg width={size} height={size} viewBox="0 0 24 24" fill="currentColor">
@@ -426,6 +460,57 @@ export default function LandingPage() {
               </svg>
               Read the Docs
             </a>
+          </div>
+        </div>
+      </section>
+
+      {/* ──── FAQ ──── */}
+      <section className="scroll-reveal py-24 px-6" style={{ background: "var(--bg-elevated)" }}>
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{
+            __html: JSON.stringify({
+              "@context": "https://schema.org",
+              "@type": "FAQPage",
+              mainEntity: FAQS.map((f) => ({
+                "@type": "Question",
+                name: f.q,
+                acceptedAnswer: { "@type": "Answer", text: f.a },
+              })),
+            }),
+          }}
+        />
+        <div className="max-w-3xl mx-auto">
+          <div className="text-center mb-16">
+            <p
+              className="text-xs tracking-[0.2em] uppercase mb-3"
+              style={{ fontFamily: "'Space Mono', monospace", color: "var(--accent)" }}
+            >
+              FAQ
+            </p>
+            <h2
+              className="text-3xl sm:text-4xl font-bold tracking-tight"
+              style={{ fontFamily: "'Space Mono', monospace" }}
+            >
+              Common{" "}
+              <span style={{ color: "var(--accent)" }}>questions</span>
+            </h2>
+          </div>
+
+          <div className="flex flex-col gap-4">
+            {FAQS.map((faq) => (
+              <div key={faq.q} className="feature-card rounded-xl p-6">
+                <h3
+                  className="text-base font-bold mb-2 tracking-tight"
+                  style={{ fontFamily: "'Space Mono', monospace" }}
+                >
+                  {faq.q}
+                </h3>
+                <p className="text-sm leading-relaxed" style={{ color: "var(--text-muted)" }}>
+                  {faq.a}
+                </p>
+              </div>
+            ))}
           </div>
         </div>
       </section>
