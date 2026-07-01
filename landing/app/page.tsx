@@ -147,34 +147,43 @@ const STEPS = [
 // Answer-first FAQ — each answer leads with a direct, extractable sentence so
 // search + AI answer engines can quote it. Maps to priority target queries.
 // The same array feeds the FAQPage JSON-LD below (keep them in sync).
+const DOCS_URL = "https://docs.pingcrm.xyz";
+
 const FAQS = [
   {
     q: "What is PingCRM?",
     a: "PingCRM is an open-source personal networking CRM. It syncs your conversations across Gmail, Telegram, Twitter/X, and LinkedIn into one timeline per contact, scores each relationship, and uses Claude AI to draft follow-up messages so you stay in touch without the mental overhead.",
+    doc: { href: `${DOCS_URL}/architecture/`, label: "How PingCRM works" },
   },
   {
     q: "Is PingCRM open source and self-hostable?",
     a: "Yes. PingCRM is fully open source under the AGPL-3.0 license and self-hostable on your own server. You can deploy it in under 10 minutes with Docker Compose, audit every line of code, and own your relationship data completely — no vendor lock-in and no data harvesting.",
+    doc: { href: `${DOCS_URL}/setup/`, label: "Self-hosting setup guide" },
   },
   {
     q: "Which platforms does PingCRM sync?",
     a: "PingCRM syncs Gmail, Telegram, Twitter/X, and LinkedIn. Every email, DM, group chat, and mention is unified into a single chronological timeline for each contact.",
+    doc: { href: `${DOCS_URL}/features/gmail/`, label: "Integration docs" },
   },
   {
     q: "How does PingCRM use AI?",
     a: "PingCRM uses Claude AI to draft contextual follow-up messages based on your conversation history. It only drafts — nothing is ever sent automatically. You review, edit, and send each message yourself.",
+    doc: { href: `${DOCS_URL}/features/suggestions/`, label: "AI suggestions & composer" },
   },
   {
     q: "What is relationship scoring?",
     a: "Relationship scoring is a transparent 0–10 score for each contact, decomposed into reciprocity, recency, frequency, and breadth. It shows exactly why a relationship is cooling off so you know who needs attention.",
+    doc: { href: `${DOCS_URL}/features/suggestions/`, label: "Scoring & suggestions" },
   },
   {
     q: "Is my data private with PingCRM?",
     a: "Yes. Because PingCRM is self-hosted, your data lives on your own infrastructure. Nothing is sent to a third-party CRM cloud, and the AGPL-3.0 license keeps the whole stack auditable.",
+    doc: { href: `${DOCS_URL}/architecture/`, label: "Architecture & data flow" },
   },
   {
     q: "Is there a hosted version of PingCRM?",
     a: "A managed, hosted version of PingCRM is in the works. If you'd prefer not to self-host, you can join the waitlist from the homepage.",
+    doc: null,
   },
 ];
 
@@ -509,6 +518,16 @@ export default function LandingPage() {
                 <p className="text-sm leading-relaxed" style={{ color: "var(--text-muted)" }}>
                   {faq.a}
                 </p>
+                {faq.doc && (
+                  <a
+                    href={faq.doc.href}
+                    className="inline-flex items-center gap-1 mt-3 text-xs tracking-wide transition-colors hover:opacity-80"
+                    style={{ fontFamily: "'Space Mono', monospace", color: "var(--accent)" }}
+                  >
+                    {faq.doc.label}
+                    <span aria-hidden="true">→</span>
+                  </a>
+                )}
               </div>
             ))}
           </div>
