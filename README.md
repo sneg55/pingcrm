@@ -1,3 +1,5 @@
+[![MseeP.ai Security Assessment Badge](https://mseep.net/pr/sneg55-pingcrm-badge.png)](https://mseep.ai/app/sneg55-pingcrm)
+
 # PingCRM
 
 **Open-source personal networking CRM — AI-powered, self-hostable.**
