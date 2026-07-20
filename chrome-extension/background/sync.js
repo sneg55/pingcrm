@@ -179,7 +179,7 @@ async function _runSyncInner(apiUrl, token, force, result) {
 // ── Backend push + silent token refresh ─────────────────────────────────────
 
 async function _pushWithToken(apiUrl, token, body) {
-  return fetch(`${apiUrl}/api/v1/linkedin/push`, {
+  return apiFetch(`${apiUrl}/api/v1/linkedin/push`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
@@ -197,7 +197,7 @@ async function _pushWithToken(apiUrl, token, body) {
  */
 async function _attemptRefresh(apiUrl, oldToken) {
   try {
-    const resp = await fetch(`${apiUrl}/api/v1/extension/refresh`, {
+    const resp = await apiFetch(`${apiUrl}/api/v1/extension/refresh`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ token: oldToken }),

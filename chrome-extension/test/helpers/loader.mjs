@@ -22,6 +22,7 @@ const LIB = path.join(EXT_DIR, "lib");
 /** The exact importScripts() order from service-worker.js, then the SW itself. */
 export const SERVICE_WORKER_FILES = [
   path.join(LIB, "storage.js"),
+  path.join(BG, "api-fetch.js"),
   path.join(BG, "voyager-client.js"),
   path.join(BG, "sync-utils.js"),
   path.join(BG, "sync.js"),
@@ -31,12 +32,21 @@ export const SERVICE_WORKER_FILES = [
   path.join(BG, "sync-facebook.js"),
   path.join(BG, "sync-instagram.js"),
   path.join(BG, "twitter-sync.js"),
+  path.join(BG, "badge.js"),
+  path.join(BG, "suggestion-cache.js"),
+  path.join(BG, "auto-sync.js"),
+  path.join(BG, "backfill.js"),
+  path.join(BG, "handlers-linkedin.js"),
+  path.join(BG, "handlers-suggestions.js"),
+  path.join(BG, "handlers-meta.js"),
+  path.join(BG, "handlers-account.js"),
   path.join(BG, "service-worker.js"),
 ];
 
 /** Just the LinkedIn sync pipeline — enough for Layer 1 logic tests. */
 export const SYNC_FILES = [
   path.join(LIB, "storage.js"),
+  path.join(BG, "api-fetch.js"),
   path.join(BG, "voyager-client.js"),
   path.join(BG, "sync-utils.js"),
   path.join(BG, "sync.js"),

@@ -32,7 +32,7 @@ async function _pushTwitterCookies(cookies) {
     return { ok: false, reason: 'not_paired' };
   }
   try {
-    const resp = await fetch(`${apiUrl}/api/v1/integrations/twitter/cookies`, {
+    const resp = await apiFetch(`${apiUrl}/api/v1/integrations/twitter/cookies`, {
       method: 'POST',
       headers: {
         Authorization: `Bearer ${token}`,

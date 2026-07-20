@@ -208,7 +208,7 @@ async function _runInstagramSyncInner(apiUrl, token, force, result) {
 
   // ── Push to backend ──
   try {
-    const pushResp = await fetch(`${apiUrl}/api/v1/meta/push`, {
+    const pushResp = await apiFetch(`${apiUrl}/api/v1/meta/push`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
