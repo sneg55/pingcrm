@@ -13,7 +13,7 @@ from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from app.core.config import settings
 from app.core.logging_config import setup_logging
-from app.core.middleware import RequestCorrelationMiddleware
+from app.core.middleware import NoStoreCacheMiddleware, RequestCorrelationMiddleware
 from app.core.version import APP_VERSION
 from app.api.auth import router as auth_router
 from app.api.contacts import router as contacts_router
@@ -87,6 +87,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 app.add_middleware(RequestCorrelationMiddleware)
+app.add_middleware(NoStoreCacheMiddleware)
 
 app.include_router(contacts_router)
 app.include_router(interactions_router)
