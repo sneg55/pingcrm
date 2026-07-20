@@ -34,4 +34,12 @@ USER appuser
 EXPOSE 8000
 
 ENTRYPOINT ["/entrypoint.sh"]
-CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
+# --forwarded-allow-ips: uvicorn only honours X-Forwarded-* from a trusted peer,
+# and defaults that trust to 127.0.0.1. Caddy reaches us over the compose network
+# (172.18.0.0/16), so the default silently discarded X-Forwarded-Proto: the app
+# believed every request was plain HTTP and built redirect Locations as http://.
+# Caddy then bounced those back to https://, producing a redirect ping-pong that
+# browsers cache as a permanent redirect. The backend is not published to the
+# host, so its only reachable peer is the proxy.
+CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", \
+     "--proxy-headers", "--forwarded-allow-ips", "*"]
