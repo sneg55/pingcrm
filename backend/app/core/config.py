@@ -1,5 +1,5 @@
 from pydantic import field_validator
-from pydantic_settings import BaseSettings
+from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class Settings(BaseSettings):
@@ -78,8 +78,13 @@ class Settings(BaseSettings):
     WHATSAPP_SIDECAR_URL: str = "http://localhost:3001"
     WHATSAPP_WEBHOOK_SECRET: str = ""
 
-    class Config:
-        env_file = ".env"
+    # env_ignore_empty: an empty environment variable means "not configured",
+    # not "the empty value". Docker Compose writes every `VAR: ${VAR:-}` entry as
+    # an empty string rather than omitting it, so any optional credential the
+    # operator left blank arrives as "". Without this, blank non-string settings
+    # (e.g. TELEGRAM_API_ID) fail validation and crash startup instead of falling
+    # back to their defaults.
+    model_config = SettingsConfigDict(env_file=".env", env_ignore_empty=True)
 
 
 settings = Settings()
