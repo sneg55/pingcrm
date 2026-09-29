@@ -7,15 +7,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.interaction import Interaction
 from mcp_server.server import mcp_app
+from mcp_server.context import require_user_id
 from mcp_server.db import get_session
-
-_current_user_id = None
-
-
-def set_user_id(uid):
-    global _current_user_id
-    _current_user_id = uid
-
 
 async def _get_interactions(
     user_id: _uuid.UUID,
@@ -78,7 +71,7 @@ async def get_interactions(
     """Get recent interactions with a contact. Optionally filter by platform (telegram/email/twitter/linkedin)."""
     async with get_session() as db:
         return await _get_interactions(
-            _current_user_id,
+            require_user_id(),
             db,
             contact_id=contact_id or "",
             limit=limit if limit is not None else 10,

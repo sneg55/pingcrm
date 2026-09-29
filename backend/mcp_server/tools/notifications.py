@@ -7,15 +7,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.notification import Notification
 from mcp_server.server import mcp_app
+from mcp_server.context import require_user_id
 from mcp_server.db import get_session
-
-_current_user_id = None
-
-
-def set_user_id(uid):
-    global _current_user_id
-    _current_user_id = uid
-
 
 async def _get_notifications(
     user_id: _uuid.UUID,
@@ -58,7 +51,7 @@ async def get_notifications(unread_only: bool | None = None, limit: int | None =
     """Get recent notifications. Set unread_only=false to see all."""
     async with get_session() as db:
         return await _get_notifications(
-            _current_user_id,
+            require_user_id(),
             db,
             unread_only=unread_only if unread_only is not None else True,
             limit=limit if limit is not None else 20,

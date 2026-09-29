@@ -8,15 +8,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.models.contact import Contact
 from app.models.follow_up import FollowUpSuggestion
 from mcp_server.server import mcp_app
+from mcp_server.context import require_user_id
 from mcp_server.db import get_session
-
-_current_user_id = None
-
-
-def set_user_id(uid):
-    global _current_user_id
-    _current_user_id = uid
-
 
 async def _get_suggestions(
     user_id: _uuid.UUID,
@@ -64,4 +57,4 @@ async def _get_suggestions(
 async def get_suggestions(limit: int | None = None) -> str:
     """Get pending follow-up suggestions — contacts you should reach out to."""
     async with get_session() as db:
-        return await _get_suggestions(_current_user_id, db, limit=limit if limit is not None else 10)
+        return await _get_suggestions(require_user_id(), db, limit=limit if limit is not None else 10)

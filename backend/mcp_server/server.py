@@ -21,6 +21,7 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="PingCRM MCP Server")
     parser.add_argument("--sse", action="store_true", help="Enable SSE transport (remote)")
     parser.add_argument("--port", type=int, default=8808, help="SSE port (default: 8808)")
+    parser.add_argument("--host", type=str, default="127.0.0.1", help="SSE bind address (default: 127.0.0.1)")
     parser.add_argument("--user-email", type=str, default=None, help="User email for stdio mode")
     return parser.parse_args(argv)
 
@@ -56,21 +57,25 @@ async def run_stdio(user_email: str | None = None):
                 return
             user = users[0]
 
-    from mcp_server.tools import contacts, interactions, suggestions, notifications, dashboard
-    for mod in [contacts, interactions, suggestions, notifications, dashboard]:
-        mod.set_user_id(user.id)
+    from mcp_server.context import current_user_id
+
+    current_user_id.set(user.id)
 
     logger.info("MCP server ready for user %s (%s)", user.email, user.id)
 
     await mcp_app.run_stdio_async()
 
 
-async def run_sse(port: int):
-    """Run in SSE mode (remote HTTP — standalone, no auth)."""
-    import uvicorn
+def build_standalone_sse_app():
+    from mcp_server.asgi import MCPAuthMiddleware
     _register_tools()
-    logger.info("Starting PingCRM MCP server (SSE mode on port %d)", port)
-    config = uvicorn.Config(mcp_app.sse_app(), host="0.0.0.0", port=port)
+    return MCPAuthMiddleware(mcp_app.sse_app())
+
+
+async def run_sse(port: int, host: str = "127.0.0.1"):
+    import uvicorn
+    logger.info("Starting PingCRM MCP server (SSE mode on %s:%d, API key required)", host, port)
+    config = uvicorn.Config(build_standalone_sse_app(), host=host, port=port)
     server = uvicorn.Server(config)
     await server.serve()
 
@@ -80,7 +85,7 @@ def main():
 
     args = parse_args()
     if args.sse:
-        asyncio.run(run_sse(args.port))
+        asyncio.run(run_sse(args.port, args.host))
     else:
         asyncio.run(run_stdio(args.user_email))
 

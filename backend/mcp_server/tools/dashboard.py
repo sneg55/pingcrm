@@ -10,15 +10,8 @@ from app.models.contact import Contact
 from app.models.follow_up import FollowUpSuggestion
 from app.models.interaction import Interaction
 from mcp_server.server import mcp_app
+from mcp_server.context import require_user_id
 from mcp_server.db import get_session
-
-_current_user_id = None
-
-
-def set_user_id(uid):
-    global _current_user_id
-    _current_user_id = uid
-
 
 async def _get_dashboard_stats(
     user_id: _uuid.UUID,
@@ -106,4 +99,4 @@ async def _get_dashboard_stats(
 async def get_dashboard_stats() -> str:
     """Get network health overview: contact counts, score distribution, pending suggestions, recent activity."""
     async with get_session() as db:
-        return await _get_dashboard_stats(_current_user_id, db)
+        return await _get_dashboard_stats(require_user_id(), db)

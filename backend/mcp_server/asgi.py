@@ -31,11 +31,13 @@ class MCPAuthMiddleware:
             await _send_401(scope, send)
             return
 
-        from mcp_server.tools import contacts, interactions, suggestions, notifications, dashboard
-        for mod in [contacts, interactions, suggestions, notifications, dashboard]:
-            mod.set_user_id(user.id)
+        from mcp_server.context import current_user_id
 
-        await self.app(scope, receive, send)
+        token = current_user_id.set(user.id)
+        try:
+            await self.app(scope, receive, send)
+        finally:
+            current_user_id.reset(token)
 
 
 async def _send_401(scope, send) -> None:
