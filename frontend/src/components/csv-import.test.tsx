@@ -127,7 +127,7 @@ describe("CsvImport", () => {
     const restore = mockFileReader(CSV_CONTENT);
 
     mockPost.mockResolvedValueOnce({
-      data: { data: { created: 2, errors: [] } },
+      data: { data: { created: [{ id: "c1", full_name: "Jane Doe" }, { id: "c2", full_name: "John Roe" }], errors: [] } },
       error: undefined,
     } as unknown as Awaited<ReturnType<typeof client.POST>>);
 
@@ -160,7 +160,7 @@ describe("CsvImport", () => {
     const restore = mockFileReader(CSV_CONTENT);
 
     mockPost.mockResolvedValueOnce({
-      data: { data: { created: 2, errors: [] } },
+      data: { data: { created: [{ id: "c1", full_name: "Jane Doe" }, { id: "c2", full_name: "John Roe" }], errors: [] } },
       error: undefined,
     } as unknown as Awaited<ReturnType<typeof client.POST>>);
 
@@ -190,7 +190,7 @@ describe("CsvImport", () => {
     const restore = mockFileReader(CSV_CONTENT);
 
     mockPost.mockResolvedValueOnce({
-      data: { data: { created: 1, errors: ["Row 2: missing required field 'name'"] } },
+      data: { data: { created: [{ id: "c1", full_name: "Jane Doe" }], errors: ["Row 2: missing required field 'name'"] } },
       error: undefined,
     } as unknown as Awaited<ReturnType<typeof client.POST>>);
 
@@ -302,7 +302,7 @@ describe("CsvImport", () => {
     const restore = mockFileReader(CSV_CONTENT);
 
     mockPost.mockResolvedValueOnce({
-      data: { data: { created: 1, errors: [] } },
+      data: { data: { created: [{ id: "c1", full_name: "Jane Doe" }], errors: [] } },
       error: undefined,
     } as unknown as Awaited<ReturnType<typeof client.POST>>);
 
@@ -342,7 +342,7 @@ describe("CsvImport", () => {
     });
     mockPost.mockImplementationOnce(async () => {
       await importPromise;
-      return { data: { data: { created: 0, errors: [] } }, error: undefined } as unknown as Awaited<ReturnType<typeof client.POST>>;
+      return { data: { data: { created: [], errors: [] } }, error: undefined } as unknown as Awaited<ReturnType<typeof client.POST>>;
     });
 
     render(<CsvImport />);

@@ -3,13 +3,11 @@
 import { useState, useRef, type DragEvent, type ChangeEvent } from "react";
 import { Upload, FileText, X, AlertCircle, CheckCircle } from "lucide-react";
 import { client } from "@/lib/api-client";
+import type { components } from "@/lib/api-types";
 
 type PreviewRow = Record<string, string>
 
-type ImportResult = {
-  created: number;
-  errors: string[];
-}
+type ImportResult = components["schemas"]["CsvImportResult"];
 
 function parseCsvText(text: string): { headers: string[]; rows: PreviewRow[] } {
   const lines = text.trim().split(/\r?\n/);
@@ -88,7 +86,7 @@ export function CsvImport() {
       if (error || !data?.data) {
         setUploadError((error as { detail?: string })?.detail ?? "Import failed. Please try again.");
       } else {
-        setResult(data.data as unknown as ImportResult);
+        setResult(data.data);
         setFile(null);
         setPreview(null);
       }
@@ -114,8 +112,8 @@ export function CsvImport() {
           <CheckCircle className="w-5 h-5 text-green-500 dark:text-emerald-400 flex-shrink-0 mt-0.5" />
           <div className="flex-1 min-w-0">
             <p className="text-sm font-medium text-gray-900 dark:text-stone-100">
-              Import complete — {result.created} contact
-              {result.created !== 1 ? "s" : ""} created
+              Import complete — {result.created.length} contact
+              {result.created.length !== 1 ? "s" : ""} created
             </p>
             {result.errors.length > 0 && (
               <div className="mt-2">
