@@ -1,5 +1,7 @@
 # PingCRM
 
+[![Deploy to Railyard](https://app.railyard.run/deploy/badge)](https://app.railyard.run/deploy?repo=https://github.com/sneg55/pingcrm)
+
 **Open-source personal networking CRM — AI-powered, self-hostable.**
 
 [![License: AGPL-3.0](https://img.shields.io/badge/License-AGPL%20v3-blue.svg)](LICENSE)
