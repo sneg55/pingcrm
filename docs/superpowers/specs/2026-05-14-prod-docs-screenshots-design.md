@@ -5,7 +5,7 @@
 
 ## Goal
 
-Every feature page in `docs/docs/features/` gets multiple screenshots illustrating its key subsections, captured from prod (`pingcrm.sawinyh.com`), embedded inline in the `.md` files, in a single PR. Screenshots are PII-redacted before publication.
+Every feature page in `docs/docs/features/` gets multiple screenshots illustrating its key subsections, captured from the maintainer's production instance, embedded inline in the `.md` files, in a single PR. Screenshots are PII-redacted before publication.
 
 ## Scope
 

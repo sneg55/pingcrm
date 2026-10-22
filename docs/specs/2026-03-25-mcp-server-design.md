@@ -220,7 +220,7 @@ All error handlers must follow the project exception handling policy (`.claude/r
       "command": "ssh",
       "args": [
         "-i", "~/.ssh/pingcrm_key",
-        "root@pingcrm.sawinyh.com",
+        "root@pingcrm.example.com",
         "cd /opt/pingcrm && docker compose exec -T backend python -m mcp_server.server"
       ]
     }
@@ -234,7 +234,7 @@ All error handlers must follow the project exception handling policy (`.claude/r
 {
   "mcpServers": {
     "pingcrm": {
-      "url": "https://pingcrm.sawinyh.com/mcp/sse",
+      "url": "https://pingcrm.example.com/mcp/sse",
       "headers": {
         "Authorization": "Bearer pingcrm_abc123..."
       }

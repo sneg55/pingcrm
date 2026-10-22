@@ -388,7 +388,7 @@ Change the "Build and push frontend" step from:
           push: true
           tags: ${{ env.FRONTEND_IMAGE }}:latest,${{ env.FRONTEND_IMAGE }}:${{ github.sha }}
           build-args: |
-            NEXT_PUBLIC_API_URL=https://pingcrm.sawinyh.com/api
+            NEXT_PUBLIC_API_URL=https://pingcrm.example.com/api
           cache-from: type=gha
           cache-to: type=gha,mode=max
 ```
@@ -404,7 +404,7 @@ to:
           tags: ${{ steps.meta-frontend.outputs.tags }}
           labels: ${{ steps.meta-frontend.outputs.labels }}
           build-args: |
-            NEXT_PUBLIC_API_URL=https://pingcrm.sawinyh.com/api
+            NEXT_PUBLIC_API_URL=https://pingcrm.example.com/api
             APP_VERSION=${{ steps.app-version.outputs.value }}
           cache-from: type=gha
           cache-to: type=gha,mode=max

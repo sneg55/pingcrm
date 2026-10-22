@@ -11,7 +11,7 @@ The goal is: a self-hoster running `:latest` should see an in-app banner when a 
 
 ## Non-Goals
 
-- SaaS users on `pingcrm.sawinyh.com` — they get features by virtue of the operator deploying; no banner needed.
+- Users of the hosted instance — they get features by virtue of the operator deploying; no banner needed.
 - Auto-updates / in-app upgrade button — self-hosters control their own deploys; we surface info only.
 - Telemetry / install counts — the check goes directly to GitHub from the self-hoster's instance; we do not phone home.
 - Multi-user "instance admin" permission model — PingCRM is single-player; every authenticated user sees the banner.

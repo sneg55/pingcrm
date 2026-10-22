@@ -4,7 +4,7 @@
 
 **Goal:** Capture multi-shot, PII-redacted screenshots from prod for every page under `docs/docs/features/`, embed them inline in the same PR, and ship via a single PR.
 
-**Architecture:** Drive `pingcrm.sawinyh.com` through the **agent-browser** skill (per project rule: no custom Playwright scripts). Apply PII redaction in-browser via CSS `filter: blur` injected immediately before each capture, with rules version-controlled in `docs/screenshots/redaction-rules.json`. Save PNGs under `docs/static/img/screenshots/<feature>/<name>.png` and embed via standard Markdown image syntax with absolute paths.
+**Architecture:** Drive `pingcrm.example.com` through the **agent-browser** skill (per project rule: no custom Playwright scripts). Apply PII redaction in-browser via CSS `filter: blur` injected immediately before each capture, with rules version-controlled in `docs/screenshots/redaction-rules.json`. Save PNGs under `docs/static/img/screenshots/<feature>/<name>.png` and embed via standard Markdown image syntax with absolute paths.
 
 **Tech Stack:** agent-browser CLI, Docusaurus (existing), Markdown.
 
@@ -18,7 +18,7 @@
 
 Each shot follows this sequence. Where a task table provides inputs (route, state setup steps, output filename, blur selectors), substitute them in.
 
-1. **Navigate** to the target route on `https://pingcrm.sawinyh.com` (e.g., `/contacts`).
+1. **Navigate** to the target route on `https://pingcrm.example.com` (e.g., `/contacts`).
 2. **Wait for content load** — wait for the primary content selector named in the shot's state-setup column to be visible (e.g. `[data-testid="contacts-table"]`). If no selector is listed, wait for `networkidle`.
 3. **Run state-setup steps** listed in the shot's "State setup" column (e.g. "click row checkboxes 1–3", "open kebab menu", "scroll to anchor #timeline").
 4. **Inject the blur stylesheet** by evaluating the following JS in the page (substituting `<selectors>` with the comma-separated selector list from `redaction-rules.json` for this route, plus the global fallback selectors):
@@ -97,7 +97,7 @@ Create `docs/screenshots/capture.md` with this exact content:
 ```markdown
 # Capturing Docs Screenshots
 
-All screenshots in `docs/static/img/screenshots/<feature>/` are captured from production (`pingcrm.sawinyh.com`) using the **agent-browser** skill, with PII redacted via in-browser CSS blur before each capture.
+All screenshots in `docs/static/img/screenshots/<feature>/` are captured from the maintainer's production instance using the **agent-browser** skill, with PII redacted via in-browser CSS blur before each capture.
 
 ## Procedure
 
@@ -154,9 +154,9 @@ git commit -m "docs: scaffold screenshot capture infrastructure"
 
 - [ ] **Step 1: Start an agent-browser session and log in**
 
-Invoke the agent-browser skill. Open `https://pingcrm.sawinyh.com/auth/login`. Sign in with the prod credentials from `CLAUDE.local.md`:
+Invoke the agent-browser skill. Open `https://pingcrm.example.com/auth/login`. Sign in with the prod credentials from `CLAUDE.local.md`:
 
-- Email: `nsawinyh@gmail.com`
+- Email: see `CLAUDE.local.md`
 - Password: `gdn.nxt3vjw6amj@XHM`
 
 Wait for redirect to `/dashboard`. Confirm you see the dashboard layout (stat cards, "Pending Follow-ups" heading).

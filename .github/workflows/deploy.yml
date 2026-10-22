@@ -154,7 +154,6 @@ jobs:
           tags: ${{ steps.meta-frontend.outputs.tags }}
           labels: ${{ steps.meta-frontend.outputs.labels }}
           build-args: |
-            NEXT_PUBLIC_API_URL=https://pingcrm.sawinyh.com/api
             APP_VERSION=${{ steps.app-version.outputs.value }}
           cache-from: type=gha
           cache-to: type=gha,mode=max

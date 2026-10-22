@@ -75,6 +75,8 @@ class Settings(BaseSettings):
     CORS_ORIGINS: list[str] = ["http://localhost:3000", "http://127.0.0.1:3000"]
     CHROME_EXTENSION_ID: str = ""
 
+    FRONTEND_URL: str = "http://localhost:3000"
+
     WHATSAPP_SIDECAR_URL: str = "http://localhost:3001"
     WHATSAPP_WEBHOOK_SECRET: str = ""
 

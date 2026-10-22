@@ -1,6 +1,6 @@
 # Capturing Docs Screenshots
 
-All screenshots in `docs/static/img/screenshots/<feature>/` are captured from production (`pingcrm.sawinyh.com`) using the **agent-browser** skill, with PII redacted via in-browser CSS blur before each capture.
+All screenshots in `docs/static/img/screenshots/<feature>/` are captured from the maintainer's production instance using the **agent-browser** skill, with PII redacted via in-browser CSS blur before each capture.
 
 ## Procedure
 

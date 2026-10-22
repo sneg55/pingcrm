@@ -81,18 +81,11 @@ EOF
 
 ---
 
-## Phase 5 — Edit Caddyfile and Frontend URL for the User's Domain
+## Phase 5 — Domain
 
-The default `Caddyfile` and `docker-compose.prod.yml` are pinned to `pingcrm.sawinyh.com` (the maintainer's instance). Replace with the user's domain.
+The `Caddyfile` and `docker-compose.prod.yml` read the public hostname from `DOMAIN` in `.env` (written in Phase 6). Caddy serves that host, and the backend derives the Twitter callback and the links in outgoing emails from it. Nothing in the repo needs editing.
 
-On the server (or by editing locally and `scp`'ing up):
-
-```bash
-ssh root@<server-ip> "cd /opt/pingcrm && \
-  sed -i 's|pingcrm.sawinyh.com|<user-domain>|g' Caddyfile docker-compose.prod.yml"
-```
-
-**CHECK:** `grep <user-domain> /opt/pingcrm/Caddyfile /opt/pingcrm/docker-compose.prod.yml` shows matches; `grep sawinyh` shows none.
+**CHECK:** `ssh root@<server-ip> 'head -1 /opt/pingcrm/Caddyfile'` prints `{$DOMAIN} {`.
 
 ---
 
@@ -113,6 +106,7 @@ Compose `.env` on the server. Replace placeholders. Fill in only the integration
 ```bash
 ssh root@<server-ip> "cat > /opt/pingcrm/.env" << 'EOF'
 # --- Required ---
+DOMAIN=<user-domain>
 POSTGRES_PASSWORD=<generated above>
 SECRET_KEY=<generated above>
 ENCRYPTION_KEY=<generated above>

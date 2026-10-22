@@ -792,7 +792,7 @@ Expected: FAIL with `ImportError`
 Add to `backend/app/services/meeting_prep.py`:
 
 ```python
-_BASE_URL = getattr(settings, "FRONTEND_URL", "https://pingcrm.sawinyh.com")
+_BASE_URL = getattr(settings, "FRONTEND_URL", "https://pingcrm.example.com")
 
 
 def compose_prep_email(

@@ -482,7 +482,7 @@ class TestMeetingPrepIntegration:
         )
 
         mock_settings.ANTHROPIC_API_KEY = "test-key"
-        mock_settings.FRONTEND_URL = "https://pingcrm.sawinyh.com"
+        mock_settings.FRONTEND_URL = "https://pingcrm.example.com"
 
         mock_response = MagicMock()
         mock_response.content = [MagicMock(text="- Discuss project timeline\n- Ask about team expansion")]

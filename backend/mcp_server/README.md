@@ -44,7 +44,7 @@ Add to `~/Library/Application Support/Claude/claude_desktop_config.json`:
       "command": "ssh",
       "args": [
         "-i", "~/.ssh/pingcrm_key",
-        "root@pingcrm.sawinyh.com",
+        "root@pingcrm.example.com",
         "cd /opt/pingcrm && docker compose exec -T backend python -m mcp_server.server"
       ]
     }
@@ -61,7 +61,7 @@ Add to `~/Library/Application Support/Claude/claude_desktop_config.json`:
 {
   "mcpServers": {
     "pingcrm": {
-      "url": "https://pingcrm.sawinyh.com/mcp/sse",
+      "url": "https://pingcrm.example.com/mcp/sse",
       "headers": {
         "Authorization": "Bearer pingcrm_your_key_here"
       }

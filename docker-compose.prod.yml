@@ -5,6 +5,8 @@ services:
     ports:
       - "80:80"
       - "443:443"
+    environment:
+      DOMAIN: ${DOMAIN:?set DOMAIN in .env}
     volumes:
       - ./Caddyfile:/etc/caddy/Caddyfile:ro
       - caddy_data:/data
@@ -68,7 +70,8 @@ services:
       TWITTER_API_KEY: ${TWITTER_API_KEY}
       TWITTER_API_SECRET: ${TWITTER_API_SECRET}
       TWITTER_BEARER_TOKEN: ${TWITTER_BEARER_TOKEN}
-      TWITTER_REDIRECT_URI: https://pingcrm.sawinyh.com/auth/twitter/callback
+      TWITTER_REDIRECT_URI: https://${DOMAIN:?set DOMAIN in .env}/auth/twitter/callback
+      FRONTEND_URL: https://${DOMAIN:?set DOMAIN in .env}
       TELEGRAM_API_ID: ${TELEGRAM_API_ID}
       TELEGRAM_API_HASH: ${TELEGRAM_API_HASH}
       ENCRYPTION_KEY: ${ENCRYPTION_KEY}
@@ -97,6 +100,7 @@ services:
     restart: unless-stopped
     command: celery -A worker.celery_app worker --beat --loglevel=info
     environment:
+      FRONTEND_URL: https://${DOMAIN:?set DOMAIN in .env}
       DATABASE_URL: postgresql+asyncpg://pingcrm:${POSTGRES_PASSWORD}@postgres:5432/pingcrm
       REDIS_URL: redis://:${REDIS_PASSWORD}@redis:6379/0
       SECRET_KEY: ${SECRET_KEY}
@@ -124,8 +128,6 @@ services:
   frontend:
     image: ghcr.io/sneg55/pingcrm/frontend:latest
     restart: unless-stopped
-    environment:
-      NEXT_PUBLIC_API_URL: https://pingcrm.sawinyh.com/api
     depends_on:
       backend:
         condition: service_healthy
