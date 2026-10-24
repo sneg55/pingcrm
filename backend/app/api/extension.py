@@ -22,6 +22,23 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/v1/extension", tags=["extension"])
 
+
+def _public_api_url(request: Request) -> str:
+    """The base URL the extension should use to reach this backend.
+
+    request.base_url reflects whatever hostname the request actually arrived
+    on from the ASGI server's point of view -- behind a reverse proxy that
+    forwards via an internal rewrite (e.g. Next.js proxying /api/* to the
+    backend's Compose service name) that's the *internal* hostname, not the
+    public one a browser extension can reach. DOMAIN, when configured, is
+    the deployment's own declared public hostname and is always correct;
+    request.base_url is kept only as the fallback for unproxied local/dev
+    setups where DOMAIN is unset.
+    """
+    if settings.DOMAIN:
+        return f"https://{settings.DOMAIN}"
+    return str(request.base_url).rstrip("/").replace("http://", "https://")
+
 _PAIRING_TTL_MINUTES = 10
 _EXTENSION_TOKEN_EXPIRE_DAYS = 30
 _MAX_POLL_ATTEMPTS = 20
@@ -141,9 +158,7 @@ async def poll_pairing(
 
     await db.flush()
 
-    # Use the request's own base URL (the backend the extension is polling)
-    # Force HTTPS — behind a reverse proxy, base_url reports http://
-    api_url = str(request.base_url).rstrip("/").replace("http://", "https://")
+    api_url = _public_api_url(request)
 
     return {
         "data": PairTokenResponse(token=pairing.token, api_url=api_url),
@@ -210,7 +225,7 @@ async def refresh_extension_token(
     user.linkedin_extension_paired_at = now
     await db.flush()
 
-    api_url = str(request.base_url).rstrip("/").replace("http://", "https://")
+    api_url = _public_api_url(request)
     return {
         "data": PairTokenResponse(token=new_token, api_url=api_url),
         "error": None,
