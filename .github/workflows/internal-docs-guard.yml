@@ -15,7 +15,7 @@ jobs:
 
       - name: Fail if internal planning docs are tracked
         run: |
-          found=$(git ls-files | grep -E '^docs/(plans|specs|superpowers)/' || true)
+          found=$(git ls-files | grep -E '^docs/(plans|specs|superpowers|screenshots)/' || true)
           if [ -n "$found" ]; then
             echo "Internal docs must not be committed to this public repository:"
             echo "$found"
