@@ -75,6 +75,14 @@ class Settings(BaseSettings):
     CORS_ORIGINS: list[str] = ["http://localhost:3000", "http://127.0.0.1:3000"]
     CHROME_EXTENSION_ID: str = ""
 
+    # Public hostname of this instance (e.g. "crm.example.com"), no scheme.
+    # Used to tell the Chrome extension where to reach the backend when
+    # behind a reverse proxy -- request.base_url reports whatever internal
+    # hostname the proxy actually connected on (e.g. the Docker Compose
+    # service name), not the public one. Falls back to request.base_url when
+    # unset, which is correct for unproxied local/dev setups.
+    DOMAIN: str = ""
+
     FRONTEND_URL: str = "http://localhost:3000"
 
     WHATSAPP_SIDECAR_URL: str = "http://localhost:3001"
