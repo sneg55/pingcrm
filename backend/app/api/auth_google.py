@@ -80,6 +80,14 @@ async def remove_google_account(
         raise HTTPException(status_code=404, detail="Google account not found")
 
     await db.delete(ga)
+    await db.flush()
+    remaining = await db.execute(
+        select(GoogleAccount.refresh_token)
+        .where(GoogleAccount.user_id == current_user.id, GoogleAccount.id != ga.id)
+        .order_by(GoogleAccount.created_at.desc())
+        .limit(1)
+    )
+    current_user.google_refresh_token = remaining.scalar_one_or_none()
     return {"data": {"id": account_id, "deleted": True}, "error": None}
 
 

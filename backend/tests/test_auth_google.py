@@ -9,6 +9,7 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.auth import hash_password
+from app.integrations.google_accounts import load_google_mailboxes
 from app.models.google_account import GoogleAccount
 from app.models.user import User
 
@@ -305,3 +306,51 @@ async def test_legacy_user_reconnecting_same_email_creates_one_account(
     assert resp.status_code == 200
     accounts = (await db.execute(select(GoogleAccount))).scalars().all()
     assert [(a.email, a.refresh_token) for a in accounts] == [(test_user.email, "new-token")]
+
+
+async def _delete_account(client, headers, email, db):
+    account = (await db.execute(select(GoogleAccount).where(GoogleAccount.email == email))).scalar_one()
+    resp = await client.delete(f"/api/v1/auth/google/accounts/{account.id}", headers=headers)
+    assert resp.status_code == 200
+
+
+@pytest.mark.asyncio
+async def test_removing_only_account_clears_token_and_mailboxes(
+    client: AsyncClient, db: AsyncSession, test_user: User, auth_headers: dict
+):
+    state = await _inject_state("remove-only", str(test_user.id))
+    await _connect(client, state, auth_headers, "g@gmail.com", refresh_token="tok-g")
+
+    await _delete_account(client, auth_headers, "g@gmail.com", db)
+
+    await db.refresh(test_user)
+    assert test_user.google_refresh_token is None
+    assert (await load_google_mailboxes(test_user, db)).accounts == []
+
+
+@pytest.mark.asyncio
+async def test_removing_one_of_two_accounts_points_token_at_the_remaining_one(
+    client: AsyncClient, db: AsyncSession, test_user: User, auth_headers: dict
+):
+    for n, (email, token) in enumerate([("g@gmail.com", "tok-g"), ("h@gmail.com", "tok-h")]):
+        state = await _inject_state(f"remove-one-{n}", str(test_user.id))
+        await _connect(client, state, auth_headers, email, refresh_token=token)
+
+    await _delete_account(client, auth_headers, "h@gmail.com", db)
+
+    await db.refresh(test_user)
+    assert test_user.google_refresh_token == "tok-g"
+
+
+@pytest.mark.asyncio
+async def test_connect_remove_connect_leaves_only_the_last_account(
+    client: AsyncClient, db: AsyncSession, test_user: User, auth_headers: dict
+):
+    state = await _inject_state("flow-b", str(test_user.id))
+    await _connect(client, state, auth_headers, "b@gmail.com", refresh_token="tok-b")
+    await _delete_account(client, auth_headers, "b@gmail.com", db)
+    state = await _inject_state("flow-c", str(test_user.id))
+    await _connect(client, state, auth_headers, "c@gmail.com", refresh_token="tok-c")
+
+    accounts = (await db.execute(select(GoogleAccount))).scalars().all()
+    assert [(a.email, a.refresh_token) for a in accounts] == [("c@gmail.com", "tok-c")]
