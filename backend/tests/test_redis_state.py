@@ -11,7 +11,7 @@ def fake_redis():
     fr = fakeredis.aioredis.FakeRedis(decode_responses=True)
     with patch("app.core.redis.get_redis", return_value=fr), \
          patch("app.api.twitter.get_redis", return_value=fr), \
-         patch("app.api.auth.get_redis", return_value=fr), \
+         patch("app.api.auth_google.get_redis", return_value=fr), \
          patch("app.api.contacts_routes.sync.get_redis", return_value=fr):
         yield fr
 
@@ -40,7 +40,7 @@ async def test_pkce_store_missing_returns_none(fake_redis):
 
 @pytest.mark.asyncio
 async def test_google_state_roundtrip(fake_redis):
-    from app.api.auth import _store_google_state, _pop_google_state
+    from app.api.auth_google import _store_google_state, _pop_google_state
     await _store_google_state("state_abc", "user_123")
     result = await _pop_google_state("state_abc")
     assert result == "user_123"
@@ -48,7 +48,7 @@ async def test_google_state_roundtrip(fake_redis):
 
 @pytest.mark.asyncio
 async def test_google_state_pop_deletes(fake_redis):
-    from app.api.auth import _store_google_state, _pop_google_state
+    from app.api.auth_google import _store_google_state, _pop_google_state
     await _store_google_state("s1", "u1")
     await _pop_google_state("s1")
     assert await _pop_google_state("s1") is None
@@ -56,7 +56,7 @@ async def test_google_state_pop_deletes(fake_redis):
 
 @pytest.mark.asyncio
 async def test_google_state_missing_returns_none(fake_redis):
-    from app.api.auth import _pop_google_state
+    from app.api.auth_google import _pop_google_state
     assert await _pop_google_state("missing") is None
 
 

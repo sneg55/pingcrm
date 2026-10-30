@@ -27,7 +27,7 @@ def _patch_google_redis():
     fr = fakeredis.aioredis.FakeRedis(decode_responses=True)
     _fake_redis_instance = fr
     with patch("app.core.redis.get_redis", return_value=fr), \
-         patch("app.api.auth.get_redis", return_value=fr), \
+         patch("app.api.auth_google.get_redis", return_value=fr), \
          patch("app.api.twitter.get_redis", return_value=fr):
         yield fr
     _fake_redis_instance = None
@@ -35,7 +35,7 @@ def _patch_google_redis():
 
 async def _inject_google_state(state: str, user_id: str | None) -> str:
     """Store a Google OAuth state in the fake Redis."""
-    from app.api.auth import _store_google_state
+    from app.api.auth_google import _store_google_state
     await _store_google_state(state, user_id)
     return state
 
@@ -46,22 +46,24 @@ async def _inject_google_state(state: str, user_id: str | None) -> str:
 
 
 @pytest.mark.asyncio
-async def test_google_callback_anonymous_state_allows_signup(client: AsyncClient):
-    """Anonymous state (no user bound) allows normal signup/login flow."""
-    state = await _inject_google_state("anon-state-001", None)  # stores "__anonymous__"
+async def test_google_callback_anonymous_state_is_rejected(
+    client: AsyncClient,
+    auth_headers: dict[str, str],
+):
+    state = await _inject_google_state("anon-state-001", None)
 
     mock_tokens = {"id_token": "fake_token", "refresh_token": "refresh_123"}
     id_info = {"email": "newuser@example.com", "name": "New User", "sub": "g-001"}
 
-    with patch("app.api.auth.exchange_code", return_value=mock_tokens), \
-         patch("app.api.auth.google_id_token.verify_oauth2_token", return_value=id_info):
+    with patch("app.api.auth_google.exchange_code", return_value=mock_tokens), \
+         patch("app.api.auth_google.google_id_token.verify_oauth2_token", return_value=id_info):
         resp = await client.post(
             "/api/v1/auth/google/callback",
             json={"code": "auth-code", "state": state},
+            headers=auth_headers,
         )
 
-    assert resp.status_code == 200
-    assert "access_token" in resp.json()["data"]
+    assert resp.status_code == 403
 
 
 @pytest.mark.asyncio
@@ -76,8 +78,8 @@ async def test_google_callback_user_state_with_matching_user_succeeds(
     mock_tokens = {"id_token": "fake_token", "refresh_token": "refresh_abc"}
     id_info = {"email": test_user.email, "name": test_user.full_name, "sub": "g-002"}
 
-    with patch("app.api.auth.exchange_code", return_value=mock_tokens), \
-         patch("app.api.auth.google_id_token.verify_oauth2_token", return_value=id_info):
+    with patch("app.api.auth_google.exchange_code", return_value=mock_tokens), \
+         patch("app.api.auth_google.google_id_token.verify_oauth2_token", return_value=id_info):
         resp = await client.post(
             "/api/v1/auth/google/callback",
             json={"code": "auth-code", "state": state},
@@ -148,14 +150,17 @@ async def test_google_callback_user_state_with_different_user_returns_403(
 @pytest.mark.asyncio
 async def test_google_callback_exchange_error_does_not_leak_exception_class(
     client: AsyncClient,
+    auth_headers: dict[str, str],
+    test_user: User,
 ):
     """auth.py: exchange_code error detail must not contain raw exception class names."""
-    state = await _inject_google_state("redact-exchange-state", None)
+    state = await _inject_google_state("redact-exchange-state", str(test_user.id))
 
-    with patch("app.api.auth.exchange_code", side_effect=ValueError("internal detail here")):
+    with patch("app.api.auth_google.exchange_code", side_effect=ValueError("internal detail here")):
         resp = await client.post(
             "/api/v1/auth/google/callback",
             json={"code": "bad-code", "state": state},
+            headers=auth_headers,
         )
 
     assert resp.status_code == 400
@@ -168,19 +173,22 @@ async def test_google_callback_exchange_error_does_not_leak_exception_class(
 @pytest.mark.asyncio
 async def test_google_callback_id_token_error_does_not_leak_exception_class(
     client: AsyncClient,
+    auth_headers: dict[str, str],
+    test_user: User,
 ):
     """auth.py: id_token error detail must not contain raw exception class names."""
-    state = await _inject_google_state("redact-idtoken-state", None)
+    state = await _inject_google_state("redact-idtoken-state", str(test_user.id))
     mock_tokens = {"id_token": "fake", "refresh_token": "ref"}
 
-    with patch("app.api.auth.exchange_code", return_value=mock_tokens), \
+    with patch("app.api.auth_google.exchange_code", return_value=mock_tokens), \
          patch(
-             "app.api.auth.google_id_token.verify_oauth2_token",
+             "app.api.auth_google.google_id_token.verify_oauth2_token",
              side_effect=Exception("KeyError: aud"),
          ):
         resp = await client.post(
             "/api/v1/auth/google/callback",
             json={"code": "valid-code", "state": state},
+            headers=auth_headers,
         )
 
     assert resp.status_code == 400

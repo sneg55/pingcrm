@@ -6,6 +6,7 @@ import uuid
 from datetime import UTC, datetime, timedelta
 from typing import Any
 
+from google.auth.exceptions import RefreshError
 from google.oauth2.credentials import Credentials
 from googleapiclient.discovery import build
 from sqlalchemy import select
@@ -14,6 +15,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.config import settings
 from app.models.contact import Contact
 from app.models.interaction import Interaction
+from app.integrations.google_accounts import load_google_mailboxes
 from app.models.user import User
 from app.services.contact_resolver import find_or_create_contact_by_email
 
@@ -158,20 +160,50 @@ async def _find_or_create_contact(
     return contact
 
 
-async def sync_calendar_events(user: User, db: AsyncSession) -> dict[str, int]:
-    """Sync Google Calendar events for a user.
+EMPTY_CALENDAR_RESULT = {"new_contacts": 0, "new_interactions": 0, "events_processed": 0}
 
-    - Creates contacts for event participants not already in the DB.
-    - Creates 'meeting' interactions for each contact-event pair.
 
-    Returns dict with keys: new_contacts, new_interactions, events_processed.
-    """
-    if not user.google_refresh_token:
-        return {"new_contacts": 0, "new_interactions": 0, "events_processed": 0}
+async def sync_calendar_events(
+    user: User, db: AsyncSession, auth_failures: list[str] | None = None
+) -> dict[str, int]:
+    mailboxes = await load_google_mailboxes(user, db)
+    totals = dict(EMPTY_CALENDAR_RESULT)
+    failures: list[Exception] = []
+    for account_email, refresh_token in mailboxes.accounts:
+        try:
+            service = _build_calendar_service(refresh_token)
+            result = await _sync_account_events(
+                user, service, account_email, mailboxes.own_emails, db
+            )
+        except RefreshError as exc:
+            logger.warning(
+                "Calendar auth expired for user %s account %s.", user.id, account_email
+            )
+            if auth_failures is None:
+                failures.append(exc)
+            else:
+                auth_failures.append(account_email)
+            continue
+        except Exception as exc:
+            logger.exception(
+                "Calendar sync failed for user %s account %s.", user.id, account_email
+            )
+            failures.append(exc)
+            continue
+        for key, value in result.items():
+            totals[key] += value
+    if failures and len(failures) == len(mailboxes.accounts):
+        raise failures[-1]
+    return totals
 
-    service = _build_calendar_service(user.google_refresh_token)
-    user_email = user.email.lower()
 
+async def _sync_account_events(
+    user: User,
+    service: Any,
+    account_email: str,
+    own_emails: frozenset[str],
+    db: AsyncSession,
+) -> dict[str, int]:
     time_min = (datetime.now(UTC) - timedelta(days=DEFAULT_LOOKBACK_DAYS)).isoformat()
     time_max = (datetime.now(UTC) + timedelta(days=30)).isoformat()
 
@@ -207,7 +239,9 @@ async def sync_calendar_events(user: User, db: AsyncSession) -> dict[str, int]:
             if not start_dt:
                 continue
 
-            attendee_emails = _extract_attendee_emails(event, user_email)
+            attendee_emails = [
+                e for e in _extract_attendee_emails(event, account_email) if e not in own_emails
+            ]
             if not attendee_emails:
                 continue
 

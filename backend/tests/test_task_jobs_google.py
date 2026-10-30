@@ -640,19 +640,12 @@ async def test_calendar_iterates_multiple_accounts_and_sums_counts(
     ])
     await db.commit()
 
-    seen_tokens: list[str] = []
+    sync = AsyncMock(return_value={"new_contacts": 2, "new_interactions": 4, "events_processed": 6})
 
-    async def fake_sync(user, db):  # noqa: ARG001
-        seen_tokens.append(user.google_refresh_token)
-        return {"new_contacts": 1, "new_interactions": 2, "events_processed": 3}
-
-    with patch(
-        "app.services.task_jobs.google.sync_calendar_events",
-        new=AsyncMock(side_effect=fake_sync),
-    ):
+    with patch("app.services.task_jobs.google.sync_calendar_events", new=sync):
         result = await _sync_google_calendar(db, test_user.id)
 
-    assert sorted(seen_tokens) == ["a", "b"]
+    sync.assert_awaited_once()
     assert result["new_contacts"] == 2
     assert result["new_interactions"] == 4
     assert result["events_processed"] == 6
@@ -667,8 +660,9 @@ async def test_calendar_refresh_error_per_account_writes_reauth_notification(
     ))
     await db.commit()
 
-    async def fake_sync(user, db):  # noqa: ARG001
-        raise RefreshError("invalid_grant")
+    async def fake_sync(user, db, auth_failures=None):  # noqa: ARG001
+        auth_failures.append("dead@example.com")
+        return {"new_contacts": 0, "new_interactions": 0, "events_processed": 0}
 
     with patch(
         "app.services.task_jobs.google.sync_calendar_events",
@@ -693,7 +687,7 @@ async def test_calendar_unexpected_exception_swallowed_per_account(
     ))
     await db.commit()
 
-    async def fake_sync(user, db):  # noqa: ARG001
+    async def fake_sync(user, db, auth_failures=None):  # noqa: ARG001
         raise RuntimeError("calendar API exploded")
 
     with patch(
@@ -708,6 +702,24 @@ async def test_calendar_unexpected_exception_swallowed_per_account(
     # Summary fires; no reauth notification for non-RefreshError
     assert len(notifs) == 1
     assert notifs[0].title == "Google Calendar sync completed"
+
+
+@pytest.mark.asyncio
+async def test_calendar_legacy_user_generic_error_propagates_for_retry(
+    db: AsyncSession, test_user: User
+):
+    test_user.google_refresh_token = "tok"
+    await db.commit()
+
+    with patch(
+        "app.services.task_jobs.google.sync_calendar_events",
+        new=AsyncMock(side_effect=RuntimeError("calendar API exploded")),
+    ):
+        with pytest.raises(RuntimeError, match="calendar API exploded"):
+            await _sync_google_calendar(db, test_user.id)
+
+    titles = [n.title for n in await _notifications_for(db, test_user.id)]
+    assert "Google Calendar sync completed" not in titles
 
 
 @pytest.mark.asyncio

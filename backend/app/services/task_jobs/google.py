@@ -257,40 +257,23 @@ async def _sync_google_calendar(db: AsyncSession, uid: uuid.UUID) -> dict:
 
     cal_result = {"new_contacts": 0, "new_interactions": 0, "events_processed": 0}
     auth_errors: list[str] = []
-    if not accounts and user.google_refresh_token:
-        try:
-            cal_result = await sync_calendar_events(user, db)
-        except RefreshError:
-            logger.warning(
-                "Calendar sync auth expired for %s",
-                user.email,
-                extra={"provider": "google", "email": user.email},
-            )
-            auth_errors.append(user.email)
-    else:
-        for ga in accounts:
-            original_token = user.google_refresh_token
-            user.google_refresh_token = ga.refresh_token
-            try:
-                r = await sync_calendar_events(user, db)
-                cal_result["new_contacts"] += r.get("new_contacts", 0)
-                cal_result["new_interactions"] += r.get("new_interactions", 0)
-                cal_result["events_processed"] += r.get("events_processed", 0)
-            except RefreshError:
-                logger.warning(
-                    "Calendar sync auth expired for %s",
-                    ga.email,
-                    extra={"provider": "google", "email": ga.email},
-                )
-                auth_errors.append(ga.email)
-            except Exception:
-                logger.exception(
-                    "Calendar sync failed for %s",
-                    ga.email,
-                    extra={"provider": "google", "email": ga.email},
-                )
-            finally:
-                user.google_refresh_token = original_token
+    try:
+        cal_result = await sync_calendar_events(user, db, auth_failures=auth_errors)
+    except RefreshError:
+        logger.warning(
+            "Calendar sync auth expired for %s",
+            user.email,
+            extra={"provider": "google", "user_id": str(uid)},
+        )
+        auth_errors.append(user.email)
+    except Exception:
+        logger.exception(
+            "Calendar sync failed for user %s",
+            uid,
+            extra={"provider": "google", "user_id": str(uid)},
+        )
+        if not accounts:
+            raise
 
     if auth_errors:
         emails = ", ".join(auth_errors)
