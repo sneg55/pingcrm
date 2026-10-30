@@ -6,7 +6,7 @@ description: "PingCRM REST API reference: all endpoints under /api/v1, the stand
 
 # API Reference
 
-All endpoints are prefixed with `/api/v1` (except `/api/health`). Every response uses a standard envelope:
+Every endpoint lives under `/api/v1`, except `/api/health`. Responses use one envelope:
 
 ```json
 {
@@ -16,9 +16,9 @@ All endpoints are prefixed with `/api/v1` (except `/api/health`). Every response
 }
 ```
 
-All endpoints require authentication via Bearer token, except registration, login, OAuth URL generation, the extension pairing poll, error reporting, and the WhatsApp webhook.
+All endpoints require a Bearer token except these: registration, login, the extension pairing poll (`GET /api/v1/extension/pair`), frontend error reporting, the health check, and the WhatsApp webhook (which is verified by HMAC signature instead). The OAuth URL endpoints for Google and Twitter need a logged-in user, because the provider account is attached to that user.
 
-> This reference is generated from the live FastAPI OpenAPI schema. The CI guard `backend/scripts/check_api_doc.py` fails the pre-push hook if the schema and this page drift. To regenerate locally, run the OpenAPI export described in `CLAUDE.md` and rerun the guard.
+> The tables below list every route in the FastAPI OpenAPI schema. `backend/tests/test_api_doc.py` runs `backend/scripts/check_api_doc.py` and fails when a route is missing from this page, so the backend test run (including the pre-push hook) catches drift. To check locally, run `PYTHONPATH=. python3 scripts/check_api_doc.py` from `backend/`.
 
 ---
 
@@ -32,17 +32,17 @@ All endpoints require authentication via Bearer token, except registration, logi
 | PUT | `/api/v1/auth/me` | Update profile fields |
 | DELETE | `/api/v1/auth/me` | Delete the authenticated account |
 | POST | `/api/v1/auth/change-password` | Change account password |
-| GET | `/api/v1/auth/google/url` | Google OAuth authorization URL |
-| POST | `/api/v1/auth/google/callback` | Google OAuth callback handler |
-| GET | `/api/v1/auth/google/accounts` | List connected Google accounts |
+| GET | `/api/v1/auth/google/url` | Google OAuth authorization URL (requires a logged-in user) |
+| POST | `/api/v1/auth/google/callback` | Attach the Google account to the logged-in user and return a fresh access token. The caller must be the user the OAuth state was issued to, otherwise 403 |
+| GET | `/api/v1/auth/google/accounts` | List connected Google accounts (Gmail, Calendar, and Contacts sync cover every linked account) |
 | DELETE | `/api/v1/auth/google/accounts/{account_id}` | Remove a connected Google account |
-| GET | `/api/v1/auth/twitter/url` | Twitter OAuth authorization URL |
+| GET | `/api/v1/auth/twitter/url` | Twitter OAuth authorization URL (requires a logged-in user) |
 | POST | `/api/v1/auth/twitter/callback` | Twitter OAuth callback handler |
 | DELETE | `/api/v1/auth/twitter/disconnect` | Disconnect Twitter |
 | POST | `/api/v1/auth/telegram/connect` | Send OTP code to Telegram |
 | POST | `/api/v1/auth/telegram/verify` | Verify the Telegram OTP code |
 | POST | `/api/v1/auth/telegram/verify-2fa` | Submit Telegram 2FA password |
-| POST | `/api/v1/auth/telegram/reset-session` | Wipe an existing Telegram session |
+| POST | `/api/v1/auth/telegram/reset-session` | Clear the stored Telegram session but keep the username for reconnecting |
 | DELETE | `/api/v1/auth/telegram/disconnect` | Disconnect Telegram |
 | POST | `/api/v1/auth/whatsapp/connect` | Start a WhatsApp link-device flow |
 | GET | `/api/v1/auth/whatsapp/qr` | Fetch the current WhatsApp QR payload |
@@ -91,8 +91,8 @@ All endpoints require authentication via Bearer token, except registration, logi
 | POST | `/api/v1/contacts/{contact_id}/auto-tag` | Apply AI taxonomy tags to one contact |
 | POST | `/api/v1/contacts/{contact_id}/refresh-avatar` | Re-download avatar from connected platforms |
 | POST | `/api/v1/contacts/{contact_id}/refresh-bios` | Re-fetch Twitter/Telegram bios |
-| POST | `/api/v1/contacts/{contact_id}/compose` | Generate an AI-drafted message |
-| POST | `/api/v1/contacts/{contact_id}/send-message` | Send a message via channel (email, Telegram, Twitter, LinkedIn) |
+| POST | `/api/v1/contacts/{contact_id}/compose` | Generate an AI-drafted message (default channel `email`) |
+| POST | `/api/v1/contacts/{contact_id}/send-message` | Send a Telegram message (optionally scheduled). Other channels return 400; the web app copies those drafts to the clipboard instead |
 
 ### Identity / merging
 
@@ -105,7 +105,7 @@ All endpoints require authentication via Bearer token, except registration, logi
 
 | Method | Endpoint | Description |
 |--------|----------|-------------|
-| POST | `/api/v1/contacts/import/csv` | Import from a CSV file |
+| POST | `/api/v1/contacts/import/csv` | Import from a CSV file. Each row is saved on its own, and failed rows come back in the result |
 | POST | `/api/v1/contacts/import/linkedin` | Import a LinkedIn `Connections.csv` export |
 | POST | `/api/v1/contacts/import/linkedin-messages` | Import a LinkedIn message export |
 
@@ -113,14 +113,14 @@ All endpoints require authentication via Bearer token, except registration, logi
 
 | Method | Endpoint | Description |
 |--------|----------|-------------|
-| POST | `/api/v1/contacts/{contact_id}/sync-emails` | Sync Gmail thread for a single contact |
+| POST | `/api/v1/contacts/{contact_id}/sync-emails` | Sync Gmail threads for a single contact |
 | POST | `/api/v1/contacts/{contact_id}/sync-telegram` | Sync Telegram DM for a single contact |
 | POST | `/api/v1/contacts/{contact_id}/sync-twitter` | Sync Twitter DM for a single contact |
 | GET | `/api/v1/contacts/{contact_id}/telegram/common-groups` | Telegram groups shared with a contact |
 
 ### Account-wide background syncs
 
-All return immediately; a notification fires when the task completes.
+Each call returns immediately and the work runs in a Celery task. Google Contacts, Google Calendar, Telegram, and Twitter syncs post a notification when they finish, and a sync that fails after retries posts a failure notification.
 
 | Method | Endpoint | Description |
 |--------|----------|-------------|
@@ -200,7 +200,7 @@ All return immediately; a notification fires when the task completes.
 
 | Method | Endpoint | Description |
 |--------|----------|-------------|
-| GET | `/api/v1/notifications` | List notifications |
+| GET | `/api/v1/notifications` | List notifications (`page`, `page_size` up to 100, optional `link` filter) |
 | GET | `/api/v1/notifications/unread-count` | Unread count |
 | PUT | `/api/v1/notifications/{notification_id}/read` | Mark a notification read |
 | PUT | `/api/v1/notifications/read-all` | Mark all read |
@@ -213,14 +213,14 @@ All return immediately; a notification fires when the task completes.
 |--------|----------|-------------|
 | GET | `/api/v1/settings/priority` | Follow-up intervals (high, medium, low) |
 | PUT | `/api/v1/settings/priority` | Update follow-up intervals (7-365 days) |
-| GET | `/api/v1/settings/sync` | Sync schedule preferences |
-| PUT | `/api/v1/settings/sync` | Update sync schedule preferences |
-| GET | `/api/v1/settings/telegram` | Telegram-specific settings (e.g., 2nd-tier toggle) |
+| GET | `/api/v1/settings/sync` | Per-platform auto-sync and schedule (`manual`, `6h`, `12h`, `daily`) |
+| PUT | `/api/v1/settings/sync` | Update per-platform auto-sync and schedule |
+| GET | `/api/v1/settings/telegram` | Telegram-specific settings (the 2nd-tier import toggle) |
 | PUT | `/api/v1/settings/telegram` | Update Telegram settings |
-| GET | `/api/v1/settings/suggestions` | Suggestion engine prefs |
-| PUT | `/api/v1/settings/suggestions` | Update suggestion engine prefs |
+| GET | `/api/v1/settings/suggestions` | Suggestion preferences: `max_suggestions` (5-20), `include_dormant`, `birthday_reminders`, `preferred_channel`, `dormancy_threshold_days` (30-3650) |
+| PUT | `/api/v1/settings/suggestions` | Update suggestion preferences |
 | GET | `/api/v1/settings/mcp-key` | MCP API key status |
-| POST | `/api/v1/settings/mcp-key` | Generate a new MCP API key (shown once) |
+| POST | `/api/v1/settings/mcp-key` | Generate a new MCP API key (shown once; only an HMAC-SHA256 hash is stored) |
 | DELETE | `/api/v1/settings/mcp-key` | Revoke the MCP API key |
 
 ---
@@ -262,12 +262,12 @@ See also `GET /api/v1/contacts/map` above for the viewport query.
 
 ## Twitter (per-user cookies)
 
-The Chrome extension uses these endpoints to keep per-user X cookies fresh; they are not called by the web app.
+Cookies are stored per user. The Chrome extension pushes fresh cookies, and the Settings page reads the status and clears them. Both the web token and the extension token are accepted.
 
 | Method | Endpoint | Description |
 |--------|----------|-------------|
 | GET | `/api/v1/integrations/twitter/cookies` | Status of stored cookies for the user |
-| POST | `/api/v1/integrations/twitter/cookies` | Push fresh cookies (encrypted at rest) |
+| POST | `/api/v1/integrations/twitter/cookies` | Push fresh cookies (encrypted at rest) and verify them |
 | DELETE | `/api/v1/integrations/twitter/cookies` | Clear stored cookies |
 
 ---
