@@ -6,7 +6,7 @@ description: "PingCRM connects to Telegram via the MTProto protocol (Telethon) t
 
 # Telegram Integration
 
-PingCRM connects to Telegram using the MTProto protocol via the Telethon library, providing access to DMs, group memberships, and user bios.
+PingCRM connects to Telegram over the MTProto protocol using the Telethon library. It reads your DMs, group memberships, and user bios.
 
 ![Telegram section in Settings](/img/screenshots/telegram/settings-section.png)
 
@@ -14,11 +14,11 @@ PingCRM connects to Telegram using the MTProto protocol via the Telethon library
 
 The Telegram auth flow has three steps:
 
-1. **Phone number** — enter your phone number (with country code).
-2. **OTP** — enter the one-time code delivered to your Telegram app.
-3. **2FA password** — if two-step authentication is enabled on your account, enter your cloud password.
+1. **Phone number:** enter your phone number with country code.
+2. **OTP:** enter the one-time code sent to your Telegram app.
+3. **2FA password:** if two-step authentication is on for your account, enter your cloud password.
 
-Once authenticated, the session is persisted so you do not need to re-authenticate on each sync.
+The session is saved after you authenticate, so syncs do not ask you to sign in again.
 
 ## What Gets Synced
 
@@ -27,7 +27,7 @@ Once authenticated, the session is persisted so you do not need to re-authentica
 | Direct messages | DM dialogs | Daily (03:00 UTC) + manual |
 | Contact info | DM participants | During chat sync |
 | Group members | Private groups / supergroups | First sync only; on-demand thereafter |
-| User bios | Telegram "about" field | Every 3 days (periodic recheck, 3-day staleness); first-sync bio step uses a 7-day staleness filter |
+| User bios | Telegram "about" field | Periodic recheck on days 1, 4, 7, ... 28 of each month (3-day staleness); the first-sync bio step uses a 7-day staleness filter |
 | Usernames | All synced users | During chat / group sync |
 | Phone/video calls | DM call events | During chat sync (call_type + duration recorded) |
 | Common groups | Shared group memberships | Cached 24 hours |
@@ -42,18 +42,18 @@ Chat sync imports direct messages as interactions.
 
 ### How it works
 1. Fetches your Telegram dialogs (conversations).
-2. Skips dialogs that have not changed since the last sync, reducing API calls by approximately 80%.
+2. Skips dialogs whose latest message is already stored, which cuts API calls.
 3. For each dialog with new messages, imports messages as interactions linked to the matching contact.
 
 ![Telegram messages with read-receipt indicators in the timeline](/img/screenshots/telegram/timeline-readreceipts.png)
 
 ### First sync vs incremental
-- **First sync:** Processes all dialogs, chunked into batches of 50 to stay within rate limits. Groups and bios are also synced as part of the first-sync chain.
-- **Incremental sync:** Only processes the 100 most recent dialogs. Group member sync and bio sync run independently (on-demand or via their own periodic schedule) — they are not included in the daily incremental chain.
+- **First sync:** processes all dialogs in batches of 50 to stay within rate limits. Group and bio sync also run as part of the first-sync chain.
+- **Incremental sync:** processes only the 100 most recent dialogs. Group member sync and bio sync run on their own (on demand or on their periodic schedule) and are not part of the daily chain.
 
 ### Contact resolution
 For each DM participant, PingCRM tries to match an existing contact by:
-1. `telegram_user_id` (numeric Telegram ID — most reliable, survives username changes)
+1. `telegram_user_id` (numeric Telegram ID, the most reliable because it survives username changes)
 2. `telegram_username` (@ handle)
 3. Phone number
 
@@ -61,7 +61,7 @@ If no match is found, a new contact is created with `source: "telegram"`.
 
 ## Group Member Sync
 
-PingCRM discovers contacts from Telegram groups you share with other users. This creates **2nd Tier contacts** — see [2nd Tier Contacts](#2nd-tier-contacts) below.
+Group member sync finds people in Telegram groups you share with them and creates **2nd Tier contacts** (see [2nd Tier Contacts](#2nd-tier-contacts) below).
 
 ### How it works
 1. Iterates through your Telegram dialogs, filtering for private groups and supergroups only.
@@ -69,7 +69,8 @@ PingCRM discovers contacts from Telegram groups you share with other users. This
 3. For each group, fetches up to 200 members.
 4. Bots are excluded.
 5. New members are created as contacts tagged **"2nd Tier"**.
-6. Existing contacts are checked for interactions — if they have any, the "2nd Tier" tag is automatically removed.
+6. Existing contacts that appear as members are checked for interactions. Those with none get the "2nd Tier" tag, and those with any have it removed.
+7. Group sync is skipped when `sync_2nd_tier` is off or a FloodWait cooldown is active.
 
 ### Limits
 - Maximum 20 groups scanned per sync.
@@ -78,59 +79,50 @@ PingCRM discovers contacts from Telegram groups you share with other users. This
 ## 2nd Tier Contacts
 
 ### Definition
-A **2nd Tier contact** is someone discovered through Telegram group membership whom you have never directly messaged. They are tagged with `"2nd Tier"` to distinguish them from direct conversation contacts (1st Tier).
+A **2nd Tier contact** is someone you found through a shared Telegram group and have never messaged directly. They carry the `"2nd Tier"` tag, which separates them from direct conversation contacts (1st Tier).
 
 ### Behavior
-- **Auto-created** during group member sync from private groups/supergroups.
-- **Auto-promoted** to 1st Tier when the contact gains a direct interaction (DM, email, etc.) — the tag is automatically removed.
-- **Excluded from follow-up suggestions** — 2nd Tier contacts do not appear in your follow-up queue.
-- **Excluded from AI auto-tagging** — taxonomy tags are not applied to 2nd Tier contacts.
-- **Excluded from periodic bio rechecks** — the 3-day bio recheck task skips 2nd Tier contacts to save API calls.
-- **Excluded from relationship scoring** — 2nd Tier contacts are not scored and do not affect your relationship health metrics.
+- Created during group member sync from private groups and supergroups.
+- Promoted to 1st Tier automatically when the contact gains a direct interaction (DM, email, and so on). The tag is removed.
+- Left out of follow-up suggestions, so they do not appear in your follow-up queue.
+- Left out of AI auto-tagging, so taxonomy tags are not applied to them.
+- Left out of the periodic bio recheck, which saves API calls.
 
 ### Configuring 2nd Tier sync
 You can control 2nd Tier contact sync from **Settings > Integrations > Telegram**:
 
-- **Toggle ON/OFF:** Enable or disable syncing of 2nd Tier contacts. When disabled, future syncs will not create new 2nd Tier contacts from group members.
-- **Bulk delete:** Remove all existing 2nd Tier contacts at once.
-- **Promote individual contacts:** On any 2nd Tier contact's detail page, use the "Promote to 1st Tier" action to remove the tag.
+- **Import 2nd Tier contacts toggle** (`sync_2nd_tier`): when off, group syncs create no new 2nd Tier contacts.
+- **Delete all:** removes every existing 2nd Tier contact at once.
+- **Promote to 1st Tier:** on a 2nd Tier contact's detail page, this action removes the tag.
 
-Disabling 2nd Tier sync does not delete existing 2nd Tier contacts — use the bulk delete option if you want to remove them.
-
-### Privacy and compliance
-
-2nd Tier contact collection is opt-in by design. You control exactly what data PingCRM stores about people you have never directly interacted with:
-
-- **User control:** The `sync_2nd_tier` toggle lets you stop collection at any time. Bulk delete lets you remove previously collected records in one action.
-- **Reduced noise:** Keeping passive group members out of your CRM avoids polluting your follow-up queue with people you do not have a real relationship with.
-- **GDPR alignment:** Limiting data collection to contacts with whom you have had a direct interaction reduces the personal data footprint and simplifies compliance with data-minimisation principles.
+Turning the toggle off does not delete existing 2nd Tier contacts. Use "Delete all" for that.
 
 ## Bio Sync
 
-User bios (the "about" field in Telegram profiles) are periodically checked for changes.
+PingCRM periodically checks user bios (the "about" field in Telegram profiles) for changes.
 
 ### Freshness filter
-A freshness filter skips contacts whose bio was last checked within the staleness window (based on each contact's telegram_bio_checked_at timestamp, set only by bio sync). The window is 7 days for the first-sync bio step and 3 days for the periodic recheck.
+Bio sync skips contacts whose bio was checked within the staleness window, based on each contact's `telegram_bio_checked_at` timestamp (set only by bio sync). The window is 7 days for the first-sync bio step and 3 days for the periodic recheck.
 
 ### Periodic recheck
-Every 3 days, a background task rechecks bios for all non-2nd-Tier contacts whose `telegram_bio_checked_at` is older than 3 days or null.
+A background task (`recheck_telegram_bios_all`) runs at 05:00 UTC on days 1, 4, 7, 10, 13, 16, 19, 22, 25, and 28 of each month. It rechecks bios for non-2nd-Tier contacts whose `telegram_bio_checked_at` is older than 3 days or null.
 
 ### Bio change detection
-Bio changes can indicate job transitions or new ventures. When a bio change is detected, a notification is created so you can review it.
+A changed bio can signal a job change or a new venture, so PingCRM creates a notification when it detects one.
 
 ## Common Groups
 
 For each contact, PingCRM identifies Telegram groups you both belong to.
 
-- Data is cached for 24 hours per contact.
-- Displayed in the contact detail sidebar as shared context.
-- Can be force-refreshed from the contact detail page.
+- Results are cached for 24 hours per contact.
+- The contact detail page shows them in the Common Telegram Groups card.
+- You can force a refresh from the contact detail page.
 
 ![Common Telegram groups sidebar on the contact detail page](/img/screenshots/telegram/common-groups.png)
 
 ## Sync Chain Architecture
 
-The sync chain differs between first sync and incremental syncs.
+The chain differs between the first sync and incremental syncs.
 
 ### First sync
 When `telegram_last_synced_at` is null (account never synced before):
@@ -140,7 +132,7 @@ Chat batches (all dialogs, 50 per batch) → Group members → Bios → Notify (
 ```
 
 ### Incremental sync (daily)
-For subsequent daily syncs, only messages are processed in the chain. Group member sync and bio sync run independently via their own schedules or on-demand.
+Later daily syncs process only messages in the chain. Group member sync and bio sync run separately, on their own schedules or on demand.
 
 ```
 Chats (100 most recent dialogs) → Notify (release lock)
@@ -150,16 +142,15 @@ A sync lock prevents concurrent syncs for the same user. The lock has a 1-hour T
 
 ## Rate Limiting
 
-Telegram enforces strict rate limits via FloodWait errors.
+Telegram enforces strict rate limits through FloodWait errors.
 
 ### How PingCRM handles rate limits
 - A Redis key `tg_flood:{user_id}` tracks active cooldowns with a TTL.
-- FloodWait coordination spans all Telegram operations (chat sync, bio sync, group sync) so that one operation's cooldown is respected by all others.
-- The send-message endpoint returns HTTP **429** with a `Retry-After` header when a cooldown is active.
-- The frontend displays a countdown timer until the operation can be retried.
+- One cooldown covers all Telegram operations (chat sync, bio sync, group sync, sending), so every operation respects a cooldown set by any other.
+- The send-message endpoint returns HTTP **429** with a `Retry-After` header while a cooldown is active, and creates a "Telegram rate limit" notification.
 
 ### Sync lock
 - A Redis-based lock (`tg_sync_lock:{user_id}`) prevents overlapping syncs.
-- Lock TTL: 1 hour.
-- An hourly watchdog task cleans up stale locks from crashed workers.
-- A Lua compare-and-delete script ensures only the lock owner can release it, preventing race conditions.
+- The lock TTL is 1 hour.
+- An hourly watchdog task (`cleanup_stale_telegram_locks`) removes stale locks left by crashed workers.
+- A Lua compare-and-delete script lets only the lock owner release it.
