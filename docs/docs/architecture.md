@@ -410,7 +410,7 @@ To avoid comparing every pair, contacts are only compared if they share a blocki
 - Email local part tokens (e.g., `pengcheng.chen@gmail.com` generates tokens `pengcheng`, `chen`)
 - Twitter handle, Telegram username, LinkedIn profile ID
 
-Blocks larger than 500 contacts are skipped, such as the `gmail.com` domain block. Two contacts from the same platform source are never compared, since their platform identifiers already differ.
+Blocks larger than 500 contacts are skipped, such as the `gmail.com` domain block. Contacts from the same platform source are never compared with each other, since their platform identifiers already differ.
 
 ### Colleague Guard
 
