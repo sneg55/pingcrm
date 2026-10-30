@@ -64,8 +64,6 @@ services:
       TWITTER_CLIENT_SECRET: ${TWITTER_CLIENT_SECRET:-}
       TELEGRAM_API_ID: ${TELEGRAM_API_ID:-}
       TELEGRAM_API_HASH: ${TELEGRAM_API_HASH:-}
-      AUTH_TOKEN: ${AUTH_TOKEN:-}
-      CT0: ${CT0:-}
     volumes:
       - avatars:/app/static/avatars
       - ./logs:/app/logs
@@ -97,8 +95,6 @@ services:
       TWITTER_CLIENT_SECRET: ${TWITTER_CLIENT_SECRET:-}
       TELEGRAM_API_ID: ${TELEGRAM_API_ID:-}
       TELEGRAM_API_HASH: ${TELEGRAM_API_HASH:-}
-      AUTH_TOKEN: ${AUTH_TOKEN:-}
-      CT0: ${CT0:-}
     volumes:
       - avatars:/app/static/avatars
       - ./logs:/app/logs

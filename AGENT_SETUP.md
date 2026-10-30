@@ -123,8 +123,6 @@ TWITTER_CLIENT_SECRET=
 TWITTER_API_KEY=
 TWITTER_API_SECRET=
 TWITTER_BEARER_TOKEN=
-AUTH_TOKEN=
-CT0=
 
 # --- Telegram (optional) ---
 TELEGRAM_API_ID=
@@ -163,7 +161,7 @@ Then update `.env` on the server with `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECR
 1. Go to https://developer.twitter.com → create a project + app.
 2. Enable **OAuth 2.0**, set type to **Web App**, callback URL `https://<user-domain>/auth/twitter/callback`.
 3. Paste `Client ID`, `Client Secret`, `API Key`, `API Secret`, `Bearer Token`.
-4. For mention/reply/bio sync, also paste `auth_token` and `ct0` cookies from a logged-in browser session (used by bird CLI).
+4. For mention/reply/bio sync, no `.env` values are needed. Each user connects X from the Chrome extension (per-user cookies), see docs/docs/features/twitter.md.
 
 Update `.env` accordingly.
 
