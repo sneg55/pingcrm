@@ -1,0 +1,224 @@
+from __future__ import annotations
+
+from datetime import UTC, datetime, timedelta
+from unittest.mock import MagicMock, patch
+
+import pytest
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from app.integrations.gmail import sync_gmail_for_user
+from app.integrations.google_calendar import sync_calendar_events
+from app.models.contact import Contact
+from app.models.google_account import GoogleAccount
+from app.models.interaction import Interaction
+from app.models.user import User
+
+
+def _thread(thread_id: str, from_addr: str, to_addr: str) -> dict:
+    now_ms = int(datetime.now(UTC).timestamp() * 1000)
+    return {
+        "id": thread_id,
+        "messages": [
+            {
+                "id": f"{thread_id}_m1",
+                "payload": {
+                    "headers": [
+                        {"name": "From", "value": from_addr},
+                        {"name": "To", "value": to_addr},
+                        {"name": "Subject", "value": "Hello"},
+                    ],
+                },
+                "internalDate": str(now_ms),
+                "snippet": f"body of {thread_id}",
+            }
+        ],
+    }
+
+
+def _gmail_service(threads: list[dict]) -> MagicMock:
+    service = MagicMock()
+    api = service.users.return_value.threads.return_value
+    api.list.return_value.execute.return_value = {"threads": [{"id": t["id"]} for t in threads]}
+    by_id = {t["id"]: t for t in threads}
+
+    def get_thread(**kwargs):
+        call = MagicMock()
+        call.execute.return_value = by_id[kwargs["id"]]
+        return call
+
+    api.get.side_effect = get_thread
+    return service
+
+
+async def _make_user(db: AsyncSession, user: User, linked: list[tuple[str, str]], legacy_token: str | None) -> User:
+    user.email = "a@example.com"
+    user.google_refresh_token = legacy_token
+    db.add(user)
+    for email, token in linked:
+        db.add(GoogleAccount(user_id=user.id, email=email, refresh_token=token))
+    await db.commit()
+    await db.refresh(user)
+    return user
+
+
+async def _contact(db: AsyncSession, user: User, email: str, name: str) -> Contact:
+    contact = Contact(user_id=user.id, full_name=name, emails=[email])
+    db.add(contact)
+    await db.commit()
+    await db.refresh(contact)
+    return contact
+
+
+@pytest.mark.asyncio
+async def test_gmail_outbound_from_linked_account_is_outbound_to_counterpart(db: AsyncSession, test_user: User):
+    user = await _make_user(db, test_user, [("g@gmail.com", "tok-g")], "tok-g")
+    bob = await _contact(db, user, "bob@x.com", "Bob")
+    own_gmail = await _contact(db, user, "g@gmail.com", "Self Gmail")
+    own_primary = await _contact(db, user, "a@example.com", "Self Primary")
+    service = _gmail_service([_thread("t1", "g@gmail.com", "bob@x.com")])
+
+    with patch("app.integrations.gmail._build_gmail_service", return_value=service):
+        count = await sync_gmail_for_user(user, db)
+
+    assert count == 1
+    rows = (await db.execute(select(Interaction))).scalars().all()
+    assert [(r.contact_id, r.direction) for r in rows] == [(bob.id, "outbound")]
+    assert own_gmail.id not in {r.contact_id for r in rows}
+    assert own_primary.id not in {r.contact_id for r in rows}
+    contacts = (await db.execute(select(Contact))).scalars().all()
+    assert {e for c in contacts for e in (c.emails or [])} == {"bob@x.com", "g@gmail.com", "a@example.com"}
+
+
+@pytest.mark.asyncio
+async def test_gmail_mail_between_own_mailboxes_matches_no_contact(db: AsyncSession, test_user: User):
+    user = await _make_user(
+        db, test_user, [("g@gmail.com", "tok-g"), ("h@gmail.com", "tok-h")], "tok-h"
+    )
+    await _contact(db, user, "g@gmail.com", "Self G")
+    await _contact(db, user, "h@gmail.com", "Self H")
+    service = _gmail_service([_thread("t1", "g@gmail.com", "h@gmail.com")])
+
+    with patch("app.integrations.gmail._build_gmail_service", return_value=service):
+        count = await sync_gmail_for_user(user, db)
+
+    assert count == 0
+    assert (await db.execute(select(Interaction))).scalars().all() == []
+
+
+@pytest.mark.asyncio
+async def test_gmail_syncs_every_linked_account(db: AsyncSession, test_user: User):
+    user = await _make_user(
+        db, test_user, [("g@gmail.com", "tok-g"), ("h@gmail.com", "tok-h")], "tok-h"
+    )
+    await _contact(db, user, "bob@x.com", "Bob")
+    await _contact(db, user, "carol@x.com", "Carol")
+    services = {
+        "tok-g": _gmail_service([_thread("tg", "g@gmail.com", "bob@x.com")]),
+        "tok-h": _gmail_service([_thread("th", "carol@x.com", "h@gmail.com")]),
+    }
+
+    with patch("app.integrations.gmail._build_gmail_service", side_effect=lambda tok: services[tok]) as build:
+        count = await sync_gmail_for_user(user, db)
+
+    assert sorted(c.args[0] for c in build.call_args_list) == ["tok-g", "tok-h"]
+    assert count == 2
+
+
+@pytest.mark.asyncio
+async def test_gmail_one_failing_account_does_not_stop_the_next(db: AsyncSession, test_user: User):
+    user = await _make_user(
+        db, test_user, [("g@gmail.com", "tok-g"), ("h@gmail.com", "tok-h")], "tok-h"
+    )
+    await _contact(db, user, "carol@x.com", "Carol")
+    good = _gmail_service([_thread("th", "carol@x.com", "h@gmail.com")])
+
+    def build(token):
+        if token == "tok-g":
+            raise RuntimeError("revoked")
+        return good
+
+    with patch("app.integrations.gmail._build_gmail_service", side_effect=build):
+        count = await sync_gmail_for_user(user, db)
+
+    assert count == 1
+
+
+@pytest.mark.asyncio
+async def test_gmail_legacy_token_without_linked_accounts_uses_user_email(db: AsyncSession, test_user: User):
+    user = await _make_user(db, test_user, [], "tok-legacy")
+    bob = await _contact(db, user, "bob@x.com", "Bob")
+    service = _gmail_service([_thread("t1", "a@example.com", "bob@x.com")])
+
+    with patch("app.integrations.gmail._build_gmail_service", return_value=service) as build:
+        count = await sync_gmail_for_user(user, db)
+
+    build.assert_called_once_with("tok-legacy")
+    assert count == 1
+    rows = (await db.execute(select(Interaction))).scalars().all()
+    assert [(r.contact_id, r.direction) for r in rows] == [(bob.id, "outbound")]
+
+
+def _calendar_service(events: list[dict]) -> MagicMock:
+    service = MagicMock()
+    service.events.return_value.list.return_value.execute.return_value = {"items": events}
+    return service
+
+
+def _event(attendees: list[str]) -> dict:
+    start = (datetime.now(UTC) - timedelta(days=3)).isoformat()
+    return {
+        "id": "evt1",
+        "summary": "Catch up",
+        "status": "confirmed",
+        "start": {"dateTime": start},
+        "end": {"dateTime": start},
+        "attendees": [{"email": e} for e in attendees],
+    }
+
+
+@pytest.mark.asyncio
+async def test_calendar_excludes_linked_account_address_from_attendees(db: AsyncSession, test_user: User):
+    user = await _make_user(db, test_user, [("g@gmail.com", "tok-g")], "tok-g")
+    service = _calendar_service([_event(["g@gmail.com", "bob@x.com"])])
+
+    with patch("app.integrations.google_calendar._build_calendar_service", return_value=service):
+        result = await sync_calendar_events(user, db)
+
+    assert result["new_contacts"] == 1
+    contacts = (await db.execute(select(Contact))).scalars().all()
+    assert {e for c in contacts for e in (c.emails or [])} == {"bob@x.com"}
+
+
+@pytest.mark.asyncio
+async def test_calendar_syncs_every_linked_account_and_sums_results(db: AsyncSession, test_user: User):
+    user = await _make_user(
+        db, test_user, [("g@gmail.com", "tok-g"), ("h@gmail.com", "tok-h")], "tok-h"
+    )
+    services = {
+        "tok-g": _calendar_service([_event(["g@gmail.com", "bob@x.com"])]),
+        "tok-h": _calendar_service(
+            [{**_event(["h@gmail.com", "carol@x.com"]), "id": "evt2"}]
+        ),
+    }
+
+    with patch(
+        "app.integrations.google_calendar._build_calendar_service",
+        side_effect=lambda tok: services[tok],
+    ) as build:
+        result = await sync_calendar_events(user, db)
+
+    assert sorted(c.args[0] for c in build.call_args_list) == ["tok-g", "tok-h"]
+    assert result == {"new_contacts": 2, "new_interactions": 2, "events_processed": 2}
+
+
+@pytest.mark.asyncio
+async def test_calendar_legacy_token_without_linked_accounts_uses_user_email(db: AsyncSession, test_user: User):
+    user = await _make_user(db, test_user, [], "tok-legacy")
+    service = _calendar_service([_event(["a@example.com", "bob@x.com"])])
+
+    with patch("app.integrations.google_calendar._build_calendar_service", return_value=service) as build:
+        result = await sync_calendar_events(user, db)
+
+    build.assert_called_once_with("tok-legacy")
+    assert result["new_contacts"] == 1
