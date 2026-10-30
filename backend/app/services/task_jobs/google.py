@@ -272,6 +272,8 @@ async def _sync_google_calendar(db: AsyncSession, uid: uuid.UUID) -> dict:
             uid,
             extra={"provider": "google", "user_id": str(uid)},
         )
+        if not accounts:
+            raise
 
     if auth_errors:
         emails = ", ".join(auth_errors)

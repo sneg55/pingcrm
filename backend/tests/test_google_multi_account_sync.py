@@ -15,8 +15,9 @@ from app.models.interaction import Interaction
 from app.models.user import User
 
 
-def _thread(thread_id: str, from_addr: str, to_addr: str) -> dict:
+def _thread(thread_id: str, from_addr: str, to_addr: str, rfc_id: str | None = None) -> dict:
     now_ms = int(datetime.now(UTC).timestamp() * 1000)
+    extra_headers = [{"name": "Message-ID", "value": rfc_id}] if rfc_id else []
     return {
         "id": thread_id,
         "messages": [
@@ -27,6 +28,7 @@ def _thread(thread_id: str, from_addr: str, to_addr: str) -> dict:
                         {"name": "From", "value": from_addr},
                         {"name": "To", "value": to_addr},
                         {"name": "Subject", "value": "Hello"},
+                        *extra_headers,
                     ],
                 },
                 "internalDate": str(now_ms),
@@ -222,3 +224,81 @@ async def test_calendar_legacy_token_without_linked_accounts_uses_user_email(db:
 
     build.assert_called_once_with("tok-legacy")
     assert result["new_contacts"] == 1
+
+
+@pytest.mark.asyncio
+async def test_gmail_bcc_to_login_email_address_is_recognized_from_other_mailbox(db: AsyncSession, test_user: User):
+    user = await _make_user(db, test_user, [("g@gmail.com", "tok-g")], "tok-g")
+    contact = await _contact(db, user, "bob@x.com", "Bob")
+    contact.bcc_hash = "abc1234"
+    await db.commit()
+    service = _gmail_service([_thread("t1", "g@gmail.com", "a+abc1234@example.com")])
+
+    with patch("app.integrations.gmail._build_gmail_service", return_value=service):
+        count = await sync_gmail_for_user(user, db)
+
+    assert count == 1
+    rows = (await db.execute(select(Interaction))).scalars().all()
+    assert [r.contact_id for r in rows] == [contact.id]
+
+
+@pytest.mark.asyncio
+async def test_gmail_bcc_to_mailbox_address_is_recognized(db: AsyncSession, test_user: User):
+    user = await _make_user(db, test_user, [("g@gmail.com", "tok-g")], "tok-g")
+    contact = await _contact(db, user, "bob@x.com", "Bob")
+    contact.bcc_hash = "abc1234"
+    await db.commit()
+    service = _gmail_service([_thread("t1", "g@gmail.com", "g+abc1234@gmail.com")])
+
+    with patch("app.integrations.gmail._build_gmail_service", return_value=service):
+        count = await sync_gmail_for_user(user, db)
+
+    assert count == 1
+
+
+@pytest.mark.asyncio
+async def test_gmail_same_rfc_message_id_in_two_mailboxes_creates_one_interaction(db: AsyncSession, test_user: User):
+    user = await _make_user(
+        db, test_user, [("g@gmail.com", "tok-g"), ("h@gmail.com", "tok-h")], "tok-h"
+    )
+    await _contact(db, user, "bob@x.com", "Bob")
+    services = {
+        "tok-g": _gmail_service([_thread("tg", "bob@x.com", "g@gmail.com, h@gmail.com", rfc_id="<abc@x.com>")]),
+        "tok-h": _gmail_service([_thread("th", "bob@x.com", "g@gmail.com, h@gmail.com", rfc_id="<abc@x.com>")]),
+    }
+
+    with patch("app.integrations.gmail._build_gmail_service", side_effect=lambda tok: services[tok]):
+        count = await sync_gmail_for_user(user, db)
+
+    assert count == 1
+    rows = (await db.execute(select(Interaction))).scalars().all()
+    assert len(rows) == 1
+    assert rows[0].extra_data["rfc_message_id"] == "<abc@x.com>"
+
+
+@pytest.mark.asyncio
+async def test_gmail_rfc_message_id_dedups_against_previously_flushed_interaction(db: AsyncSession, test_user: User):
+    user = await _make_user(db, test_user, [("g@gmail.com", "tok-g")], "tok-g")
+    await _contact(db, user, "bob@x.com", "Bob")
+    first = _gmail_service([_thread("t1", "bob@x.com", "g@gmail.com", rfc_id="<abc@x.com>")])
+    second = _gmail_service([_thread("t2", "bob@x.com", "g@gmail.com", rfc_id="<abc@x.com>")])
+
+    with patch("app.integrations.gmail._build_gmail_service", return_value=first):
+        assert await sync_gmail_for_user(user, db) == 1
+    await db.commit()
+    with patch("app.integrations.gmail._build_gmail_service", return_value=second):
+        assert await sync_gmail_for_user(user, db) == 0
+
+
+@pytest.mark.asyncio
+async def test_gmail_message_without_rfc_header_still_syncs(db: AsyncSession, test_user: User):
+    user = await _make_user(db, test_user, [("g@gmail.com", "tok-g")], "tok-g")
+    await _contact(db, user, "bob@x.com", "Bob")
+    service = _gmail_service([_thread("t1", "bob@x.com", "g@gmail.com")])
+
+    with patch("app.integrations.gmail._build_gmail_service", return_value=service):
+        count = await sync_gmail_for_user(user, db)
+
+    assert count == 1
+    rows = (await db.execute(select(Interaction))).scalars().all()
+    assert not (rows[0].extra_data or {}).get("rfc_message_id")

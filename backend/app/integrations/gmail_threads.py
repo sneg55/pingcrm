@@ -25,7 +25,7 @@ logger = logging.getLogger(__name__)
 
 
 def _process_thread_messages(
-    thread_data: dict, mailbox_email: str, own_emails: frozenset[str]
+    thread_data: dict, own_emails: frozenset[str]
 ) -> list[dict]:
     messages = thread_data.get("messages", [])
     if not messages:
@@ -55,7 +55,10 @@ def _process_thread_messages(
         bcc_addrs = _parse_email_addresses(_extract_header(msg_headers, "bcc"))
 
         all_addrs = to_addrs + cc_addrs + bcc_addrs
-        bcc_hashes = _extract_bcc_hashes(all_addrs, mailbox_email)
+        bcc_hashes = list(dict.fromkeys(
+            h for own in sorted(own_emails) for h in _extract_bcc_hashes(all_addrs, own)
+        ))
+        rfc_message_id = _extract_header(msg_headers, "message-id").strip() or None
 
         if any(addr in own_emails for addr in from_addrs):
             direction = "outbound"
@@ -83,20 +86,33 @@ def _process_thread_messages(
             "counterpart_emails": counterpart_emails,
             "all_participants": list(all_participants),
             "bcc_hashes": bcc_hashes,
+            "rfc_message_id": rfc_message_id,
         })
 
     return results
 
 
+async def _rfc_message_already_synced(
+    rfc_id: str, contact_id: uuid.UUID, user_id: uuid.UUID, db: AsyncSession
+) -> bool:
+    result = await db.execute(
+        select(Interaction.id).where(
+            Interaction.user_id == user_id,
+            Interaction.contact_id == contact_id,
+            Interaction.extra_data["rfc_message_id"].as_string() == rfc_id,
+        ).limit(1)
+    )
+    return result.scalar_one_or_none() is not None
+
+
 async def _sync_thread_messages(
     thread_data: dict,
     user: User,
-    mailbox_email: str,
     own_emails: frozenset[str],
     db: AsyncSession,
     service: Any = None,
 ) -> int:
-    msg_metas = _process_thread_messages(thread_data, mailbox_email, own_emails)
+    msg_metas = _process_thread_messages(thread_data, own_emails)
 
     has_bcc = any(meta.get("bcc_hashes") for meta in msg_metas)
     if has_bcc and service and not _extract_plain_body(thread_data.get("messages", [{}])[0].get("payload", {})):
@@ -107,7 +123,7 @@ async def _sync_thread_messages(
                 .get(userId="me", id=thread_data.get("id", ""), format="full")
                 .execute()
             )
-            msg_metas = _process_thread_messages(full_data, mailbox_email, own_emails)
+            msg_metas = _process_thread_messages(full_data, own_emails)
         except Exception:
             logger.exception(
                 "Failed to re-fetch thread %s with full format for user %s",
@@ -178,6 +194,11 @@ async def _sync_thread_messages(
                 old_existing.occurred_at = meta["occurred_at"]
                 continue
 
+            rfc_id = meta.get("rfc_message_id")
+            if rfc_id:
+                if await _rfc_message_already_synced(rfc_id, contact.id, user.id, db):
+                    continue
+
             interaction = Interaction(
                 id=uuid.uuid4(),
                 contact_id=contact.id,
@@ -187,6 +208,7 @@ async def _sync_thread_messages(
                 content_preview=preview[:500] if preview else None,
                 raw_reference_id=ref_id,
                 occurred_at=meta["occurred_at"],
+                extra_data={"rfc_message_id": rfc_id} if rfc_id else None,
             )
             db.add(interaction)
             new_count += 1

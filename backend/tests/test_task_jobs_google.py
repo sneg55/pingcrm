@@ -705,6 +705,24 @@ async def test_calendar_unexpected_exception_swallowed_per_account(
 
 
 @pytest.mark.asyncio
+async def test_calendar_legacy_user_generic_error_propagates_for_retry(
+    db: AsyncSession, test_user: User
+):
+    test_user.google_refresh_token = "tok"
+    await db.commit()
+
+    with patch(
+        "app.services.task_jobs.google.sync_calendar_events",
+        new=AsyncMock(side_effect=RuntimeError("calendar API exploded")),
+    ):
+        with pytest.raises(RuntimeError, match="calendar API exploded"):
+            await _sync_google_calendar(db, test_user.id)
+
+    titles = [n.title for n in await _notifications_for(db, test_user.id)]
+    assert "Google Calendar sync completed" not in titles
+
+
+@pytest.mark.asyncio
 async def test_calendar_no_events_summary_message(
     db: AsyncSession, test_user: User
 ):

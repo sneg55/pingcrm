@@ -15,7 +15,7 @@ logger = logging.getLogger(__name__)
 
 MAX_RESULTS = 500
 GMAIL_LOOKBACK_QUERY = "newer_than:1y"
-THREAD_METADATA_HEADERS = ["From", "To", "Cc", "Bcc", "Subject", "Date"]
+THREAD_METADATA_HEADERS = ["From", "To", "Cc", "Bcc", "Subject", "Date", "Message-ID"]
 
 
 def _list_thread_items(service: Any, query: str) -> list[dict]:
@@ -82,7 +82,7 @@ async def _sync_mailbox(
             continue
 
         new_count += await _sync_thread_messages(
-            thread_data, user, mailbox_email, own_emails, db, service=service
+            thread_data, user, own_emails, db, service=service
         )
     return new_count
 
