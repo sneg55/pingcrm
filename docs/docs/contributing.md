@@ -5,11 +5,11 @@ description: "How to contribute to PingCRM, the open-source personal networking 
 
 # Contributing
 
-Thanks for your interest in contributing to PingCRM! See the full [CONTRIBUTING.md](https://github.com/sneg55/pingcrm/blob/main/CONTRIBUTING.md) for detailed instructions.
+Contributions are welcome. The full [CONTRIBUTING.md](https://github.com/sneg55/pingcrm/blob/main/CONTRIBUTING.md) has detailed instructions.
 
 ## Quick Start
 
-The full Docker Compose stack is the fastest way to a working dev environment — see the [Setup Guide](./setup) for the recommended path. For pure-host development:
+The full Docker Compose stack is the fastest route to a working dev environment, and the [Setup Guide](./setup) covers it. For development on the host:
 
 ```bash
 # Bring up just the supporting services
@@ -32,7 +32,7 @@ cd frontend && npm test
 
 ## Pre-push hook
 
-`.githooks/pre-push` runs the backend test suite (pytest, which includes the API-doc guard via test_api_doc.py), the frontend type-check (tsc), lint (next lint), and tests (vitest) before any push. The response-model guard (scripts/check_response_models.py) is a separate CI/manual check, not run by the hook. It uses `backend/.venv`'s Python, so any new test dependency added to `requirements-test.txt` must also be installed in that venv:
+When enabled (`git config core.hooksPath .githooks`), `.githooks/pre-push` runs checks for whichever side changed. For `backend/` changes it runs pytest (`-x -q`), which includes the API-doc guard via `test_api_doc.py`. For `frontend/` changes it runs the type-check (`tsc --noEmit`), lint (`npm run lint -- --max-warnings 0`), and tests (vitest). It also blocks a push that changes `chrome-extension/` code without bumping the version in `chrome-extension/manifest.json`. The response-model guard (`scripts/check_response_models.py`) is a separate CI or manual check that the hook does not run. The hook activates `backend/.venv` when it exists, so any new test dependency added to `requirements-test.txt` must also be installed in that venv:
 
 ```bash
 cd backend && source .venv/bin/activate && pip install -r requirements-test.txt

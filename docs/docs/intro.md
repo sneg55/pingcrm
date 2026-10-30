@@ -7,26 +7,26 @@ description: "PingCRM is an open-source, self-hostable AI personal networking CR
 
 # PingCRM
 
-An AI-powered personal networking CRM that helps you maintain professional relationships.
+An AI-powered personal networking CRM for maintaining professional relationships.
 
 **Upload your contacts, connect your accounts. Ping tells you who to reach out to and writes the message.**
 
 ## What is PingCRM?
 
-PingCRM is a single-player networking tool designed for professionals who want to stay on top of their relationships without the overhead of a full-blown CRM. It connects to your existing communication channels (Gmail, Telegram, Twitter/X, WhatsApp), analyzes your interaction patterns, and uses AI to suggest who you should reach out to and draft contextual messages.
+PingCRM is a single-user networking tool for people who want to keep up with their relationships without running a full CRM. It connects to your existing communication channels (Gmail, Telegram, Twitter/X, LinkedIn, WhatsApp), analyzes your interaction patterns, and uses AI to suggest who you should reach out to and draft contextual messages.
 
 ## Key Capabilities
 
-- **Contact Management** -- import from CSV, Google Contacts, or add manually. Full-text search across names, emails, bios, and message content.
-- **Multi-Platform Sync** -- Gmail threads, Telegram DMs, Twitter DMs and mentions, LinkedIn messages, and WhatsApp chats (via a QR-paired sidecar) are automatically imported as interactions.
-- **AI Follow-Up Suggestions** -- Claude analyzes your interaction patterns and generates contextual draft messages when it's time to reconnect.
-- **Identity Resolution** -- automatically detects when contacts across different platforms (Gmail, Telegram, Twitter, LinkedIn) are the same person and merges them.
-- **Organization Tracking** -- group contacts by company, track relationship health per org.
-- **LinkedIn Extension** -- Chrome extension syncs LinkedIn messages and profiles via the Voyager API, with AI suggestion buttons injected into the LinkedIn composer.
-- **Bio Monitoring** -- detects Twitter and Telegram bio changes (job changes, milestones) and surfaces them as events.
-- **Relationship Scoring** -- automatic scoring based on interaction recency, frequency, and reciprocity.
-- **Map View** -- a geographic map of your contacts by location, useful for planning trips and local meetups.
-- **MCP Server** -- a read-only Model Context Protocol server that exposes your CRM data to AI clients like Claude Desktop and Cursor.
+- **Contact Management**: import from CSV, Google Contacts, or add manually. Search covers names, emails, bios, and message content.
+- **Multi-Platform Sync**: Gmail threads, Telegram DMs, Twitter DMs and mentions, LinkedIn messages, and WhatsApp chats (via a QR-paired sidecar) are imported as interactions.
+- **AI Follow-Up Suggestions**: Claude reads your interaction patterns and drafts a message when it is time to reconnect.
+- **Identity Resolution**: detects when contacts on different platforms (Gmail, Telegram, Twitter, LinkedIn) are the same person and merges them.
+- **Organization Tracking**: group contacts by company and track relationship health per organization.
+- **LinkedIn Extension**: a Chrome extension syncs LinkedIn messages and profiles via the Voyager API and adds AI suggestion buttons to the LinkedIn composer.
+- **Bio Monitoring**: detects Twitter and Telegram bio changes (job changes, milestones) and surfaces them as events.
+- **Relationship Scoring**: scores each relationship from interaction recency, frequency, and reciprocity.
+- **Map View**: shows your contacts on a map by location, which helps when planning trips and local meetups.
+- **MCP Server**: a read-only Model Context Protocol server that exposes your CRM data to AI clients like Claude Desktop and Cursor.
 
 ## Tech Stack
 
@@ -36,7 +36,7 @@ PingCRM is a single-player networking tool designed for professionals who want t
 | Database | PostgreSQL |
 | Task Queue | Redis + Celery |
 | AI | Anthropic Claude |
-| Frontend | Next.js 15, React 19, Tailwind CSS v4 |
+| Frontend | Next.js 16, React 19, Tailwind CSS v4 |
 | Telegram | Telethon (MTProto) |
 | State Management | TanStack React Query v5 |
 

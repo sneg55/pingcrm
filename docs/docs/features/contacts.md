@@ -6,57 +6,62 @@ description: "Manage contacts in PingCRM: browse, search, edit, and interact wit
 
 # Contact Management
 
-Contacts are the core entity in PingCRM. The contact list and detail pages let you browse, search, edit, and interact with your professional network.
+Contacts are the core entity in PingCRM. The contact list and detail pages are where you browse, search, edit, and message the people in your network.
 
 ## Contact List
 
-The `/contacts` page displays all contacts in a searchable, sortable, paginated table.
+The `/contacts` page lists your contacts in a searchable, sortable, paginated table.
 
 ![Contact list view](/img/screenshots/contacts/list.png)
 
 ### Search and Filtering
 
-- **Full-text search** across contact names, emails, companies, notes, and social handles. A leading `@` is ignored, so `@username` and `username` find the same contacts. Results are ranked by relevance: exact name prefix matches rank highest, followed by partial name matches, company/title matches, social handle matches, then other fields.
-- **Filter by tags** to narrow results to specific groups.
-- **Filter by source** (Gmail, Telegram, Twitter, LinkedIn, CSV import, manual entry).
-- **Filter by relationship score** tier: strong (8-10), active (4-7), or dormant (0-3).
-- **Filter by priority level** (high, medium, low). Archived contacts are excluded by default and shown via a separate archived toggle.
+- **Full-text search** covers contact names, emails, companies, notes, and social handles. A leading `@` is ignored, so `@username` and `username` find the same contacts. Results are ranked by relevance: exact name prefix matches first, then partial name matches, company and title matches, social handle matches, and finally other fields.
+- **Tags** narrow results to a group.
+- **Platform** filters by Gmail, Telegram, or Twitter / X.
+- **Relationship score** tiers are Strong (8-10), Warm (4-7), and Cold (0-3).
+- **Priority** chips are High, Medium, and Low.
+- **Last Contact** accepts a preset (7d, 30d, 3mo, 6mo, 12mo) or a custom date range.
+- **Include archived contacts** is a checkbox in the filter panel. Archived contacts are hidden by default and also have their own page at `/contacts/archive`.
 
 ### Sorting
 
-The list can be sorted by:
+Click a column header to sort. Clicking the active header again returns to the default order. The columns are:
 
-- Relationship score (default)
-- Date added
-- Last interaction
+- Contact (date added)
+- Company
+- Score (default)
+- Priority
 - Activity (interaction count)
-- Company (alphabetical)
-- Upcoming birthday
-- Priority level
-- Most overdue
+- Last Conversation
+
+The `sort` query parameter of `GET /api/v1/contacts` also accepts `birthday` and `overdue`.
 
 ### Pagination
 
-Results are paginated to keep the interface responsive. Navigate between pages using the controls at the bottom of the list.
+The list loads 20 contacts per page by default, and the API caps `page_size` at 100. Use the controls at the bottom of the list to change pages.
 
 ### Bulk Actions
 
-Select multiple contacts from the list to apply actions in one operation:
+Select contacts in the list to act on them together:
 
-- **Set priority level** -- change priority for all selected contacts at once.
-- **Set company** -- assign a company to multiple contacts.
-- **Add or remove tags** -- apply tag changes across a selection.
-- **Archive** -- move selected contacts to archived status.
-- **Merge** -- combine duplicate contacts from the selection.
-- **Delete** -- permanently remove selected contacts.
-- **Delete 2nd Tier contacts** -- permanently remove all contacts tagged "2nd tier" (Telegram group participants you haven't directly messaged). A confirmation dialog shows the count before deletion.
+- **Set priority level** changes priority for every selected contact.
+- **Set company** assigns one company to the selection.
+- **Add or remove tags** applies tag changes across the selection.
+- **Archive** sets the selected contacts to archived and dismisses their pending and snoozed follow-up suggestions.
+- **Merge** combines duplicate contacts from the selection.
+- **Delete** permanently removes the selected contacts.
 
-**2nd Tier bulk delete API:**
-
-- `GET /api/v1/contacts/2nd-tier/count` -- returns `{ count: N }`, used by the confirmation dialog.
-- `DELETE /api/v1/contacts/2nd-tier` -- deletes all 2nd tier contacts and their related data, returns `{ deleted_count: N }`.
+Priority, company, and tag changes go through `POST /api/v1/contacts/bulk-update`, which accepts up to 500 contact IDs per request.
 
 ![Bulk actions toolbar with three contacts selected](/img/screenshots/contacts/list-bulk-actions.png)
+
+### 2nd Tier Contacts
+
+Contacts tagged "2nd tier" are Telegram group participants you have not messaged directly. Follow-up suggestions skip them. The Telegram sync settings in Settings have a toggle that controls whether 2nd Tier contacts are imported, and a purge button that deletes all of them after a confirmation showing the count.
+
+- `GET /api/v1/contacts/2nd-tier/count` returns `{ count: N }`.
+- `DELETE /api/v1/contacts/2nd-tier` deletes every 2nd Tier contact and returns `{ deleted_count: N }`.
 
 ## Contact Detail
 
@@ -66,41 +71,43 @@ The `/contacts/[id]` page shows the full profile for a single contact.
 
 ### Inline Editing
 
-Contact fields can be edited inline -- click a field to modify it. Fields include name, email, phone, company, title, tags, priority level, and notes.
+Click a field to edit it in place. Editable fields include first and last name, email, phone, company, title, location, birthday, tags, priority level, and notes.
 
-If you add an email (or Telegram username / Twitter handle) that already belongs to another contact, the save is rejected and a prompt offers to **merge** the two contacts instead of creating a duplicate.
+If you add an email (or Telegram username or Twitter handle) that already belongs to another contact, the save is rejected and a prompt offers to **merge** the two contacts instead of creating a duplicate.
 
 ### Company Autocomplete
 
-When setting a contact's company, an autocomplete dropdown suggests existing organizations so you can link contacts to the correct org without creating duplicates.
+When you set a contact's company, an autocomplete dropdown suggests existing organizations, so the contact links to the right one instead of creating a duplicate.
 
 ### Priority Levels
 
 Each contact can be assigned a priority:
 
-- **High** -- key relationships that should never go cold.
-- **Medium** -- important contacts to check in with periodically.
-- **Low** -- casual connections.
-- **Archived** -- contacts you no longer wish to receive suggestions for.
+- **High**: key relationships that should not go cold.
+- **Medium**: contacts to check in with periodically.
+- **Low**: casual connections.
+- **Archived**: contacts you no longer want suggestions for.
 
 ### Relationship Score Badge
 
-A visual badge displays the contact's computed relationship score, giving you an at-a-glance sense of how strong the connection is.
+A badge shows the contact's computed relationship score. [Follow-Up Suggestions](./suggestions.md#relationship-score) explains how it is calculated.
 
 ### Message Composer
 
-The composer uses AI to draft context-aware messages for any channel, based on the contact's profile and interaction history. Direct in-app sending, however, is currently supported for **Telegram only**:
+The composer drafts messages with AI for email, Telegram, or Twitter, based on the contact's profile and interaction history. In-app sending works for **Telegram only**:
 
-- **Telegram** -- drafted messages are sent directly through this endpoint.
-- **Email** -- send the draft from your own Gmail client; it is logged to the timeline via BCC addressing rather than sent through this endpoint.
-- **LinkedIn** -- messages are sent via the Chrome extension, not through this endpoint.
-- **Twitter DM** -- sending is not yet supported.
+- **Telegram**: the draft is sent directly, and can be scheduled.
+- **Email**: send the draft from your own mail client. BCC addressing logs it to the timeline.
+- **Twitter**: the draft is copied to the clipboard and the contact's profile opens in a new tab. PingCRM does not send Twitter DMs.
+- **LinkedIn**: messages go through the Chrome extension.
 
 ![Message composer drafting an AI-suggested message](/img/screenshots/contacts/detail-composer.png)
 
+When the composer gets a 429 (rate limit) response, it shows a countdown until the next request is allowed.
+
 ### BCC Email Logging
 
-Each contact has a unique BCC address (e.g., `you+c7f3a2b@gmail.com`). BCC this address when sending emails from any client to automatically log the email to this contact's timeline. See [Gmail Integration — BCC Email Logging](./gmail.md#bcc-email-logging) for details.
+Each contact has a unique BCC address built from your login email plus a per-contact suffix (for example `you+c7f3a2b@gmail.com`). BCC it from any mail client and the email is logged to that contact's timeline. See [Gmail Integration, BCC Email Logging](./gmail.md#bcc-email-logging).
 
 ### Interaction Timeline
 
@@ -115,81 +122,77 @@ A chronological timeline of all interactions with the contact, including:
 
 ![Interaction timeline showing messages across platforms](/img/screenshots/contacts/detail-timeline.png)
 
-Messages longer than 400 characters are truncated with a "Show more" button to keep the timeline compact. Click to expand the full message.
+Messages longer than 400 characters are truncated with a "Show more" button. Click it to expand the full message.
 
-Notes added manually can be edited or deleted directly from the timeline by hovering over the entry to reveal inline action buttons.
+Hover over a manually added note to edit or delete it from the timeline.
 
-When new interactions are synced for a contact, any pending follow-up suggestions for that contact are automatically dismissed, since the sync itself represents a recent touchpoint.
+When a sync brings in an interaction newer than a pending follow-up suggestion for that contact, the suggestion is dismissed automatically. Backfilled old messages do not dismiss newer suggestions.
 
 ### Auto-Sync on Page Visit
 
-Visiting a contact's detail page automatically triggers a background sync of Telegram and Twitter DMs for that contact, so the timeline is up to date without manual intervention.
+Opening a contact's detail page starts background syncs of that contact's emails (when it has an email address), Telegram messages (when it has a Telegram username), and avatar. The **Refresh details** item in the kebab menu also refreshes bios and Twitter DMs.
 
 ### Telegram Common Groups
 
-A sidebar card displays Telegram groups shared with the contact, providing additional context for your relationship.
+A sidebar card lists the Telegram groups you share with the contact.
 
 ### Duplicate Detection
 
-The system detects potential duplicate contacts based on matching email addresses, names, and cross-platform identifiers. Duplicates can be reviewed and merged.
+PingCRM flags potential duplicates by matching email addresses, names, and cross-platform identifiers. You can review and merge them from the contact page or from [Identity Resolution](./identity.md).
 
-Contacts that share an exact email or phone are also auto-merged deterministically after Gmail, Telegram, LinkedIn, and Google Calendar syncs, so cross-source duplicates collapse on their own.
+Contacts that share an exact email or phone number are merged automatically after Gmail, Telegram, LinkedIn, and Google Calendar syncs.
 
 ### Apollo Enrichment
 
-Fill in missing contact details using the Apollo People Match API. From the contact detail page, open the kebab menu and select **Enrich with Apollo**.
+Apollo's People Match API can fill in missing details. Open the kebab menu on the contact detail page and select **Enrich with Apollo**. The item is disabled when the contact has neither an email nor a LinkedIn URL.
 
-The enrichment:
+The lookup uses the contact's first **email**, or the **LinkedIn URL** when there is no email. It only fills **empty fields** and never overwrites data you entered. It can populate name, title, company, location, LinkedIn URL, Twitter handle, avatar, phone numbers, and email addresses.
 
-- Looks up the contact by **email** (preferred) or **LinkedIn URL**.
-- Only fills **empty fields** -- it never overwrites data you've already entered.
-- Can populate: name, title, company, location, LinkedIn URL, Twitter handle, avatar, phone numbers, and email addresses.
+`POST /api/v1/contacts/{contact_id}/enrich` returns `source: "apollo"` and the list of fields that were updated.
 
-The enrichment source is recorded and returned in the API response (`source: "apollo"`), along with the list of fields that were updated.
+**Setup:** set the `APOLLO_API_KEY` environment variable. Without it the enrichment request fails. See the [Setup guide](../setup).
 
-**Setup:** Set the `APOLLO_API_KEY` environment variable. Without it, the enrichment button is non-functional. See the [Setup guide](../setup) for details.
+### Auto-tag with AI
+
+The same menu has **Auto-tag with AI**, which assigns tags to the contact from your approved tag taxonomy.
 
 ### Magic Wand (AI Bio Extraction)
 
-The magic wand button (wand icon in the Contact Details panel header) uses AI to extract structured data from a contact's bios and normalize messy name fields.
+The wand icon in the Contact Details panel header uses AI to extract structured data from a contact's bios and clean up messy name fields.
 
 **How it works:**
 
 1. Click the wand icon in the Contact Details sidebar.
-2. The system collects the contact's Twitter bio, Telegram bio, LinkedIn bio/headline, and current name fields.
-3. These are sent to Claude Haiku, which returns structured JSON with extracted fields.
+2. The system collects the contact's Twitter bio, Telegram bio, LinkedIn bio and headline, and current name fields.
+3. Claude Haiku turns them into structured JSON.
 4. The extracted data is applied to the contact and their linked organization.
 
 **What it extracts:**
 
-- **Name normalization** -- splits combined name fields like "Anders | LoopFi" into first name ("Anders") and company ("LoopFi").
-- **Title** -- job title extracted from bios (e.g. "Head of BD" from a Twitter bio).
-- **Company** -- company name, with automatic Organization creation/linking.
-- **Company details** -- website, industry, and location are written to the Organization record.
-- **Organization logo** -- if a website is extracted and the org has no logo, it downloads the favicon automatically.
+- **Name normalization** splits combined name fields like "Anders | LoopFi" into first name ("Anders") and company ("LoopFi").
+- **Title** comes from the bios (for example "Head of BD" from a Twitter bio).
+- **Company** is extracted, and the contact is linked to an organization, which is created if needed.
+- **Company details** (website, industry, location) are written to the organization record.
+- **Organization logo** is downloaded from the extracted website when the organization has none.
 
 **Behavior:**
 
-- Name fields are always updated (to fix normalization issues).
-- Title and company are only filled if currently empty.
-- Organization fields (website, industry, location) are only filled if currently empty on the org.
-- The button appears only when the contact has at least one bio or a name to process.
+- Name fields are always updated, to fix normalization issues.
+- Title and company are only filled when empty.
+- Organization website, industry, and location are only filled when empty on the organization.
+- The button appears when the contact has a Twitter bio, a Telegram bio, or a name.
 
-**API:** `POST /api/v1/contacts/{contact_id}/extract-bio` -- returns `{ fields_updated: [...], source: "ai_bio" }`.
-
-### Rate Limit Handling
-
-If the API returns a 429 (rate limit) response, the UI displays a countdown timer indicating when the next request can be made.
+**API:** `POST /api/v1/contacts/{contact_id}/extract-bio` returns `{ fields_updated: [...], source: "ai_bio" }`.
 
 ## Importing Contacts
 
-Four methods are available for adding contacts:
+There are four ways to add contacts:
 
-- **CSV Upload** -- bulk import from a CSV file with column mapping.
-- **LinkedIn CSV Import** -- upload `Connections.csv` from LinkedIn's data export.
-- **Google Contacts Sync** -- import contacts from your connected Google account.
-- **Manual Entry** -- add contacts one at a time through the UI.
+- **CSV Upload**: bulk import from a CSV file with column mapping. Files are limited to 10MB. Each row is imported independently, so a bad row is reported as `Row N: ...` in the result and the other rows still import.
+- **LinkedIn CSV Import**: upload `Connections.csv` from LinkedIn's data export (also limited to 10MB).
+- **Google Contacts Sync**: imports contacts from every Google account linked to your login.
+- **Manual Entry**: add contacts one at a time through the UI.
 
 ![CSV import modal](/img/screenshots/contacts/import.png)
 
-Additionally, the LinkedIn Chrome extension automatically creates contacts from your LinkedIn conversations during message sync.
+The LinkedIn Chrome extension also creates contacts from your LinkedIn conversations during message sync.

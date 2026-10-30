@@ -6,11 +6,11 @@ description: "Organizations in PingCRM group contacts by company so you can trac
 
 # Organizations
 
-Organizations group contacts by company or institution. The organization pages let you track companies across your network and understand your relationships at the organizational level.
+Organizations group contacts by company or institution. The organization pages show which companies appear in your network and how strong your relationships are at the company level.
 
 ## Organization List
 
-The `/organizations` page displays all organizations in a sortable, searchable table.
+The `/organizations` page lists organizations in a searchable, sortable table, 50 per page.
 
 ![Organizations list](/img/screenshots/organizations/list.png)
 
@@ -18,11 +18,11 @@ The `/organizations` page displays all organizations in a sortable, searchable t
 
 Each row shows:
 
-- **Name** with a domain favicon (fetched from the organization's website domain).
-- **Contacts** -- number of linked contacts.
-- **Avg Score** -- average relationship score across all contacts in the organization.
-- **Interactions** -- total interaction count.
-- **Last Activity** -- date of the most recent interaction with anyone at the organization.
+- **Organization**: the name, with a logo or a favicon fetched from the organization's domain.
+- **Contacts**: the number of linked contacts.
+- **Avg Score**: the average relationship score across the organization's contacts.
+- **Interactions**: the total interaction count.
+- **Last Activity**: the date of the most recent interaction with anyone at the organization.
 
 ### Search
 
@@ -30,53 +30,54 @@ A search field filters organizations by name.
 
 ### Sorting
 
-Click any column header to sort the table by that field in ascending or descending order.
+Click a column header to sort the loaded page by that column. Name sorts A to Z. The numeric columns and Last Activity sort highest or most recent first. The server returns organizations ordered by name, so sorting only reorders the current page.
 
 ### Auto-Hiding
 
-Organizations with zero active contacts are automatically hidden from the list to reduce clutter. Archived contacts do not count toward this threshold.
+Organizations with no active contacts are hidden from the list. Archived contacts do not count as active.
 
 ### Actions
 
-- **Select and Merge** -- select multiple organizations and merge them into one, consolidating all linked contacts.
-- **Per-Row Delete** -- delete an individual organization directly from the list.
-- **Bulk Actions** -- perform operations on multiple selected organizations at once.
+Select one or more rows to open the action bar:
+
+- **Merge**: available once two or more organizations are selected. A dialog asks which one to keep, and all linked contacts move to it.
+- **Delete**: removes the selected organizations after a confirmation.
+
+Each row also has its own delete button.
 
 ![Selecting multiple organizations for merge](/img/screenshots/organizations/merge-selection.png)
 
 ## Organization Detail
 
-The `/organizations/[id]` page provides the full profile for a single organization.
+The `/organizations/[id]` page shows the full profile for a single organization.
 
 ![Organization detail page](/img/screenshots/organizations/detail.png)
 
 ### Inline Editing
 
-The following fields can be edited inline:
+You can edit these fields in place:
 
-- **Website** -- falls back to displaying the domain if no full URL is set.
+- **Name**. Renaming updates the company field on every linked contact.
+- **Website**, which falls back to the domain when no full URL is set.
 - **Location**
-- **LinkedIn URL** -- rendered as a clickable link.
-- **Twitter handle** -- rendered as a clickable link to the Twitter profile.
-- **Notes** -- free-text field for additional context.
+- **LinkedIn URL**
+- **Twitter handle**
+- **Notes**: free text for additional context.
+
+Changing the website or domain downloads a fresh logo.
 
 ### Organization Stats
 
-Key metrics are displayed using data from a materialized view that is refreshed hourly:
-
-- Total contacts
-- Average relationship score
-- Total interactions
-- Most recent activity date
+The stat cards show total contacts, average relationship score, total interactions, and the most recent activity date. The numbers come from a materialized view that Celery refreshes hourly, at 30 minutes past the hour.
 
 ### Contacts Table
 
-A table lists all contacts linked to the organization. Each row includes the contact name and a relationship score badge for quick assessment.
+The table lists every contact linked to the organization, with columns for Name, Title, Score, and Last Interaction. You can sort by Score, Name, or Recent. Archived contacts appear after active ones, in muted text.
 
 ### External Links
 
-Website, LinkedIn, and Twitter fields are rendered as clickable links that open in a new tab.
+Website, LinkedIn, and Twitter values are clickable and open in a new tab.
 
 ### Deleting an Organization
 
-Deleting an organization unlinks all associated contacts but does not delete the contacts themselves. The contacts remain in your CRM without an organization association.
+Deleting an organization unlinks its contacts but does not delete them. The contacts stay in your CRM without an organization.
