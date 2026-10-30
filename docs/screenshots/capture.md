@@ -29,7 +29,3 @@ For each shot:
 2. Inspect the page in DevTools and add any new PII selectors specific to that route to its `blur` array.
 3. Run the procedure.
 4. Eyeball the resulting PNG. If anything legible leaks (a name, email, message body, avatar with recognizable face), add the missing selector and re-capture.
-
-## Re-running for a single feature
-
-The implementation plan at `docs/superpowers/plans/2026-05-14-prod-docs-screenshots.md` contains per-feature shot tables that double as a re-capture script. Find the feature, follow its table, commit.
