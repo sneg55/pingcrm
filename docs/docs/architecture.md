@@ -165,7 +165,7 @@ async def get_contact(contact_id: uuid.UUID, db: AsyncSession = Depends(get_db))
 |---|---|---|
 | Gmail | Gmail API (REST) | OAuth 2.0 (per-account tokens via `GoogleAccount` model) |
 | Telegram | MTProto via Telethon | Phone number + session string (encrypted at rest) |
-| Twitter/X | Bird CLI (primary) + X API v2 (fallback) | Cookie-based (`AUTH_TOKEN` + `CT0`) / OAuth 2.0 PKCE |
+| Twitter/X | Bird CLI (primary) + X API v2 (fallback) | Per-user browser cookies (`auth_token` + `ct0`) / OAuth 2.0 PKCE |
 | Google Calendar | Calendar API (REST) | Shared OAuth tokens with Gmail |
 | LinkedIn | Chrome extension (browser-side scrape) | Extension ID (`CHROME_EXTENSION_ID`); no LinkedIn API key required |
 

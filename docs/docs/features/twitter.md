@@ -83,14 +83,13 @@ PingCRM uses the [Bird CLI](https://www.npmjs.com/package/@steipete/bird) (`@ste
 
 ### Authentication
 
-Bird requires two cookies extracted from an active browser session on x.com:
+Bird authenticates with two cookies from an active x.com browser session, `auth_token` and `ct0`. They are **per-user**: each user's cookies are stored encrypted on their own account and passed to every `bird` call made on their behalf.
 
-| Variable | Description |
-|---|---|
-| `AUTH_TOKEN` | `auth_token` cookie from x.com |
-| `CT0` | `ct0` CSRF cookie from x.com |
+- The Chrome extension captures and refreshes them automatically. See [Connecting your X account](#connecting-your-x-account-bird-cli).
+- Alternatively, push them yourself with `POST /api/v1/integrations/twitter/cookies` (body: `auth_token`, `ct0`).
+- Connection status (connected or expired) is shown in **Settings → Integrations**.
 
-Set these in your `.env` file. See the [Setup Guide](../setup.md#environment-variables-reference) for details.
+PingCRM does **not** read `AUTH_TOKEN` or `CT0` environment variables, so there is nothing to set in `.env`. If `bird whoami` succeeds by hand inside the container, that is bird's own environment fallback and does not mean the app is connected. Only the per-user cookies count.
 
 ### Error handling (no OAuth fallback)
 
