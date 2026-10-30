@@ -16,6 +16,7 @@ from app.core.logging_config import setup_logging
 from app.core.middleware import NoStoreCacheMiddleware, RequestCorrelationMiddleware
 from app.core.version import APP_VERSION
 from app.api.auth import router as auth_router
+from app.api.auth_google import router as auth_google_router
 from app.api.contacts import router as contacts_router
 from app.api.identity import router as identity_router
 from app.api.interactions import router as interactions_router
@@ -106,6 +107,7 @@ app.add_middleware(NoStoreCacheMiddleware)
 app.include_router(contacts_router)
 app.include_router(interactions_router)
 app.include_router(auth_router)
+app.include_router(auth_google_router)
 app.include_router(suggestions_router)
 app.include_router(telegram_router)
 app.include_router(identity_router)
