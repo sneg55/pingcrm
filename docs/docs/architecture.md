@@ -49,22 +49,23 @@ description: "PingCRM's technical architecture: FastAPI backend, PostgreSQL, Red
 | `integrations/telegram_transport.py` | ~85 | Telethon client lifecycle |
 | `integrations/telegram_helpers.py` | ~150 | Contact resolution helpers |
 | `integrations/telegram_groups.py` | ~250 | Group member sync |
-| `integrations/twitter.py` | ~470 | Twitter DM/mention/reply sync |
+| `integrations/twitter.py` | ~470 | Twitter bio and activity polling, OAuth token refresh |
+| `integrations/twitter_dms.py` | ~435 | Twitter DM sync |
 | `integrations/twitter_auth.py` | ~200 | OAuth 2.0 PKCE token management |
 | `services/followup_engine.py` | ~490 | AI follow-up suggestion generation |
-| `services/scoring.py` | ~200 | Relationship score calculation |
+| `services/scoring.py` | ~220 | Relationship score calculation |
 
-Telegram sync logic is split across `telegram_bio_sync.py`, `telegram_chat_sync.py`, and `telegram_chat_batch.py`.
+Telegram sync logic is also split across `telegram_bio_sync.py`, `telegram_chat_sync.py`, and `telegram_chat_batch.py`.
 
 ---
 
 ## System Overview
 
-PingCRM is a three-tier application: a Next.js frontend communicates with a FastAPI backend, which persists data in PostgreSQL and uses Redis for caching, task brokering, and ephemeral state. Celery workers handle background sync, scoring, and AI-powered suggestion generation.
+PingCRM has three tiers. A Next.js frontend talks to a FastAPI backend, which stores data in PostgreSQL and uses Redis for caching, task brokering, and short-lived state. Celery workers run background sync, scoring, and AI suggestion generation.
 
 ```
 ┌─────────────────┐       ┌──────────────────────┐       ┌────────────────┐
-│   Next.js 15    │──────>│   FastAPI (async)     │──────>│  PostgreSQL    │
+│   Next.js 16    │──────>│   FastAPI (async)     │──────>│  PostgreSQL    │
 │   React 19      │ REST  │   Pydantic schemas    │  ORM  │  UUID PKs      │
 │   Tailwind v4   │<──────│   JWT auth            │<──────│  GIN indexes   │
 └─────────────────┘       └──────────┬───────────┘       └────────────────┘
@@ -87,7 +88,7 @@ PingCRM is a three-tier application: a Next.js frontend communicates with a Fast
                           └──────────────────────┘
 ```
 
-External services: Gmail API (OAuth), Telegram MTProto (Telethon), Twitter/X via Bird CLI (primary, cookie-based) with Twitter API v2 (OAuth 2.0 PKCE) as fallback, Anthropic Claude API (event classification and message composition), and a Chrome extension for LinkedIn profile data ingestion.
+The backend also talks to the Gmail and Google Calendar APIs (OAuth), Telegram MTProto (Telethon), Twitter/X (the Bird CLI with per-user cookies, plus the Twitter API v2 with OAuth 2.0 PKCE), the Anthropic Claude API for event classification and message composition, a WhatsApp sidecar, and a Chrome extension that pushes LinkedIn data.
 
 ---
 
@@ -97,7 +98,7 @@ The FastAPI application lives under `backend/app/` and follows a layered structu
 
 ```
 backend/app/
-├── main.py              # FastAPI app factory, CORS, router mounting
+├── main.py              # FastAPI app, CORS, middleware, router mounting, MCP mount
 ├── api/                 # Route handlers (REST endpoints)
 │   ├── contacts_routes/ # Contacts: CRUD, imports, sync, taxonomy, messaging
 │   ├── interactions.py  # Interaction timeline
@@ -105,9 +106,15 @@ backend/app/
 │   ├── identity.py      # Identity resolution scan, review, merge
 │   ├── organizations.py # Company records and stats
 │   ├── notifications.py # In-app notification feed
-│   ├── auth.py          # Login, register, OAuth callbacks
+│   ├── auth.py          # Login, register
+│   ├── auth_google.py   # Google OAuth connect and callback
 │   ├── telegram.py      # Connect, sync, send messages
 │   ├── twitter.py       # OAuth PKCE flow, polling
+│   ├── twitter_cookies.py # Per-user Bird CLI cookies
+│   ├── whatsapp.py      # WhatsApp sidecar session and sync
+│   ├── map.py           # Contact map data
+│   ├── sync_history.py  # Sync run history
+│   ├── version.py       # Update check
 │   ├── linkedin.py      # Extension data push (profiles + messages)
 │   ├── extension.py     # Chrome extension pairing
 │   ├── activity.py      # Recent activity feed
@@ -121,7 +128,7 @@ backend/app/
 
 ### API Response Envelope
 
-All endpoints return a typed generic envelope. This provides a consistent contract for the frontend:
+All endpoints return a typed generic envelope, which gives the frontend one consistent contract:
 
 ```python
 from typing import Generic, TypeVar
@@ -135,7 +142,7 @@ class Envelope(BaseModel, Generic[T]):
     meta: dict | None = None
 ```
 
-Endpoints declare `response_model=Envelope[SomePayloadType]`, giving full type safety through the stack. For example:
+Endpoints declare `response_model=Envelope[SomePayloadType]`, which keeps the types consistent from backend to frontend. For example:
 
 ```python
 @router.get("/contacts/{contact_id}", response_model=Envelope[ContactRead])
@@ -148,14 +155,15 @@ async def get_contact(contact_id: uuid.UUID, db: AsyncSession = Depends(get_db))
 
 | Service | Responsibility |
 |---|---|
-| `followup_engine` | Two-pool suggestion generator (Pool A: active relationships, Pool B: dormant revival) |
+| `followup_engine` | Two-pool suggestion generator (Pool A: active relationships, Pool B: dormant revival; candidate selection lives in `followup_pools`) |
 | `identity_resolution` | Tier 1 deterministic + Tier 2 probabilistic duplicate detection and merge |
 | `scoring` | Relationship score calculation (0-10 scale) |
+| `meeting_prep` | Pre-meeting briefs built from Calendar events |
 | `event_classifier` | LLM-based classification of tweets and bio changes into structured events |
 | `message_composer` | Context-aware AI draft generation with tone matching |
 | `auto_tagger` | LLM-driven contact tagging with taxonomy management |
 | `organization_service` | Company grouping, domain extraction, stats materialized view |
-| `contact_search` | Full-text search across contacts |
+| `contact_search` | Case-insensitive substring search across contact names, company, title, handles, and interaction text |
 | `telegram_service` | Higher-level Telegram orchestration with caching |
 | `bio_refresh` | Twitter/Telegram bio change detection and tracking |
 
@@ -163,11 +171,12 @@ async def get_contact(contact_id: uuid.UUID, db: AsyncSession = Depends(get_db))
 
 | Integration | Protocol | Auth |
 |---|---|---|
-| Gmail | Gmail API (REST) | OAuth 2.0 (per-account tokens via `GoogleAccount` model) |
+| Gmail | Gmail API (REST) | OAuth 2.0 (one token per linked Google account via the `GoogleAccount` model; sync covers every linked account) |
 | Telegram | MTProto via Telethon | Phone number + session string (encrypted at rest) |
-| Twitter/X | Bird CLI (primary) + X API v2 (fallback) | Per-user browser cookies (`auth_token` + `ct0`) / OAuth 2.0 PKCE |
-| Google Calendar | Calendar API (REST) | Shared OAuth tokens with Gmail |
-| LinkedIn | Chrome extension (browser-side scrape) | Extension ID (`CHROME_EXTENSION_ID`); no LinkedIn API key required |
+| Twitter/X | Bird CLI for bios and tweets, X API v2 for DMs | Per-user browser cookies (`auth_token` + `ct0`) pushed by the user, no server-wide cookies / OAuth 2.0 PKCE |
+| Google Calendar | Calendar API (REST) | Same Google OAuth tokens as Gmail, for every linked account |
+| LinkedIn | Chrome extension (browser-side scrape) | Pairing code; `CHROME_EXTENSION_ID` adds the extension origin to CORS. No LinkedIn API key required |
+| WhatsApp | Sidecar service (`WHATSAPP_SIDECAR_URL`) | Session paired through the sidecar |
 
 ---
 
@@ -203,45 +212,45 @@ PostgreSQL with UUID primary keys throughout. Key models and their relationships
 
 ### Key Model Fields
 
-**Contact** -- `full_name`, `emails[]` (PostgreSQL ARRAY with GIN index), `phones[]`, `company`, `organization_id`, `twitter_handle`, `twitter_bio`, `telegram_username`, `telegram_bio`, `linkedin_url`, `relationship_score` (0-10), `interaction_count`, `priority_level` (high/medium/low/archived), `tags[]`, `last_interaction_at`, `last_followup_at`, `birthday`.
+**Contact**: `full_name`, `emails[]` (PostgreSQL ARRAY with GIN index), `phones[]`, `company`, `organization_id`, `twitter_handle`, `twitter_bio`, `telegram_username`, `telegram_bio`, `linkedin_url`, `relationship_score` (0-10), `interaction_count`, `priority_level` (high/medium/low/archived), `tags[]`, `last_interaction_at`, `last_followup_at`, `birthday`.
 
-**Interaction** -- `contact_id`, `platform` (email/telegram/twitter/linkedin), `direction` (inbound/outbound), `content_preview`, `occurred_at`, `call_type` (call category, e.g. voice/video), `duration_seconds` (call length).
+**Interaction**: `contact_id`, `platform` (email/telegram/twitter/linkedin/whatsapp/meeting/manual), `direction` (inbound/outbound), `content_preview`, `occurred_at`, `call_type` (call category, e.g. voice/video), `duration_seconds` (call length).
 
-**FollowUpSuggestion** -- `contact_id`, `trigger_type` (time_based/event_based/scheduled/birthday/dormant_*), `suggested_message`, `suggested_channel`, `status` (pending/snoozed/dismissed/completed), `pool` (A/B), `snooze_until`.
+**FollowUpSuggestion**: `contact_id`, `trigger_type` (time_based/event_based/scheduled/birthday/dormant_deep/dormant_mid/dormant_event), `suggested_message`, `suggested_channel`, `status` (pending/snoozed/dismissed/sent), `pool` (A/B), `scheduled_for` (the snooze end; the API accepts it as `snooze_until` or `scheduled_for`), `dismissed_by` (user/system).
 
-**DetectedEvent** -- `contact_id`, `event_type` (job_change/fundraising/product_launch/promotion/milestone/event_attendance), `confidence` (0.0-1.0), `summary`, `source_url`.
+**DetectedEvent**: `contact_id`, `event_type` (job_change/fundraising/product_launch/promotion/milestone/event_attendance), `confidence` (0.0-1.0), `summary`, `source_url`.
 
 ### Materialized View
 
-`organization_stats_mv` aggregates per-organization metrics (contact count, total interactions, average score) and is refreshed hourly via a Celery beat task.
+`organization_stats_mv` aggregates per-organization metrics (contact count, total interactions, average score, last interaction time) over non-archived contacts. A Celery beat task refreshes it hourly.
 
 ### Notable Indexes
 
-- `ix_contacts_emails_gin` -- GIN index on `contacts.emails` for `@>` (array containment) queries
-- `ix_contacts_relationship_score` -- B-tree for score-based sorting and filtering
-- `ix_contacts_interaction_count` -- B-tree for count-based sorting
-- `ix_contacts_full_name` -- B-tree for name search
+- `ix_contacts_emails_gin`: GIN index on `contacts.emails` for `@>` (array containment) queries
+- `ix_contacts_relationship_score`: B-tree for score-based sorting and filtering
+- `ix_contacts_interaction_count`: B-tree for count-based sorting
+- `ix_contacts_full_name`: B-tree for name search
 
 ---
 
 ## Task Queue
 
-Celery with Redis as both broker and result backend. Tasks use JSON serialization and run in UTC.
+Celery uses Redis as its broker. Tasks use JSON serialization and run in UTC.
 
 ### Beat Schedule
 
 | Task | Schedule | Description |
 |---|---|---|
-| `sync_gmail_all` | Every 6 hours | Sync email threads for all connected Gmail accounts |
-| `sync_google_calendar_all` | Daily 06:00 UTC | Sync calendar events for meeting detection |
+| `sync_gmail_all` | Every 6 hours (:00) | Sync email threads for every linked Google account of each connected user |
+| `sync_google_calendar_all` | Daily 06:00 UTC | Sync calendar events from every linked Google account for meeting detection |
 | `sync_telegram_all` | Daily 03:00 UTC | Sync Telegram chat history via MTProto |
-| `poll_twitter_all` | Daily 04:00 UTC | Poll Twitter activity and bio changes |
+| `poll_twitter_all` | Daily 04:00 UTC | For users with Twitter connected, poll contact bio changes and sync DMs |
 | `update_relationship_scores` | Daily 02:00 UTC | Recalculate all contact relationship scores |
 | `generate_suggestions_all` | Daily 08:00 UTC | Run follow-up engine for all users |
 | `refresh_org_stats` | Hourly (:30) | Refresh `organization_stats_mv` materialized view |
 | `reactivate_snoozed_suggestions` | Hourly (:00) | Un-snooze suggestions past their `snooze_until` |
 | `send_weekly_digests` | Monday 09:00 UTC | Email weekly networking digest |
-| `recheck_telegram_bios_all` | Every 3 days | Re-check Telegram bios for changes |
+| `recheck_telegram_bios_all` | 05:00 UTC on days 1, 4, 7 ... 28 of each month | Re-check Telegram bios for changes |
 | `cleanup_stale_telegram_locks` | Hourly (:15) | Remove stale Telegram rate-limit locks |
 | `scan_meeting_preps` | Every 10 minutes | Scan upcoming Calendar meetings and email pre-meeting prep briefs |
 | `check_whatsapp_sessions` | Daily 01:00 UTC | Verify WhatsApp sidecar sessions are still connected |
@@ -249,9 +258,9 @@ Celery with Redis as both broker and result backend. Tasks use JSON serializatio
 
 ### Task Safety
 
-- Soft time limit: 5 minutes; hard time limit: 10 minutes
+- Default soft time limit is 5 minutes and hard limit is 10 minutes. Long tasks such as `sync_gmail_for_user` and `poll_twitter_activity` override this with 15 and 20 minutes
 - Sync failure tasks (`notify_sync_failure`) create in-app notifications when retries are exhausted
-- Each task runs its own async event loop via a `_run()` helper (Celery workers are synchronous)
+- Celery workers are synchronous, so each task runs its own async event loop through a `_run()` helper
 
 ```python
 @shared_task(name="app.services.tasks.sync_gmail_all")
@@ -263,7 +272,7 @@ def sync_gmail_all() -> dict:
 
 ## AI Pipeline
 
-All AI features use the Anthropic Claude API.
+The AI features all use the Anthropic Claude API.
 
 ### Event Classification
 
@@ -287,23 +296,23 @@ Tweet/Bio text
 
 Valid event types: `job_change`, `fundraising`, `product_launch`, `promotion`, `milestone`, `event_attendance`, `none`.
 
-LLM calls are capped at 5 concurrent requests via `asyncio.Semaphore` and use exponential backoff with jitter on transient errors (429, 500, 529).
+An `asyncio.Semaphore` caps LLM calls at 5 concurrent requests, and transient errors (429, 500, 529) are retried with exponential backoff and jitter.
 
 ### Message Composition
 
-The message composer builds context-aware drafts by assembling:
+The message composer builds each draft from these inputs:
 
-1. **Contact profile** -- name, company, title, bios, relationship score
-2. **Conversation history** -- last 5 interactions with direction labels
-3. **Tone analysis** -- `analyze_conversation_tone()` classifies past messages as formal/casual based on language indicators
-4. **Twitter context** -- recent tweets fetched via bird CLI (cached 12h in Redis) for time-based and revival triggers
-5. **Trigger context** -- reason for follow-up (time gap, detected event, birthday, dormant revival)
+1. **Contact profile**: name, company, title, bios, relationship score
+2. **Conversation history**: last 5 interactions with direction labels
+3. **Tone analysis**: `analyze_conversation_tone()` classifies past messages as formal/casual based on language indicators
+4. **Twitter context**: recent tweets fetched via bird CLI (cached 12h in Redis) for time-based and revival triggers
+5. **Trigger context**: reason for follow-up (time gap, detected event, birthday, dormant revival)
 
-The prompt instructs the model to produce 2-3 sentences matching the detected tone, referencing the trigger naturally. A template fallback is used if the API call fails.
+The prompt asks for at most 3 sentences in the detected tone that refer to the trigger. If the API call fails, the composer falls back to a template message.
 
 ### Auto-Tagging
 
-LLM-generated tags are managed through a `TagTaxonomy` system with hierarchical categories. Tags can be generated per-contact or applied in bulk via background tasks.
+LLM-generated tags are managed through a `TagTaxonomy` with hierarchical categories. Tags can be generated for one contact or applied in bulk by background tasks.
 
 ---
 
@@ -311,7 +320,7 @@ LLM-generated tags are managed through a `TagTaxonomy` system with hierarchical 
 
 ### Telegram Rate Gate
 
-Telegram's MTProto API enforces aggressive rate limits via `FloodWaitError`. PingCRM coordinates across all operations using a Redis-based rate gate:
+Telegram's MTProto API enforces strict rate limits and signals them with `FloodWaitError`. PingCRM coordinates all Telegram operations through a Redis rate gate:
 
 ```
 ┌─────────────────┐     FloodWaitError(seconds=N)
@@ -336,20 +345,20 @@ Telegram's MTProto API enforces aggressive rate limits via `FloodWaitError`. Pin
 
 Key behaviors:
 
-- **Cross-operation coordination** -- When any Telegram call triggers `FloodWaitError`, the gate is set for that user. All subsequent operations (sync, send, bio refresh, group member fetch) check the gate before connecting.
-- **Skip unchanged dialogs** -- The sync skips dialogs with no new messages since the last sync timestamp, reducing API calls.
-- **7-day bio freshness filter** -- Bio refresh skips contacts whose bio was checked within the last 7 days (`telegram_bio_checked_at`).
-- **Max contacts per bio sync** -- Capped at 100 contacts per run to stay within rate limits.
+- **Cross-operation coordination**: When any Telegram call triggers `FloodWaitError`, the gate is set for that user. Later operations (sync, send, bio refresh, group member fetch) check the gate before connecting.
+- **Skip unchanged dialogs**: The sync skips a dialog when its latest message is already stored, which saves API calls.
+- **7-day bio freshness filter**: Bio refresh skips contacts whose bio was checked within the last 7 days (`telegram_bio_checked_at`).
+- **Max contacts per bio sync**: Capped at 100 contacts per run.
 
 ### Frontend Rate Limit UX
 
-The `MessageEditor` component detects 429 responses and displays a countdown timer. When a send fails with a rate limit, it parses the `Retry-After` header and shows the remaining wait time to the user.
+The `MessageEditor` component detects 429 responses on send and blocks sending until the wait ends. The wait comes from `meta.retry_after` in the response body (the API also sets a `Retry-After` header) and defaults to 3600 seconds when absent.
 
 ---
 
 ## Identity Resolution
 
-Three tiers of duplicate detection, with a colleague guard to prevent false positives:
+Duplicate detection runs in three tiers, with guards against false positives:
 
 ```
 Contacts
@@ -385,31 +394,31 @@ Contacts
                 ▼
 ┌────────────────────────────────────┐
 │ Tier 3: Manual Review              │
-│ - UI presents side-by-side diff    │
-│ - User confirms or rejects match   │
+│ - UI lists each pending match      │
+│ - User merges or rejects the match │
 └────────────────────────────────────┘
 ```
 
 ### Blocking Keys
 
-To avoid O(n^2) comparisons, contacts are only compared if they share a blocking key:
+To avoid comparing every pair, contacts are only compared if they share a blocking key:
 
 - Name prefix (first 3 characters)
-- Name tokens (words >= 3 characters)
+- Name tokens (words of 3 or more characters)
 - Company (exact, lowercase)
 - Email domain
 - Email local part tokens (e.g., `pengcheng.chen@gmail.com` generates tokens `pengcheng`, `chen`)
 - Twitter handle, Telegram username, LinkedIn profile ID
 
-Blocks larger than 500 contacts are skipped to prevent degenerate cases (e.g., the `gmail.com` domain block).
+Blocks larger than 500 contacts are skipped, such as the `gmail.com` domain block. Two contacts from the same platform source are never compared, since their platform identifiers already differ.
 
 ### Colleague Guard
 
-When two contacts share both company and email domain but have clearly different names (similarity < 0.5), the score is capped at 0.35 -- below the 0.70 display threshold. This prevents coworkers at the same company from being flagged as duplicates.
+When two contacts share a company but have clearly different names (similarity below 0.5), the score is capped at 0.35, below the 0.70 review threshold. The same cap applies when they share an email domain and the names differ (similarity below 0.7). Coworkers at one company are therefore not flagged as duplicates.
 
 Additional guards:
-- **Short name penalty** -- Names shorter than 6 characters (e.g., "Alex", "David") without supporting signals get a 0.5x multiplier
-- **Name-only cap** -- When name is the sole available signal, the score is capped at 0.85 to force human review
+- **Single-word names**: When either contact has a one-word name and there is no email, company, or username signal, the score is multiplied by 0.4 and capped at 0.50. A company mismatch caps it at 0.35, and a weak username match caps it at 0.45.
+- **Name-only cap**: When the name is the only available signal, the score is capped at 0.70.
 
 ### Merge Behavior
 
@@ -427,15 +436,15 @@ When contacts are merged, the richer contact (by non-null field count) becomes t
 
 ### Stack
 
-- **Next.js 15** with App Router (file-based routing under `src/app/`)
+- **Next.js 16** with App Router (file-based routing under `src/app/`)
 - **React 19** with server and client components
 - **Tailwind CSS v4** for styling
 - **TanStack React Query** for server state management (via `QueryClientProvider` wrapper)
-- **openapi-fetch** for a fully typed API client generated from the backend OpenAPI spec
+- **openapi-fetch** for a typed API client generated from the backend OpenAPI spec
 
 ### API Client
 
-The typed client is generated from the backend's OpenAPI schema and uses interceptors for auth:
+The typed client is generated from the backend's OpenAPI schema. Interceptors handle auth and errors (simplified here):
 
 ```typescript
 import createClient from "openapi-fetch";
@@ -472,24 +481,26 @@ client.use({
 | `/contacts` | `ContactsPage` | Contact list with search, filters, CSV import |
 | `/contacts/[id]` | `ContactDetailPage` | Full contact profile with interaction timeline |
 | `/suggestions` | `SuggestionsPage` | Follow-up suggestions with inline message composer |
-| `/identity` | `IdentityPage` | Duplicate review queue |
+| `/identity` | `IdentityPage` | Duplicate review queue for contacts and organizations |
 | `/organizations` | `OrganizationsPage` | Company directory with aggregated stats |
 | `/notifications` | `NotificationsPage` | In-app notification feed |
-| `/settings` | `SettingsPage` | Account connections, sync preferences |
-| `/onboarding` | `OnboardingPage` | Initial setup flow |
+| `/map` | `MapPage` | Map of geocoded contacts |
+| `/settings` | `SettingsPage` | Tabs: Integrations, Import, Follow-up Rules, Tags, Account |
 
 ### Error Handling
 
-A class-based error boundary (`error.tsx`, `global-error.tsx`) wraps the application. React requires `componentDidCatch` to be a class method, so this cannot be a function component. The boundary provides recovery options and logs errors for debugging.
+The app uses the Next.js error boundary files `error.tsx` and `global-error.tsx`. The root boundary shows the error message with a retry button and reports the error to `POST /api/v1/errors`.
 
 ### Custom Hooks
+
+Hooks live in `frontend/src/hooks/`, one file per domain.
 
 | Hook | Purpose |
 |---|---|
 | `useAuth` | JWT token management, login/logout, user state |
-| `useContacts` | Contact CRUD with React Query mutations |
-| `useSuggestions` | Follow-up suggestion fetching and actions |
-| `useDashboard` | Dashboard stats and activity data |
-| `useNotifications` | Notification feed with unread count |
-| `useIdentity` | Identity match review and resolution |
-| `useTelegramSync` | Monitor Telegram sync progress |
+| `useContacts`, `useContact`, `useUpdateContact` | Contact list, detail, and mutations with React Query |
+| `useSuggestions`, `useUpdateSuggestion`, `useSendMessage` | Follow-up suggestion fetching, status changes, and sending |
+| `useDashboardStats`, `useDashboardActivity` | Dashboard stats and recent activity |
+| `useNotifications`, `useUnreadCount` | Notification feed and unread count |
+| `useIdentityMatches`, `useMergeMatch`, `useRejectMatch` | Identity match review and resolution |
+| `useTelegramSyncProgress` | Monitor Telegram sync progress |
