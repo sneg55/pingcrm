@@ -97,6 +97,21 @@ async def google_oauth_url(
     return {"data": {"url": url, "state": state}, "error": None}
 
 
+async def _keep_legacy_mailbox(caller: User, google_email: str, db: AsyncSession) -> None:
+    if not caller.google_refresh_token or google_email.lower() == caller.email.lower():
+        return
+    existing = await db.execute(
+        select(GoogleAccount.id).where(GoogleAccount.user_id == caller.id).limit(1)
+    )
+    if existing.scalar_one_or_none() is not None:
+        return
+    db.add(GoogleAccount(
+        user_id=caller.id,
+        email=caller.email,
+        refresh_token=caller.google_refresh_token,
+    ))
+
+
 class GoogleCallbackRequest(BaseModel):
     code: str
     state: str | None = None
@@ -157,6 +172,7 @@ async def google_callback(
 
     refresh_token = tokens.get("refresh_token")
     if refresh_token:
+        await _keep_legacy_mailbox(caller, google_email, db)
         caller.google_refresh_token = refresh_token
         ga_result = await db.execute(
             select(GoogleAccount).where(

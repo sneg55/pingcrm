@@ -92,6 +92,11 @@ def _process_thread_messages(
     return results
 
 
+def _backfill_rfc_id(interaction: Interaction, rfc_id: str | None) -> None:
+    if rfc_id and not (interaction.extra_data or {}).get("rfc_message_id"):
+        interaction.extra_data = {**(interaction.extra_data or {}), "rfc_message_id": rfc_id}
+
+
 async def _rfc_message_already_synced(
     rfc_id: str, contact_id: uuid.UUID, user_id: uuid.UUID, db: AsyncSession
 ) -> bool:
@@ -175,7 +180,9 @@ async def _sync_thread_messages(
                     Interaction.user_id == user.id,
                 ).limit(1)
             )
-            if existing_result.scalar_one_or_none():
+            already_synced = existing_result.scalar_one_or_none()
+            if already_synced:
+                _backfill_rfc_id(already_synced, meta.get("rfc_message_id"))
                 continue
 
             old_ref = meta["thread_id"]
@@ -192,6 +199,7 @@ async def _sync_thread_messages(
                 old_existing.direction = meta["direction"]
                 old_existing.content_preview = preview[:500] if preview else None
                 old_existing.occurred_at = meta["occurred_at"]
+                _backfill_rfc_id(old_existing, meta.get("rfc_message_id"))
                 continue
 
             rfc_id = meta.get("rfc_message_id")

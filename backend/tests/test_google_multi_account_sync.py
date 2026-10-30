@@ -302,3 +302,36 @@ async def test_gmail_message_without_rfc_header_still_syncs(db: AsyncSession, te
     assert count == 1
     rows = (await db.execute(select(Interaction))).scalars().all()
     assert not (rows[0].extra_data or {}).get("rfc_message_id")
+
+
+@pytest.mark.parametrize("login_mailbox_first", [True, False])
+@pytest.mark.asyncio
+async def test_gmail_backfills_rfc_id_on_existing_interaction_and_dedups_second_mailbox(
+    db: AsyncSession, test_user: User, login_mailbox_first: bool
+):
+    linked = [("a@example.com", "tok-a"), ("g@gmail.com", "tok-g")]
+    if not login_mailbox_first:
+        linked.reverse()
+    user = await _make_user(db, test_user, linked, "tok-a")
+    bob = await _contact(db, user, "bob@x.com", "Bob")
+    db.add(Interaction(
+        user_id=user.id,
+        contact_id=bob.id,
+        platform="email",
+        direction="inbound",
+        content_preview="old copy",
+        raw_reference_id="gmail:x1_m1",
+        occurred_at=datetime.now(UTC) - timedelta(days=1),
+    ))
+    await db.commit()
+    services = {
+        "tok-a": _gmail_service([_thread("x1", "bob@x.com", "a@example.com", rfc_id="<r@x.com>")]),
+        "tok-g": _gmail_service([_thread("x2", "bob@x.com", "a@example.com", rfc_id="<r@x.com>")]),
+    }
+
+    with patch("app.integrations.gmail._build_gmail_service", side_effect=lambda tok: services[tok]):
+        await sync_gmail_for_user(user, db)
+
+    rows = (await db.execute(select(Interaction))).scalars().all()
+    assert len(rows) == 1
+    assert rows[0].extra_data["rfc_message_id"] == "<r@x.com>"

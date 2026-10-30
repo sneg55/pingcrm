@@ -270,3 +270,38 @@ async def test_google_callback_bound_state_without_caller_rejected(
     resp = await _connect(client, state, {}, "g@gmail.com")
     assert resp.status_code == 403
     assert (await db.execute(select(func.count()).select_from(GoogleAccount))).scalar_one() == 0
+
+
+@pytest.mark.asyncio
+async def test_legacy_token_is_kept_as_account_when_linking_different_email(
+    client: AsyncClient, db: AsyncSession, test_user: User, auth_headers: dict
+):
+    test_user.google_refresh_token = "legacy-token"
+    await db.commit()
+    state = await _inject_state("legacy-link-different", str(test_user.id))
+
+    resp = await _connect(client, state, auth_headers, "g@gmail.com", refresh_token="new-token")
+
+    assert resp.status_code == 200
+    accounts = (await db.execute(select(GoogleAccount))).scalars().all()
+    assert {(a.email, a.refresh_token) for a in accounts} == {
+        (test_user.email, "legacy-token"),
+        ("g@gmail.com", "new-token"),
+    }
+    await db.refresh(test_user)
+    assert test_user.google_refresh_token == "new-token"
+
+
+@pytest.mark.asyncio
+async def test_legacy_user_reconnecting_same_email_creates_one_account(
+    client: AsyncClient, db: AsyncSession, test_user: User, auth_headers: dict
+):
+    test_user.google_refresh_token = "legacy-token"
+    await db.commit()
+    state = await _inject_state("legacy-link-same", str(test_user.id))
+
+    resp = await _connect(client, state, auth_headers, test_user.email, refresh_token="new-token")
+
+    assert resp.status_code == 200
+    accounts = (await db.execute(select(GoogleAccount))).scalars().all()
+    assert [(a.email, a.refresh_token) for a in accounts] == [(test_user.email, "new-token")]
