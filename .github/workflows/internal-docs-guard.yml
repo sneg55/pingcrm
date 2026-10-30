@@ -1,0 +1,23 @@
+name: Internal Docs Guard
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+jobs:
+  guard:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Fail if internal planning docs are tracked
+        run: |
+          found=$(git ls-files | grep -E '^docs/(plans|specs|superpowers)/' || true)
+          if [ -n "$found" ]; then
+            echo "Internal docs must not be committed to this public repository:"
+            echo "$found"
+            exit 1
+          fi
