@@ -66,7 +66,7 @@ services:
       TELEGRAM_API_HASH: ${TELEGRAM_API_HASH:-}
     volumes:
       - avatars:/app/static/avatars
-      - ./logs:/app/logs
+      - logs:/app/logs
     depends_on:
       postgres:
         condition: service_healthy
@@ -97,7 +97,7 @@ services:
       TELEGRAM_API_HASH: ${TELEGRAM_API_HASH:-}
     volumes:
       - avatars:/app/static/avatars
-      - ./logs:/app/logs
+      - logs:/app/logs
     depends_on:
       backend:
         condition: service_healthy
@@ -118,3 +118,4 @@ services:
 volumes:
   pgdata:
   avatars:
+  logs:
