@@ -13,12 +13,12 @@
   },
   "dependencies": {
     "@tanstack/react-query": "^5.60.0",
-    "axios": "^1.18.0",
+    "axios": "^1.20.0",
     "clsx": "^2.1.0",
     "date-fns": "^4.1.0",
     "lucide-react": "^0.460.0",
     "mapbox-gl": "^3.21.0",
-    "next": "16.3.3",
+    "next": "16.4.5",
     "openapi-fetch": "^0.17.0",
     "qrcode.react": "^4.2.0",
     "react": "^19.0.0",
@@ -37,11 +37,11 @@
     "micromatch": {
       "picomatch": "^2.3.1"
     },
-    "undici": "^7.29.0",
+    "undici": "^7.30.1",
     "browserslist": "^4.28.8",
     "baseline-browser-mapping": "^2.11.22",
     "@humanfs/node": "^0.16.8",
-    "sharp": "^0.35.4"
+    "sharp": "^0.35.5"
   },
   "devDependencies": {
     "@biomejs/biome": "^2.4.12",
@@ -53,9 +53,9 @@
     "@types/react": "^19.0.0",
     "@types/react-dom": "^19.0.0",
     "@vitejs/plugin-react": "^5.1.4",
-    "@vitest/coverage-v8": "^4.1.11",
+    "@vitest/coverage-v8": "^4.1.12",
     "eslint": "^9.0.0",
-    "eslint-config-next": "16.3.3",
+    "eslint-config-next": "16.4.5",
     "eslint-plugin-eslint-comments": "^3.2.0",
     "eslint-plugin-import": "^2.32.0",
     "eslint-plugin-security": "^4.0.0",
@@ -66,6 +66,6 @@
     "tailwindcss": "^4.0.0",
     "typescript": "^5.7.0",
     "typescript-eslint": "^8.59.0",
-    "vitest": "^4.1.11"
+    "vitest": "^4.1.12"
   }
 }
