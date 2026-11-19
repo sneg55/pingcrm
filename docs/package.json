@@ -44,7 +44,10 @@
     "qs": "^6.16.1",
     "colord": "^2.9.4",
     "browserslist": "^4.28.8",
-    "baseline-browser-mapping": "^2.11.22"
+    "baseline-browser-mapping": "^2.11.22",
+    "@docusaurus/core": {
+      "tinypool": "^2.1.2"
+    }
   },
   "devDependencies": {
     "@docusaurus/module-type-aliases": "3.9.2",
